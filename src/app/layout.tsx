@@ -6,12 +6,12 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://meinu-app.vercel.ap
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "Today's Order 咩nu 團購點餐平台",
-  description: '快來看看今天想吃什麼！點擊連結選擇餐廳開始點餐。',
+  title: "咩nu 揪團點餐平台",
+  description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
   manifest: '/manifest.json',
   openGraph: {
-    title: "Today's Order 咩nu 團購點餐平台",
-    description: '快來看看今天想吃什麼！點擊連結選擇餐廳開始點餐。',
+    title: "咩nu 揪團點餐平台",
+    description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
     url: siteUrl,
     siteName: '咩nu (meinu)',
     locale: 'zh_TW',

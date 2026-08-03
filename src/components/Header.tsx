@@ -22,7 +22,7 @@ export default function Header() {
   const handleSharePlatform = async () => {
     const shareUrl = window.location.origin;
     const shareData = {
-      title: "咩nu (meinu) - 隨手揪團點餐平台",
+      title: "咩nu (meinu) - 揪團點餐平台",
       text: '咩好的一天就從點餐開始！快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
       url: shareUrl,
     };
