@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   title: "咩nu 揪團點餐平台",
   description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/apple-icon.png',
+  },
   openGraph: {
     title: "咩nu 揪團點餐平台",
     description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
