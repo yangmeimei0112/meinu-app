@@ -1,0 +1,23 @@
+{
+  "name": "咩nu - 揪團點餐平台",
+  "short_name": "咩nu",
+  "description": "自由挑選喜歡的店家菜單，隨手揪團輕鬆點餐！",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
