@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import SignatureModal from '@/components/SignatureModal';
 import { supabase } from '@/lib/supabase';
-import { Store, MenuItem, PaymentMethod, Category } from '@/types/database';
+import { Store, MenuItem, Category, PaymentMethod } from '@/types/database';
 
 interface OrderItemAdmin {
   id: string;
@@ -38,7 +38,7 @@ interface GroupOrderAdmin {
   announcement: string | null;
   delivery_fee: number;
   discount_amount: number;
-  rounding_rule: string; // 'floor' | 'ceil' | 'round'
+  rounding_rule: string;
 }
 
 export default function AdminPage() {
@@ -54,8 +54,25 @@ export default function AdminPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [submissions, setSubmissions] = useState<OrderSubmissionAdmin[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // 🏪 店家新增/編輯 Modal State (對應正確的 Store 欄位)
+  const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
+  const [editingStore, setEditingStore] = useState<Store | null>(null);
+  const [storeForm, setStoreForm] = useState({ name: '', image_url: '', category_id: '' });
+
+  // 📋 菜單/品項管理 State (對應正確的 MenuItem 欄位)
+  const [selectedCrudStoreId, setSelectedCrudStoreId] = useState<string | null>(null);
+  const [crudMenuItems, setCrudMenuItems] = useState<MenuItem[]>([]);
+  const [isProductModalOpen, setIsProductModalOpen] = useState<boolean>(false);
+  const [editingProduct, setEditingProduct] = useState<MenuItem | null>(null);
+  const [productForm, setProductForm] = useState({
+    name: '',
+    price: '',
+    description: '',
+    stock_quantity: '',
+    is_sold_out: false,
+  });
 
   // 簽名 Modal Target
   const [signatureTarget, setSignatureTarget] = useState<OrderSubmissionAdmin | null>(null);
@@ -67,26 +84,14 @@ export default function AdminPage() {
   // 多選對帳
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
 
-  // 團長手動補單
-  const [showManualOrderModal, setShowManualOrderModal] = useState<boolean>(false);
-  const [manualNickname, setManualNickname] = useState<string>('');
-  const [manualSelectedItem, setManualSelectedItem] = useState<MenuItem | null>(null);
-  const [manualQty, setManualQty] = useState<number>(1);
-  const [manualNotes, setManualNotes] = useState<string>('');
-
   // 平攤設定與取整規則
   const [inputDeliveryFee, setInputDeliveryFee] = useState<number>(0);
   const [inputDiscount, setInputDiscount] = useState<number>(0);
   const [roundingRule, setRoundingRule] = useState<'floor' | 'ceil' | 'round'>('floor');
 
-  // 新增類別/店家/菜單
+  // 新增類別
   const [newCatName, setNewCatName] = useState<string>('');
-  const [newStoreName, setNewStoreName] = useState<string>('');
-  const [newStoreCatId, setNewStoreCatId] = useState<string>('');
-  const [newMenuName, setNewMenuName] = useState<string>('');
-  const [newMenuPrice, setNewMenuPrice] = useState<number>(50);
 
-  const csvFileRef = useRef<HTMLInputElement>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -96,18 +101,10 @@ export default function AdminPage() {
 
   const playChimeSound = () => {
     try {
-      const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.3);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
+      const audio = new Audio('/notification.mp3');
+      audio.play().catch((err) => {
+        console.error("播放音效失敗：", err);
+      });
     } catch (e) {
       console.error(e);
     }
@@ -129,10 +126,12 @@ export default function AdminPage() {
     if (catList) setCategories(catList as Category[]);
 
     const { data: storeList } = await supabase.from('stores').select('*');
-    if (storeList) setStores(storeList as Store[]);
-
-    const { data: pmData } = await supabase.from('payment_methods').select('*');
-    if (pmData) setPaymentMethods(pmData as PaymentMethod[]);
+    if (storeList) {
+      setStores(storeList as Store[]);
+      if (storeList.length > 0 && !selectedCrudStoreId) {
+        setSelectedCrudStoreId(storeList[0].id);
+      }
+    }
 
     const { data: groupList } = await supabase
       .from('group_orders')
@@ -172,6 +171,19 @@ export default function AdminPage() {
     setLoading(false);
   };
 
+  // 當 CRUD 選擇的店家變更時，抓取該店家的菜單品項
+  useEffect(() => {
+    if (selectedCrudStoreId) {
+      supabase
+        .from('menu_items')
+        .select('*')
+        .eq('store_id', selectedCrudStoreId)
+        .then(({ data }) => {
+          if (data) setCrudMenuItems(data as MenuItem[]);
+        });
+    }
+  }, [selectedCrudStoreId]);
+
   useEffect(() => {
     if (isUnlocked) fetchAdminData();
   }, [isUnlocked]);
@@ -198,7 +210,111 @@ export default function AdminPage() {
     };
   }, [isUnlocked, activeGroup]);
 
-  // 🔢 運費平攤算式 (計算 3 種規則)
+  // ================= 🏪 店家 CRUD 處理 =================
+  const handleSaveStore = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        name: storeForm.name,
+        image_url: storeForm.image_url || null,
+        category_id: storeForm.category_id || null,
+        is_active: true,
+      };
+
+      if (editingStore) {
+        const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id);
+        if (error) throw error;
+        showToast('✅ 店家資訊已更新！');
+      } else {
+        const { error } = await supabase.from('stores').insert([payload]);
+        if (error) throw error;
+        showToast('🎉 新增店家成功！');
+      }
+      setIsStoreModalOpen(false);
+      setEditingStore(null);
+      setStoreForm({ name: '', image_url: '', category_id: '' });
+      fetchAdminData();
+    } catch (err) {
+      console.error('儲存店家失敗:', err);
+      alert('儲存店家失敗');
+    }
+  };
+
+  const handleDeleteStore = async (storeId: string) => {
+    if (!confirm('⚠️ 確定要刪除此店家嗎？')) return;
+    try {
+      const { error } = await supabase.from('stores').delete().eq('id', storeId);
+      if (error) throw error;
+      showToast('🗑️ 店家已刪除');
+      fetchAdminData();
+    } catch (err) {
+      console.error('刪除店家失敗:', err);
+      alert('刪除失敗');
+    }
+  };
+
+  // ================= 📋 品項 CRUD 處理 =================
+  const handleSaveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCrudStoreId) return;
+    try {
+      const payload = {
+        store_id: selectedCrudStoreId,
+        name: productForm.name,
+        price: parseFloat(productForm.price),
+        description: productForm.description || null,
+        stock_quantity: productForm.stock_quantity ? parseInt(productForm.stock_quantity) : null,
+        is_sold_out: productForm.is_sold_out,
+      };
+
+      if (editingProduct) {
+        const { error } = await supabase.from('menu_items').update(payload).eq('id', editingProduct.id);
+        if (error) throw error;
+        showToast('✅ 餐點品項已更新！');
+      } else {
+        const { error } = await supabase.from('menu_items').insert([payload]);
+        if (error) throw error;
+        showToast('🎉 新增餐點品項成功！');
+      }
+      setIsProductModalOpen(false);
+      setEditingProduct(null);
+      const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
+      if (data) setCrudMenuItems(data as MenuItem[]);
+    } catch (err) {
+      console.error('儲存品項失敗:', err);
+      alert('儲存品項失敗');
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string) => {
+    if (!confirm('確定要刪除此品項嗎？')) return;
+    try {
+      const { error } = await supabase.from('menu_items').delete().eq('id', productId);
+      if (error) throw error;
+      showToast('🗑️ 品項已刪除');
+      if (selectedCrudStoreId) {
+        const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
+        if (data) setCrudMenuItems(data as MenuItem[]);
+      }
+    } catch (err) {
+      console.error('刪除品項失敗:', err);
+    }
+  };
+
+  const handleToggleProductStatus = async (prod: MenuItem) => {
+    try {
+      const { error } = await supabase.from('menu_items').update({ is_sold_out: !prod.is_sold_out }).eq('id', prod.id);
+      if (error) throw error;
+      if (selectedCrudStoreId) {
+        const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
+        if (data) setCrudMenuItems(data as MenuItem[]);
+      }
+    } catch (err) {
+      console.error('切換狀態失敗:', err);
+    }
+  };
+
+  // 🔢 運費平攤算式
   const calculateAdjustedAmount = (baseAmount: number) => {
     if (!submissions.length) return baseAmount;
     const netAdjustment = inputDeliveryFee - inputDiscount;
@@ -212,7 +328,6 @@ export default function AdminPage() {
     return Math.max(0, baseAmount + roundedShare);
   };
 
-  // 套用平攤算式
   const handleApplyFeeSplit = async () => {
     if (!activeGroup || submissions.length === 0) return;
 
@@ -237,7 +352,6 @@ export default function AdminPage() {
     fetchAdminData();
   };
 
-  // ✍️ 儲存個人手指簽名
   const handleSaveSignature = async (signatureData: string) => {
     if (!signatureTarget) return;
 
@@ -251,7 +365,6 @@ export default function AdminPage() {
     fetchAdminData();
   };
 
-  // 📦 歸檔活動
   const handleArchiveGroup = async () => {
     if (!activeGroup) return;
     if (!confirm('📦 確定要歸檔此團購活動嗎？歸檔後可隨時一鍵重開新團。')) return;
@@ -265,7 +378,6 @@ export default function AdminPage() {
     fetchAdminData();
   };
 
-  // 🔄 一鍵重開新團
   const handleReopenGroup = async (targetStoreId?: string) => {
     const sId = targetStoreId || activeGroup?.store_id;
     if (!sId) return;
@@ -284,7 +396,6 @@ export default function AdminPage() {
     }
   };
 
-  // 新增類別
   const handleAddCategory = async () => {
     if (!newCatName.trim()) return;
     await supabase.from('categories').insert({ name: newCatName.trim(), sort_order: categories.length + 1 });
@@ -293,27 +404,12 @@ export default function AdminPage() {
     fetchAdminData();
   };
 
-  // 新增店家
-  const handleAddStore = async () => {
-    if (!newStoreName.trim()) return;
-    await supabase.from('stores').insert({
-      name: newStoreName.trim(),
-      category_id: newStoreCatId || null,
-      is_active: true,
-    });
-    setNewStoreName('');
-    showToast('➕ 已新增店家！');
-    fetchAdminData();
-  };
-
-  // 單筆切換付款
   const handleTogglePaid = async (subId: string, currentStatus: boolean) => {
     await supabase.from('order_submissions').update({ is_paid: !currentStatus }).eq('id', subId);
     showToast(!currentStatus ? '✅ 標記為已付款' : '⏳ 標記為未付款');
     fetchAdminData();
   };
 
-  // 批次勾選已付款
   const handleBatchMarkPaid = async () => {
     if (!selectedSubmissionIds.length) return;
     await supabase.from('order_submissions').update({ is_paid: true }).in('id', selectedSubmissionIds);
@@ -322,12 +418,11 @@ export default function AdminPage() {
     fetchAdminData();
   };
 
-  // 私訊對帳單
   const handleCopyPersonalReceipt = (sub: OrderSubmissionAdmin) => {
     let text = `📢【咩nu 團購金額對帳】\n${sub.user_nickname} 你好！你點了：\n---\n`;
     sub.order_items.forEach((item) => {
       text += `• ${item.item_name} x ${item.quantity} ($${item.unit_price * item.quantity})\n`;
-      if (item.custom_notes) text += `  備註：${item.custom_notes}\n`;
+      if (item.custom_notes) text += `   備註：${item.custom_notes}\n`;
     });
     text += `---\n💰 個人小計：$${sub.final_amount} 元 (${sub.payment_method_name})\n`;
     text += `💳 付款狀態：${sub.is_paid ? '✅ 已收到款項' : '⏳ 待轉帳/付清'}\n感謝配合！🙏🙏`;
@@ -465,7 +560,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 🔢 運費平攤與前後對比即時預覽表格 */}
+            {/* 🔢 運費平攤設定與前後對比 */}
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
               <h3 className="text-xs font-bold text-slate-700">🔢 運費平攤設定與前後對比預覽</h3>
 
@@ -502,7 +597,6 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* 前後對比預覽小表格 */}
               {submissions.length > 0 && (
                 <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200/60 space-y-1.5">
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
@@ -545,7 +639,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 團員訂單對帳清單 (含簽名核實按鈕) */}
+            {/* 團員訂單對帳清單 */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-700">👥 團員訂單對帳清單</h3>
@@ -598,7 +692,6 @@ export default function AdminPage() {
                       ))}
                     </div>
 
-                    {/* ✍️ 手指數位簽名縮圖預覽 */}
                     {sub.signature_data && (
                       <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-400">核實簽名:</span>
@@ -643,34 +736,149 @@ export default function AdminPage() {
         {/* TAB 2: 店家/類別/菜單 CRUD */}
         {activeTab === 'crud' && (
           <div className="space-y-4">
+            
+            {/* 1. 店家管理區塊 */}
+            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-700">🏪 合作店家管理 (CRUD)</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingStore(null);
+                    setStoreForm({ name: '', image_url: '', category_id: '' });
+                    setIsStoreModalOpen(true);
+                  }}
+                  className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition"
+                >
+                  ＋ 新增店家
+                </button>
+              </div>
+
+              {/* 店家清單列表 */}
+              <div className="space-y-2 pt-1">
+                {stores.map((store) => (
+                  <div
+                    key={store.id}
+                    onClick={() => setSelectedCrudStoreId(store.id)}
+                    className={`p-3 rounded-2xl border transition flex items-center justify-between cursor-pointer ${
+                      selectedCrudStoreId === store.id ? 'border-sky-500 bg-sky-50/50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100/60'
+                    }`}
+                  >
+                    <div>
+                      <h4 className="font-extrabold text-slate-800 text-sm">{store.name}</h4>
+                      <p className="text-[10px] text-slate-400 mt-0.5">ID: {store.id}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingStore(store);
+                          setStoreForm({
+                            name: store.name,
+                            image_url: store.image_url || '',
+                            category_id: store.category_id || '',
+                          });
+                          setIsStoreModalOpen(true);
+                        }}
+                        className="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600 hover:text-sky-600 font-bold"
+                      >
+                        ✏️ 編輯
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteStore(store.id)}
+                        className="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-red-500 hover:bg-red-50 font-bold"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. 選定店家的菜單與品項管理 */}
+            {selectedCrudStoreId && (
+              <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h3 className="text-xs font-bold text-slate-700">📋 餐點品項與狀態管理</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingProduct(null);
+                      setProductForm({ name: '', price: '', description: '', stock_quantity: '', is_sold_out: false });
+                      setIsProductModalOpen(true);
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition"
+                  >
+                    ＋ 新增品項
+                  </button>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  {crudMenuItems.map((prod) => (
+                    <div key={prod.id} className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-extrabold text-slate-800">{prod.name}</p>
+                        <p className="text-[10px] text-sky-600 font-bold mt-0.5">${prod.price} 元</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleProductStatus(prod)}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                            !prod.is_sold_out ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {!prod.is_sold_out ? '販售中' : '已完售'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingProduct(prod);
+                            setProductForm({
+                              name: prod.name,
+                              price: prod.price.toString(),
+                              description: prod.description || '',
+                              stock_quantity: prod.stock_quantity?.toString() || '',
+                              is_sold_out: prod.is_sold_out,
+                            });
+                            setIsProductModalOpen(true);
+                          }}
+                          className="text-xs text-slate-500 hover:text-sky-600 font-bold px-1"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(prod.id)}
+                          className="text-xs text-red-400 hover:text-red-600 font-bold px-1"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {crudMenuItems.length === 0 && (
+                    <p className="text-center text-xs text-slate-400 py-4">此店家尚無建立任何菜單品項</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 3. 全區類別管理 */}
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
               <h3 className="text-xs font-bold text-slate-700">🏷️ 新增全區類別</h3>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="類別名稱 (如：炸物)"
+                  placeholder="類別名稱 (如：炸物、手搖飲)"
                   value={newCatName}
                   onChange={(e) => setNewCatName(e.target.value)}
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-2.5 text-xs font-bold"
                 />
                 <button type="button" onClick={handleAddCategory} className="bg-sky-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl">
-                  新增
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-slate-700">🏪 新增店家</h3>
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  placeholder="店家名稱 (如：50嵐)"
-                  value={newStoreName}
-                  onChange={(e) => setNewStoreName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-2.5 text-xs font-bold"
-                />
-                <button type="button" onClick={handleAddStore} className="w-full bg-sky-500 text-white text-xs font-bold py-2 rounded-xl">
-                  新增店家
+                  新增類別
                 </button>
               </div>
             </div>
@@ -703,6 +911,122 @@ export default function AdminPage() {
           </div>
         )}
       </main>
+
+      {/* 🏪 店家新增/編輯 Modal 視窗 */}
+      {isStoreModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-extrabold text-center">
+              {editingStore ? '✏️ 編輯店家資訊' : '🏪 新增合作店家'}
+            </h3>
+
+            <form onSubmit={handleSaveStore} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-600">店家名稱</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="例如：50嵐"
+                  value={storeForm.name}
+                  onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600">圖片網址 (Image URL)</label>
+                <input
+                  type="text"
+                  placeholder="https://..."
+                  value={storeForm.image_url}
+                  onChange={(e) => setStoreForm({ ...storeForm, image_url: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsStoreModalOpen(false)}
+                  className="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs"
+                >
+                  儲存
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 📋 餐點品項新增/編輯 Modal 視窗 */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-extrabold text-center">
+              {editingProduct ? '✏️ 編輯品項' : '➕ 新增餐點品項'}
+            </h3>
+
+            <form onSubmit={handleSaveProduct} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-600">品項名稱</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="例如：波霸奶茶"
+                  value={productForm.name}
+                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600">價格 ($)</label>
+                <input
+                  type="number"
+                  required
+                  placeholder="例如：60"
+                  value={productForm.price}
+                  onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600">餐點描述</label>
+                <input
+                  type="text"
+                  placeholder="例如：香濃好喝"
+                  value={productForm.description}
+                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsProductModalOpen(false)}
+                  className="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs"
+                >
+                  儲存
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ✍️ 數位簽名核實 Modal */}
       {signatureTarget && (
