@@ -58,7 +58,10 @@ export default function AdminPage() {
   // 🏪 店家 CRUD Modal State
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
-  const [storeForm, setStoreForm] = useState({ name: '', image_url: '', category_id: '' });
+  const [storeForm, setStoreForm] = useState({ name: '', category_id: '' });
+  const [storeImageFile, setStoreImageFile] = useState<File | null>(null);
+  const [storeImagePreview, setStoreImagePreview] = useState<string>('');
+  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
 
   // 🏷️ 類別 CRUD Modal State
   const [isCatModalOpen, setIsCatModalOpen] = useState<boolean>(false);
@@ -165,7 +168,6 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  // 切換選擇的店家時載入菜單
   useEffect(() => {
     if (selectedCrudStoreId) {
       supabase
@@ -182,7 +184,6 @@ export default function AdminPage() {
     if (isUnlocked) fetchAdminData();
   }, [isUnlocked]);
 
-  // Realtime 叮咚提醒
   useEffect(() => {
     if (!isUnlocked || !activeGroup) return;
 
@@ -200,13 +201,43 @@ export default function AdminPage() {
     };
   }, [isUnlocked, activeGroup]);
 
-  // ================= 🏪 店家 CRUD 處理 =================
+  // ================= 🏪 店家 CRUD 處理 (含檔案上傳) =================
+  const handleStoreImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setStoreImageFile(file);
+      setStoreImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const handleSaveStore = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setUploadingImage(true);
+      let imageUrl = editingStore?.image_url || null;
+
+      // 如果有選擇新圖片檔案，上傳至 Supabase Storage (請確保 Supabase 有建立名為 'stores' 的 public bucket)
+      if (storeImageFile) {
+        const fileExt = storeImageFile.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage.from('stores').upload(filePath, storeImageFile);
+        if (uploadError) {
+          console.error('上傳圖片錯誤:', uploadError);
+          // 若無 Supabase Storage，退回使用 ObjectURL 或提示，此處示範標準 Storage 取得 Public URL
+          alert('圖片上傳失敗，請確認 Supabase Storage 是否已建立名稱為 "stores" 的 Public Bucket');
+          setUploadingImage(false);
+          return;
+        }
+
+        const { data: urlData } = supabase.storage.from('stores').getPublicUrl(filePath);
+        imageUrl = urlData.publicUrl;
+      }
+
       const payload = {
         name: storeForm.name,
-        image_url: storeForm.image_url || null,
+        image_url: imageUrl,
         category_id: storeForm.category_id || null,
         is_active: true,
       };
@@ -214,19 +245,24 @@ export default function AdminPage() {
       if (editingStore) {
         const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id);
         if (error) throw error;
-        showToast('✅ 店家資訊已更新！');
+        showToast('✅ 店家資訊與照片已更新！');
       } else {
         const { error } = await supabase.from('stores').insert([payload]);
         if (error) throw error;
         showToast('🎉 新增店家成功！');
       }
+
       setIsStoreModalOpen(false);
       setEditingStore(null);
-      setStoreForm({ name: '', image_url: '', category_id: '' });
+      setStoreForm({ name: '', category_id: '' });
+      setStoreImageFile(null);
+      setStoreImagePreview('');
       fetchAdminData();
     } catch (err) {
       console.error('儲存店家失敗:', err);
       alert('儲存店家失敗');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -600,7 +636,6 @@ export default function AdminPage() {
         {/* TAB 1: 當前即時對帳 */}
         {activeTab === 'active' && (
           <>
-            {/* 儀表板 */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-900 text-white rounded-3xl p-5 shadow-md space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-extrabold flex items-center gap-2">
@@ -630,7 +665,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 🔢 運費平攤設定與前後對比 */}
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
               <h3 className="text-xs font-bold text-slate-700">🔢 運費平攤設定與前後對比預覽</h3>
 
@@ -694,7 +728,6 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* 品項下單總數 */}
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
               <h3 className="text-xs font-bold text-slate-700">📦 全團品項下單總數量</h3>
               <div className="space-y-1.5 divide-y divide-slate-50">
@@ -709,7 +742,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 團員訂單對帳清單 */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-700">👥 團員訂單對帳清單</h3>
@@ -815,7 +847,9 @@ export default function AdminPage() {
                   type="button"
                   onClick={() => {
                     setEditingStore(null);
-                    setStoreForm({ name: '', image_url: '', category_id: '' });
+                    setStoreForm({ name: '', category_id: '' });
+                    setStoreImageFile(null);
+                    setStoreImagePreview('');
                     setIsStoreModalOpen(true);
                   }}
                   className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition"
@@ -833,9 +867,16 @@ export default function AdminPage() {
                       selectedCrudStoreId === store.id ? 'border-sky-500 bg-sky-50/50' : 'border-slate-200 bg-slate-50 hover:bg-slate-100/60'
                     }`}
                   >
-                    <div>
-                      <h4 className="font-extrabold text-slate-800 text-sm">{store.name}</h4>
-                      <p className="text-[10px] text-slate-400 mt-0.5">ID: {store.id}</p>
+                    <div className="flex items-center gap-3">
+                      {store.image_url ? (
+                        <img src={store.image_url} alt={store.name} className="w-10 h-10 rounded-xl object-cover border border-slate-200" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">🏪</div>
+                      )}
+                      <div>
+                        <h4 className="font-extrabold text-slate-800 text-sm">{store.name}</h4>
+                        <p className="text-[10px] text-slate-400 mt-0.5">ID: {store.id}</p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <button
@@ -844,9 +885,10 @@ export default function AdminPage() {
                           setEditingStore(store);
                           setStoreForm({
                             name: store.name,
-                            image_url: store.image_url || '',
                             category_id: store.category_id || '',
                           });
+                          setStoreImageFile(null);
+                          setStoreImagePreview(store.image_url || '');
                           setIsStoreModalOpen(true);
                         }}
                         className="text-xs bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-slate-600 hover:text-sky-600 font-bold"
@@ -1021,7 +1063,7 @@ export default function AdminPage() {
         )}
       </main>
 
-      {/* 🏪 店家新增/編輯 Modal 視窗 */}
+      {/* 🏪 店家新增/編輯 Modal 視窗 (檔案上傳介面) */}
       {isStoreModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150">
@@ -1042,15 +1084,30 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-600">圖片網址 (Image URL)</label>
-                <input
-                  type="text"
-                  placeholder="https://..."
-                  value={storeForm.image_url}
-                  onChange={(e) => setStoreForm({ ...storeForm, image_url: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
-                />
+              {/* 📷 店家照片檔案上傳區塊 */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-600">店家封面照片</label>
+                  <span className="text-[10px] text-sky-600 font-bold">💡 建議像素：800 x 600 px</span>
+                </div>
+
+                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  {storeImagePreview ? (
+                    <img src={storeImagePreview} alt="預覽" className="w-14 h-14 rounded-lg object-cover border border-slate-300" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-slate-200 flex items-center justify-center text-xs text-slate-400 font-bold">無照片</div>
+                  )}
+
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleStoreImageChange}
+                      className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-sky-50 file:text-sky-600 hover:file:bg-sky-100 cursor-pointer"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">支援 JPG、PNG 格式 (小於 2MB)</p>
+                  </div>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -1063,9 +1120,10 @@ export default function AdminPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs"
+                  disabled={uploadingImage}
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs disabled:opacity-50"
                 >
-                  儲存
+                  {uploadingImage ? '上傳中...' : '儲存'}
                 </button>
               </div>
             </form>
