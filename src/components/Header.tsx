@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Header() {
   const [shortCode, setShortCode] = useState<string>('');
@@ -18,7 +19,6 @@ export default function Header() {
     alert(`搜尋團購快碼：#${shortCode}`);
   };
 
-  // 🔗 一鍵分享平台大廳連結 (優先呼叫手機 LINE/IG 原生分享)
   const handleSharePlatform = async () => {
     const shareUrl = window.location.origin;
     const shareData = {
@@ -41,7 +41,6 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-sky-100 shadow-xs">
-      {/* 複製成功提示條 */}
       {toastMessage && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-in fade-in zoom-in duration-200">
           {toastMessage}
@@ -49,15 +48,18 @@ export default function Header() {
       )}
 
       <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-2">
-        {/* 品牌名稱 */}
-        <Link href="/" className="flex items-center gap-1.5 shrink-0">
-          <span className="text-2xl">🍱</span>
-          <h1 className="text-xl font-extrabold bg-gradient-to-r from-sky-500 to-blue-600 bg-clip-text text-transparent">
-            咩nu
-          </h1>
+        {/* SVG Logo 引入 */}
+        <Link href="/" className="flex items-center gap-1.5 shrink-0 hover:opacity-80 transition">
+          <Image
+            src="/logoforfrontpage.svg" // 👈 改為 svg 檔名
+            alt="咩nu Logo"
+            width={110}
+            height={36}
+            priority
+            className="object-contain h-8 w-auto"
+          />
         </Link>
 
-        {/* 4 位數團購快碼搜尋 */}
         <form onSubmit={handleSearchCode} className="flex-1 max-w-[130px]">
           <div className="relative">
             <input
@@ -77,7 +79,6 @@ export default function Header() {
           </div>
         </form>
 
-        {/* 🔗 1. 平台首頁分享按鈕 */}
         <button
           type="button"
           onClick={handleSharePlatform}
@@ -87,7 +88,6 @@ export default function Header() {
           <span>🔗 分享</span>
         </button>
 
-        {/* 📱 團購 QR Code 按鈕 */}
         <button
           type="button"
           onClick={() => alert('📱 現場 QR Code 展示：掃碼直達「咩nu」大廳')}
