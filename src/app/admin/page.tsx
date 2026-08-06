@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import SignatureModal from '@/components/SignatureModal';
 import { supabase } from '@/lib/supabase';
-import { Store, MenuItem, Category, PaymentMethod } from '@/types/database';
+import { Store, MenuItem, Category, CustomGroup, CustomOption } from '@/types/database';
 
 interface OrderItemAdmin {
   id: string;
@@ -53,15 +53,19 @@ export default function AdminPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [submissions, setSubmissions] = useState<OrderSubmissionAdmin[]>([]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 🏪 店家新增/編輯 Modal State (對應正確的 Store 欄位)
+  // 🏪 店家 CRUD Modal State
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [storeForm, setStoreForm] = useState({ name: '', image_url: '', category_id: '' });
 
-  // 📋 菜單/品項管理 State (對應正確的 MenuItem 欄位)
+  // 🏷️ 類別 CRUD Modal State
+  const [isCatModalOpen, setIsCatModalOpen] = useState<boolean>(false);
+  const [editingCat, setEditingCat] = useState<Category | null>(null);
+  const [catNameInput, setCatNameInput] = useState<string>('');
+
+  // 📋 菜單/品項與動態客製化選項 CRUD State
   const [selectedCrudStoreId, setSelectedCrudStoreId] = useState<string | null>(null);
   const [crudMenuItems, setCrudMenuItems] = useState<MenuItem[]>([]);
   const [isProductModalOpen, setIsProductModalOpen] = useState<boolean>(false);
@@ -73,24 +77,22 @@ export default function AdminPage() {
     stock_quantity: '',
     is_sold_out: false,
   });
+  const [productCustomGroups, setProductCustomGroups] = useState<CustomGroup[]>([]);
 
-  // 簽名 Modal Target
+  // ✍️ 簽名 Modal Target
   const [signatureTarget, setSignatureTarget] = useState<OrderSubmissionAdmin | null>(null);
 
-  // 找零 Modal Target
+  // 💵 找零 Modal Target
   const [changeModalTarget, setChangeModalTarget] = useState<{ nickname: string; amount: number } | null>(null);
   const [receivedCash, setReceivedCash] = useState<string>('');
 
-  // 多選對帳
+  // ☑️ 多選對帳
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
 
-  // 平攤設定與取整規則
+  // 🔢 平攤設定與取整規則
   const [inputDeliveryFee, setInputDeliveryFee] = useState<number>(0);
   const [inputDiscount, setInputDiscount] = useState<number>(0);
   const [roundingRule, setRoundingRule] = useState<'floor' | 'ceil' | 'round'>('floor');
-
-  // 新增類別
-  const [newCatName, setNewCatName] = useState<string>('');
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -102,9 +104,7 @@ export default function AdminPage() {
   const playChimeSound = () => {
     try {
       const audio = new Audio('/notification.mp3');
-      audio.play().catch((err) => {
-        console.error("播放音效失敗：", err);
-      });
+      audio.play().catch((err) => console.error('播放音效失敗：', err));
     } catch (e) {
       console.error(e);
     }
@@ -133,10 +133,7 @@ export default function AdminPage() {
       }
     }
 
-    const { data: groupList } = await supabase
-      .from('group_orders')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data: groupList } = await supabase.from('group_orders').select('*').order('created_at', { ascending: false });
 
     if (groupList) {
       const openGroup = groupList.find((g) => g.status !== 'completed');
@@ -150,9 +147,6 @@ export default function AdminPage() {
         setInputDeliveryFee(g.delivery_fee || 0);
         setInputDiscount(g.discount_amount || 0);
         setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
-
-        const { data: mItems } = await supabase.from('menu_items').select('*').eq('store_id', g.store_id);
-        if (mItems) setMenuItems(mItems as MenuItem[]);
 
         const { data: subList } = await supabase
           .from('order_submissions')
@@ -171,7 +165,7 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  // 當 CRUD 選擇的店家變更時，抓取該店家的菜單品項
+  // 切換選擇的店家時載入菜單
   useEffect(() => {
     if (selectedCrudStoreId) {
       supabase
@@ -194,15 +188,11 @@ export default function AdminPage() {
 
     const channel = supabase
       .channel('admin-realtime')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'order_submissions' },
-        (payload) => {
-          playChimeSound();
-          showToast(`🔔 叮咚！收到 ${payload.new.user_nickname} 的新訂單！`);
-          fetchAdminData();
-        }
-      )
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_submissions' }, (payload) => {
+        playChimeSound();
+        showToast(`🔔 叮咚！收到 ${payload.new.user_nickname} 的新訂單！`);
+        fetchAdminData();
+      })
       .subscribe();
 
     return () => {
@@ -241,7 +231,7 @@ export default function AdminPage() {
   };
 
   const handleDeleteStore = async (storeId: string) => {
-    if (!confirm('⚠️ 確定要刪除此店家嗎？')) return;
+    if (!confirm('⚠️ 確定要刪除此店家嗎？此動作無法復原！')) return;
     try {
       const { error } = await supabase.from('stores').delete().eq('id', storeId);
       if (error) throw error;
@@ -253,36 +243,133 @@ export default function AdminPage() {
     }
   };
 
-  // ================= 📋 品項 CRUD 處理 =================
+  // ================= 🏷️ 類別 CRUD 與排序處理 =================
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!catNameInput.trim()) return;
+    try {
+      if (editingCat) {
+        const { error } = await supabase.from('categories').update({ name: catNameInput.trim() }).eq('id', editingCat.id);
+        if (error) throw error;
+        showToast('✅ 類別名稱已修改！');
+      } else {
+        const { error } = await supabase.from('categories').insert([{ name: catNameInput.trim(), sort_order: categories.length + 1 }]);
+        if (error) throw error;
+        showToast('➕ 已新增類別！');
+      }
+      setIsCatModalOpen(false);
+      setEditingCat(null);
+      setCatNameInput('');
+      fetchAdminData();
+    } catch (err) {
+      console.error('儲存類別失敗:', err);
+    }
+  };
+
+  const handleDeleteCategory = async (catId: string) => {
+    if (!confirm('確定要刪除此類別嗎？')) return;
+    try {
+      const { error } = await supabase.from('categories').delete().eq('id', catId);
+      if (error) throw error;
+      showToast('🗑️ 類別已刪除');
+      fetchAdminData();
+    } catch (err) {
+      console.error('刪除類別失敗:', err);
+    }
+  };
+
+  const handleMoveCategory = async (cat: Category, direction: 'up' | 'down') => {
+    const index = categories.findIndex((c) => c.id === cat.id);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= categories.length) return;
+
+    const targetCat = categories[targetIndex];
+    await supabase.from('categories').update({ sort_order: targetCat.sort_order }).eq('id', cat.id);
+    await supabase.from('categories').update({ sort_order: cat.sort_order }).eq('id', targetCat.id);
+    fetchAdminData();
+  };
+
+  // ================= 📋 餐點與動態客製化選項 CRUD 處理 =================
+  const handleOpenItemModal = (item?: MenuItem) => {
+    if (item) {
+      setEditingProduct(item);
+      setProductForm({
+        name: item.name,
+        price: item.price.toString(),
+        description: item.description || '',
+        stock_quantity: item.stock_quantity?.toString() || '',
+        is_sold_out: item.is_sold_out,
+      });
+      setProductCustomGroups(item.custom_groups || []);
+    } else {
+      setEditingProduct(null);
+      setProductForm({ name: '', price: '', description: '', stock_quantity: '', is_sold_out: false });
+      setProductCustomGroups([]);
+    }
+    setIsProductModalOpen(true);
+  };
+
+  const handleAddCustomGroup = () => {
+    const newGroup: CustomGroup = {
+      id: Date.now().toString(),
+      title: '',
+      type: 'single',
+      options: [{ id: Date.now().toString() + '_1', name: '', price_adjustment: 0 }],
+    };
+    setProductCustomGroups([...productCustomGroups, newGroup]);
+  };
+
+  const handleRemoveCustomGroup = (groupId: string) => {
+    setProductCustomGroups(productCustomGroups.filter((g) => g.id !== groupId));
+  };
+
+  const handleAddOptionToGroup = (groupId: string) => {
+    setProductCustomGroups(
+      productCustomGroups.map((g) =>
+        g.id === groupId
+          ? { ...g, options: [...g.options, { id: Date.now().toString(), name: '', price_adjustment: 0 }] }
+          : g
+      )
+    );
+  };
+
+  const handleRemoveOptionFromGroup = (groupId: string, optionId: string) => {
+    setProductCustomGroups(
+      productCustomGroups.map((g) =>
+        g.id === groupId ? { ...g, options: g.options.filter((o) => o.id !== optionId) } : g
+      )
+    );
+  };
+
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCrudStoreId) return;
+    if (!selectedCrudStoreId || !productForm.name.trim()) return;
     try {
       const payload = {
         store_id: selectedCrudStoreId,
-        name: productForm.name,
-        price: parseFloat(productForm.price),
-        description: productForm.description || null,
+        name: productForm.name.trim(),
+        price: parseFloat(productForm.price) || 0,
+        description: productForm.description.trim() || null,
         stock_quantity: productForm.stock_quantity ? parseInt(productForm.stock_quantity) : null,
         is_sold_out: productForm.is_sold_out,
+        custom_groups: productCustomGroups,
       };
 
       if (editingProduct) {
         const { error } = await supabase.from('menu_items').update(payload).eq('id', editingProduct.id);
         if (error) throw error;
-        showToast('✅ 餐點品項已更新！');
+        showToast('✅ 餐點與客製化選項已更新！');
       } else {
         const { error } = await supabase.from('menu_items').insert([payload]);
         if (error) throw error;
-        showToast('🎉 新增餐點品項成功！');
+        showToast('🎉 新增餐點成功！');
       }
       setIsProductModalOpen(false);
-      setEditingProduct(null);
       const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
       if (data) setCrudMenuItems(data as MenuItem[]);
     } catch (err) {
-      console.error('儲存品項失敗:', err);
-      alert('儲存品項失敗');
+      console.error('儲存餐點失敗:', err);
+      alert('儲存餐點失敗');
     }
   };
 
@@ -333,10 +420,7 @@ export default function AdminPage() {
 
     for (const sub of submissions) {
       const adjustedFinal = calculateAdjustedAmount(sub.total_amount);
-      await supabase
-        .from('order_submissions')
-        .update({ final_amount: adjustedFinal })
-        .eq('id', sub.id);
+      await supabase.from('order_submissions').update({ final_amount: adjustedFinal }).eq('id', sub.id);
     }
 
     await supabase
@@ -355,10 +439,7 @@ export default function AdminPage() {
   const handleSaveSignature = async (signatureData: string) => {
     if (!signatureTarget) return;
 
-    await supabase
-      .from('order_submissions')
-      .update({ signature_data: signatureData, is_paid: true })
-      .eq('id', signatureTarget.id);
+    await supabase.from('order_submissions').update({ signature_data: signatureData, is_paid: true }).eq('id', signatureTarget.id);
 
     showToast(`✍️ 已存入 ${signatureTarget.user_nickname} 的對帳手繪簽名！`);
     setSignatureTarget(null);
@@ -369,10 +450,7 @@ export default function AdminPage() {
     if (!activeGroup) return;
     if (!confirm('📦 確定要歸檔此團購活動嗎？歸檔後可隨時一鍵重開新團。')) return;
 
-    await supabase
-      .from('group_orders')
-      .update({ status: 'completed' })
-      .eq('id', activeGroup.id);
+    await supabase.from('group_orders').update({ status: 'completed' }).eq('id', activeGroup.id);
 
     showToast('📦 團購活動已移入歷史歸檔！');
     fetchAdminData();
@@ -394,14 +472,6 @@ export default function AdminPage() {
       showToast('🎉 已成功以此店家一鍵開新團！');
       fetchAdminData();
     }
-  };
-
-  const handleAddCategory = async () => {
-    if (!newCatName.trim()) return;
-    await supabase.from('categories').insert({ name: newCatName.trim(), sort_order: categories.length + 1 });
-    setNewCatName('');
-    showToast('➕ 已新增分類！');
-    fetchAdminData();
   };
 
   const handleTogglePaid = async (subId: string, currentStatus: boolean) => {
@@ -517,7 +587,7 @@ export default function AdminPage() {
             onClick={() => setActiveTab('crud')}
             className={`py-2 rounded-xl transition ${activeTab === 'crud' ? 'bg-white text-sky-600 shadow-xs' : ''}`}
           >
-            店家/菜單CRUD
+            菜單/店家CRUD
           </button>
           <button
             onClick={() => setActiveTab('archive')}
@@ -733,7 +803,7 @@ export default function AdminPage() {
           </>
         )}
 
-        {/* TAB 2: 店家/類別/菜單 CRUD */}
+        {/* TAB 2: 店家/類別/菜單與客製化選項 CRUD */}
         {activeTab === 'crud' && (
           <div className="space-y-4">
             
@@ -754,7 +824,6 @@ export default function AdminPage() {
                 </button>
               </div>
 
-              {/* 店家清單列表 */}
               <div className="space-y-2 pt-1">
                 {stores.map((store) => (
                   <div
@@ -797,21 +866,79 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* 2. 選定店家的菜單與品項管理 */}
+            {/* 2. 全區類別與排序管理 */}
+            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-700">🏷️ 全區菜單類別與排序管理</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingCat(null);
+                    setCatNameInput('');
+                    setIsCatModalOpen(true);
+                  }}
+                  className="bg-sky-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition"
+                >
+                  ＋ 新增類別
+                </button>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                {categories.map((cat, idx) => (
+                  <div key={cat.id} className="p-2.5 bg-slate-50 border border-slate-200/60 rounded-2xl flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">{cat.name}</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={idx === 0}
+                        onClick={() => handleMoveCategory(cat, 'up')}
+                        className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-600 disabled:opacity-30 font-bold"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        disabled={idx === categories.length - 1}
+                        onClick={() => handleMoveCategory(cat, 'down')}
+                        className="text-[10px] bg-white border border-slate-200 px-2 py-0.5 rounded-md text-slate-600 disabled:opacity-30 font-bold"
+                      >
+                        ▼
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingCat(cat);
+                          setCatNameInput(cat.name);
+                          setIsCatModalOpen(true);
+                        }}
+                        className="text-xs text-slate-500 hover:text-sky-600 font-bold px-1"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        className="text-xs text-red-400 hover:text-red-600 font-bold px-1"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. 選定店家的餐點與動態客製化選項管理 */}
             {selectedCrudStoreId && (
               <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <h3 className="text-xs font-bold text-slate-700">📋 餐點品項與狀態管理</h3>
+                  <h3 className="text-xs font-bold text-slate-700">📋 餐點品項與動態客製化選項</h3>
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setProductForm({ name: '', price: '', description: '', stock_quantity: '', is_sold_out: false });
-                      setIsProductModalOpen(true);
-                    }}
+                    onClick={() => handleOpenItemModal()}
                     className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition"
                   >
-                    ＋ 新增品項
+                    ＋ 新增餐點
                   </button>
                 </div>
 
@@ -819,8 +946,17 @@ export default function AdminPage() {
                   {crudMenuItems.map((prod) => (
                     <div key={prod.id} className="bg-slate-50 border border-slate-200/60 p-3 rounded-2xl flex items-center justify-between">
                       <div>
-                        <p className="text-xs font-extrabold text-slate-800">{prod.name}</p>
-                        <p className="text-[10px] text-sky-600 font-bold mt-0.5">${prod.price} 元</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-extrabold text-slate-800">{prod.name}</p>
+                          <p className="text-[10px] text-sky-600 font-bold">${prod.price} 元</p>
+                        </div>
+                        {prod.custom_groups && prod.custom_groups.length > 0 ? (
+                          <p className="text-[10px] text-slate-400 mt-1">
+                            含 {prod.custom_groups.length} 個客製化區塊: {prod.custom_groups.map((g) => g.title).join(', ')}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-slate-400 mt-0.5">無客製化選項 (點擊直接加入購物車)</p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -834,17 +970,7 @@ export default function AdminPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setEditingProduct(prod);
-                            setProductForm({
-                              name: prod.name,
-                              price: prod.price.toString(),
-                              description: prod.description || '',
-                              stock_quantity: prod.stock_quantity?.toString() || '',
-                              is_sold_out: prod.is_sold_out,
-                            });
-                            setIsProductModalOpen(true);
-                          }}
+                          onClick={() => handleOpenItemModal(prod)}
                           className="text-xs text-slate-500 hover:text-sky-600 font-bold px-1"
                         >
                           ✏️
@@ -865,23 +991,6 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
-            {/* 3. 全區類別管理 */}
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-slate-700">🏷️ 新增全區類別</h3>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="類別名稱 (如：炸物、手搖飲)"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-2.5 text-xs font-bold"
-                />
-                <button type="button" onClick={handleAddCategory} className="bg-sky-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl">
-                  新增類別
-                </button>
-              </div>
-            </div>
           </div>
         )}
 
@@ -964,51 +1073,245 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* 📋 餐點品項新增/編輯 Modal 視窗 */}
-      {isProductModalOpen && (
+      {/* 🏷️ 類別新增/編輯 Modal 視窗 */}
+      {isCatModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150">
             <h3 className="text-base font-extrabold text-center">
-              {editingProduct ? '✏️ 編輯品項' : '➕ 新增餐點品項'}
+              {editingCat ? '✏️ 編輯類別名稱' : '🏷️ 新增類別'}
+            </h3>
+
+            <form onSubmit={handleSaveCategory} className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-600">類別名稱</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="例如：手搖飲料"
+                  value={catNameInput}
+                  onChange={(e) => setCatNameInput(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCatModalOpen(false)}
+                  className="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs"
+                >
+                  儲存
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 📋 餐點與動態客製化選項 Modal 視窗 */}
+      {isProductModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base font-extrabold text-center">
+              {editingProduct ? '✏️ 編輯餐點與客製化選項' : '➕ 新增餐點'}
             </h3>
 
             <form onSubmit={handleSaveProduct} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-600">品項名稱</label>
+                <label className="text-xs font-bold text-slate-600">餐點名稱</label>
                 <input
                   type="text"
                   required
-                  placeholder="例如：波霸奶茶"
+                  placeholder="例如：珍珠奶茶"
                   value={productForm.name}
                   onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-600">價格 ($)</label>
-                <input
-                  type="number"
-                  required
-                  placeholder="例如：60"
-                  value={productForm.price}
-                  onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-slate-600">基本價格 ($)</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="例如：50"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-600">庫存數量 (選填)</label>
+                  <input
+                    type="number"
+                    placeholder="不限數量"
+                    value={productForm.stock_quantity}
+                    onChange={(e) => setProductForm({ ...productForm, stock_quantity: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-600">餐點描述</label>
+                <label className="text-xs font-bold text-slate-600">餐點描述 (選填)</label>
                 <input
                   type="text"
-                  placeholder="例如：香濃好喝"
+                  placeholder="例如：香濃好喝人氣款"
                   value={productForm.description}
                   onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
                 />
               </div>
 
-              <div className="flex gap-2 pt-2">
+              {/* 🛠️ 動態客製化選項邏輯設定區 */}
+              <div className="pt-3 border-t border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-800">🛠️ 動態客製化選項區塊</span>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomGroup}
+                    className="bg-sky-50 text-sky-600 text-xs font-bold px-3 py-1.5 rounded-xl border border-sky-200 hover:bg-sky-100"
+                  >
+                    ＋ 新增客製化區塊
+                  </button>
+                </div>
+
+                {productCustomGroups.length === 0 ? (
+                  <p className="text-center text-xs text-slate-400 py-3 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    未設定客製化區塊 (前台將視為基本款，點擊直接加入購物車)
+                  </p>
+                ) : (
+                  productCustomGroups.map((group) => (
+                    <div key={group.id} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex gap-2 items-center">
+                        <input
+                          type="text"
+                          required
+                          placeholder="區塊標題 (例：甜度、加料)"
+                          value={group.title}
+                          onChange={(e) =>
+                            setProductCustomGroups(
+                              productCustomGroups.map((g) => (g.id === group.id ? { ...g, title: e.target.value } : g))
+                            )
+                          }
+                          className="flex-1 bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold"
+                        />
+                        <select
+                          value={group.type}
+                          onChange={(e) =>
+                            setProductCustomGroups(
+                              productCustomGroups.map((g) =>
+                                g.id === group.id ? { ...g, type: e.target.value as 'single' | 'any' | 'limit' } : g
+                              )
+                            )
+                          }
+                          className="bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold"
+                        >
+                          <option value="single">單選 (Must 1)</option>
+                          <option value="any">多選不限 (Any)</option>
+                          <option value="limit">限制數量 (Limit N)</option>
+                        </select>
+
+                        {group.type === 'limit' && (
+                          <input
+                            type="number"
+                            placeholder="N"
+                            value={group.limit_number || 1}
+                            onChange={(e) =>
+                              setProductCustomGroups(
+                                productCustomGroups.map((g) =>
+                                  g.id === group.id ? { ...g, limit_number: Number(e.target.value) } : g
+                                )
+                              )
+                            }
+                            className="w-14 bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold text-center"
+                          />
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCustomGroup(group.id)}
+                          className="text-xs text-red-500 hover:bg-red-50 p-1.5 rounded-lg font-bold"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+
+                      {/* 子選項列表 */}
+                      <div className="space-y-2 pl-2 border-l-2 border-slate-200">
+                        {group.options.map((opt) => (
+                          <div key={opt.id} className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              required
+                              placeholder="選項名稱 (例：半糖)"
+                              value={opt.name}
+                              onChange={(e) =>
+                                setProductCustomGroups(
+                                  productCustomGroups.map((g) =>
+                                    g.id === group.id
+                                      ? {
+                                          ...g,
+                                          options: g.options.map((o) =>
+                                            o.id === opt.id ? { ...o, name: e.target.value } : o
+                                          ),
+                                        }
+                                      : g
+                                  )
+                                )
+                              }
+                              className="flex-1 bg-white border border-slate-200 p-1.5 rounded-lg text-xs font-bold"
+                            />
+                            <input
+                              type="number"
+                              placeholder="加價 ($)"
+                              value={opt.price_adjustment}
+                              onChange={(e) =>
+                                setProductCustomGroups(
+                                  productCustomGroups.map((g) =>
+                                    g.id === group.id
+                                      ? {
+                                          ...g,
+                                          options: g.options.map((o) =>
+                                            o.id === opt.id ? { ...o, price_adjustment: Number(e.target.value) } : o
+                                          ),
+                                        }
+                                      : g
+                                  )
+                                )
+                              }
+                              className="w-20 bg-white border border-slate-200 p-1.5 rounded-lg text-xs font-bold"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveOptionFromGroup(group.id, opt.id)}
+                              className="text-xs text-red-400 hover:text-red-600 font-bold px-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => handleAddOptionToGroup(group.id)}
+                          className="text-[10px] text-sky-600 font-bold hover:underline"
+                        >
+                          ＋ 新增子選項
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-3">
                 <button
                   type="button"
                   onClick={() => setIsProductModalOpen(false)}
@@ -1020,7 +1323,7 @@ export default function AdminPage() {
                   type="submit"
                   className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs"
                 >
-                  儲存
+                  儲存餐點
                 </button>
               </div>
             </form>
@@ -1066,7 +1369,10 @@ export default function AdminPage() {
 
             <button
               type="button"
-              onClick={() => { setChangeModalTarget(null); setReceivedCash(''); }}
+              onClick={() => {
+                setChangeModalTarget(null);
+                setReceivedCash('');
+              }}
               className="w-full bg-slate-100 text-slate-700 font-bold py-2 rounded-xl text-xs"
             >
               關閉
