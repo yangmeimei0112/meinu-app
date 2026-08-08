@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import SignatureModal from '@/components/SignatureModal';
 import { supabase } from '@/lib/supabase';
-import { Store, MenuItem, Category, CustomGroup, CustomOption } from '@/types/database';
+import { Store, MenuItem, Category, CustomGroup } from '@/types/database';
 
 interface OrderItemAdmin {
   id: string;
@@ -216,7 +216,6 @@ export default function AdminPage() {
       setUploadingImage(true);
       let imageUrl = editingStore?.image_url || null;
 
-      // 如果有選擇新圖片檔案，上傳至 Supabase Storage (請確保 Supabase 有建立名為 'stores' 的 public bucket)
       if (storeImageFile) {
         const fileExt = storeImageFile.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
@@ -225,7 +224,6 @@ export default function AdminPage() {
         const { error: uploadError } = await supabase.storage.from('stores').upload(filePath, storeImageFile);
         if (uploadError) {
           console.error('上傳圖片錯誤:', uploadError);
-          // 若無 Supabase Storage，退回使用 ObjectURL 或提示，此處示範標準 Storage 取得 Public URL
           alert('圖片上傳失敗，請確認 Supabase Storage 是否已建立名稱為 "stores" 的 Public Bucket');
           setUploadingImage(false);
           return;
@@ -258,9 +256,9 @@ export default function AdminPage() {
       setStoreImageFile(null);
       setStoreImagePreview('');
       fetchAdminData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('儲存店家失敗:', err);
-      alert('儲存店家失敗');
+      alert(`儲存店家失敗: ${err?.message || err}`);
     } finally {
       setUploadingImage(false);
     }
@@ -403,9 +401,9 @@ export default function AdminPage() {
       setIsProductModalOpen(false);
       const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
       if (data) setCrudMenuItems(data as MenuItem[]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('儲存餐點失敗:', err);
-      alert('儲存餐點失敗');
+      alert(`儲存餐點失敗：${err?.message || err?.details || '請確認 Supabase menu_items 包含 custom_groups 欄位與 RLS 權限'}`);
     }
   };
 
@@ -524,7 +522,8 @@ export default function AdminPage() {
     fetchAdminData();
   };
 
-  const handleCopyPersonalReceipt = (sub: OrderSubmissionAdmin) => {
+  // 📋 相容複製剪貼簿對帳單
+  const handleCopyPersonalReceipt = async (sub: OrderSubmissionAdmin) => {
     let text = `📢【咩nu 團購金額對帳】\n${sub.user_nickname} 你好！你點了：\n---\n`;
     sub.order_items.forEach((item) => {
       text += `• ${item.item_name} x ${item.quantity} ($${item.unit_price * item.quantity})\n`;
@@ -533,8 +532,25 @@ export default function AdminPage() {
     text += `---\n💰 個人小計：$${sub.final_amount} 元 (${sub.payment_method_name})\n`;
     text += `💳 付款狀態：${sub.is_paid ? '✅ 已收到款項' : '⏳ 待轉帳/付清'}\n感謝配合！🙏🙏`;
 
-    navigator.clipboard.writeText(text);
-    showToast(`📋 已複製 ${sub.user_nickname} 的個人對帳單！`);
+    try {
+      if (navigator.clipboard && document.hasFocus()) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      showToast(`📋 已複製 ${sub.user_nickname} 的個人對帳單！`);
+    } catch (err) {
+      console.error('複製失敗:', err);
+      showToast('⚠️ 複製失敗，請手動選擇文字複製');
+    }
   };
 
   const itemSummary = submissions.reduce((acc, sub) => {
@@ -1063,7 +1079,7 @@ export default function AdminPage() {
         )}
       </main>
 
-      {/* 🏪 店家新增/編輯 Modal 視窗 (檔案上傳介面) */}
+      {/* 🏪 店家新增/編輯 Modal 視窗 */}
       {isStoreModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150">
@@ -1084,7 +1100,6 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* 📷 店家照片檔案上傳區塊 */}
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-slate-600">店家封面照片</label>
@@ -1182,7 +1197,7 @@ export default function AdminPage() {
 
             <form onSubmit={handleSaveProduct} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-600">餐點名稱</label>
+                <label className="text-xs font-bold text-slate-600">餐點名稱 *</label>
                 <input
                   type="text"
                   required
@@ -1195,7 +1210,7 @@ export default function AdminPage() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-bold text-slate-600">基本價格 ($)</label>
+                  <label className="text-xs font-bold text-slate-600">基本價格 ($) *</label>
                   <input
                     type="number"
                     required
