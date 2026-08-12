@@ -46,10 +46,10 @@ export default function HomePage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       <Header />
 
-      <main className="max-w-md mx-auto px-4 pt-4 space-y-4">
+      <main className="flex-1 max-w-md mx-auto w-full px-4 pt-4 space-y-4 pb-12">
         {/* 淡藍主題歡迎橫幅 */}
         <div className="bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 text-white rounded-3xl p-5 shadow-sm">
           <p className="text-xs font-medium opacity-90">👋 歡迎來到</p>
@@ -158,6 +158,18 @@ export default function HomePage() {
           )}
         </div>
       </main>
+
+      {/* 底部版本號與後台登入按鈕 */}
+      <footer className="w-full py-6 flex items-center justify-center gap-2 text-xs text-gray-400 border-t border-slate-200">
+        <span>v1.0.0</span>
+        <span>•</span>
+        <Link
+          href="/admin" 
+          className="hover:text-gray-600 transition-colors hover:underline underline-offset-2"
+        >
+          後台登入
+        </Link>
+      </footer>
     </div>
   );
 }

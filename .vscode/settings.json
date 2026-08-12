@@ -7,6 +7,10 @@
         "/^Set-Location 'C:\\\\Users\\\\yaco9\\\\Desktop\\\\menu-app'; npx tsc --noEmit --pretty false; if \\(\\$LASTEXITCODE -eq 0\\) \\{ Write-Host 'TS_OK'; \\} else \\{ Write-Host 'TS_FAIL'; exit \\$LASTEXITCODE \\}$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^npm install -D cross-env$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
