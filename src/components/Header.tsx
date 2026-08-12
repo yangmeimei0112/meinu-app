@@ -3,10 +3,12 @@
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import QRCodeModal from './QRCodeModal';
 
 export default function Header() {
   const [shortCode, setShortCode] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -51,7 +53,7 @@ export default function Header() {
         {/* SVG Logo 引入 */}
         <Link href="/" className="flex items-center gap-1.5 shrink-0 hover:opacity-80 transition">
           <Image
-            src="/logoforfrontpage.svg" // 👈 改為 svg 檔名
+            src="/logoforfrontpage.svg"
             alt="咩nu Logo"
             width={110}
             height={36}
@@ -90,13 +92,20 @@ export default function Header() {
 
         <button
           type="button"
-          onClick={() => alert('📱 現場 QR Code 展示：掃碼直達「咩nu」大廳')}
+          onClick={() => setIsQrModalOpen(true)}
           className="bg-sky-50 hover:bg-sky-100 text-sky-600 p-2 rounded-full text-sm font-medium transition flex items-center justify-center shrink-0 border border-sky-100"
           title="顯示現場 QR Code"
         >
           📱
         </button>
       </div>
+
+      <QRCodeModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        url={typeof window !== 'undefined' ? window.location.origin : ''}
+        title="掃碼直達「咩nu」大廳"
+      />
     </header>
   );
 }
