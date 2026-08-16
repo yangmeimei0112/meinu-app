@@ -39,4 +39,4 @@ export interface GroupOrderAdmin {
 
 export type AdminViewMode = 'desktop' | 'mobile';
 
-
+export type { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';

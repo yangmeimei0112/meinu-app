@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { MenuItem, PaymentMethod, SoldOutOption, GroupOrderAdmin } from './admin-types';
+import type { MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
+import { GroupOrderAdmin } from './admin-types';
 import { supabase } from '@/lib/supabase';
 
 interface AdminManualOrderModalProps {

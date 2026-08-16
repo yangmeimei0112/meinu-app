@@ -10,19 +10,16 @@ import { Store, MenuItem, Category, CustomGroup, PaymentMethod, SoldOutOption } 
 import { AdminArchiveSection } from './AdminArchiveSection';
 import { AdminCrudSection } from '@/app/admin/AdminCrudSection';
 import { AdminDashboardSection } from './AdminDashboardSection';
-import { GroupOrderAdmin, OrderSubmissionAdmin, AdminViewMode } from './admin-types';
+import { GroupOrderAdmin, OrderSubmissionAdmin } from './admin-types';
 import AdminPrintModal from './AdminPrintModal';
 import AdminManualOrderModal from './AdminManualOrderModal';
 import AdminBatchImportModal from './AdminBatchImportModal';
-import AdminGroupSettingsModal from './AdminGroupSettingsModal';
 import { compressImageToWebP } from '@/lib/image-compress';
 
 export default function AdminPageContent() {
   const [passcode, setPasscode] = useState<string>('');
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive'>('active');
-  const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
-  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
 
   const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
   const [archivedGroups, setArchivedGroups] = useState<GroupOrderAdmin[]>([]);
@@ -32,45 +29,6 @@ export default function AdminPageContent() {
   const [soldOutOptions, setSoldOutOptions] = useState<SoldOutOption[]>([]);
   const [submissions, setSubmissions] = useState<OrderSubmissionAdmin[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-
-  // 初始化視圖模式與音效偏好
-  useEffect(() => {
-    try {
-      const savedMode = localStorage.getItem('menu_app_admin_view_mode') as AdminViewMode;
-      if (savedMode === 'mobile' || savedMode === 'desktop') {
-        setViewMode(savedMode);
-      } else if (typeof window !== 'undefined' && window.innerWidth < 768) {
-        setViewMode('mobile');
-      }
-
-      const savedSound = localStorage.getItem('menu_app_admin_sound_enabled');
-      if (savedSound !== null) {
-        setIsSoundEnabled(savedSound === 'true');
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
-  const handleToggleViewMode = (mode: AdminViewMode) => {
-    setViewMode(mode);
-    try {
-      localStorage.setItem('menu_app_admin_view_mode', mode);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleToggleSound = () => {
-    const nextSound = !isSoundEnabled;
-    setIsSoundEnabled(nextSound);
-    try {
-      localStorage.setItem('menu_app_admin_sound_enabled', String(nextSound));
-    } catch (e) {
-      console.error(e);
-    }
-    showToast(nextSound ? '🔔 已開啟新訂單叮咚音效提醒' : '🔕 已靜音新訂單提示音效');
-  };
 
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
@@ -96,11 +54,10 @@ export default function AdminPageContent() {
   });
   const [productCustomGroups, setProductCustomGroups] = useState<CustomGroup[]>([]);
 
-  // 額外彈窗控制：列印、人工代點、CSV 批次匯入、團購設定
+  // 額外彈窗控制：列印、人工代點、CSV 批次匯入
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState<boolean>(false);
   const [isBatchImportModalOpen, setIsBatchImportModalOpen] = useState<boolean>(false);
-  const [isGroupSettingsModalOpen, setIsGroupSettingsModalOpen] = useState<boolean>(false);
 
   const [signatureTarget, setSignatureTarget] = useState<OrderSubmissionAdmin | null>(null);
   const [changeModalTarget, setChangeModalTarget] = useState<{ nickname: string; amount: number } | null>(null);
@@ -119,7 +76,6 @@ export default function AdminPageContent() {
   };
 
   const playChimeSound = () => {
-    if (!isSoundEnabled) return;
     try {
       const audio = new Audio('/notification.mp3');
       audio.play().catch((err) => console.error('播放音效失敗：', err));
@@ -151,11 +107,6 @@ export default function AdminPageContent() {
       }
     }
 
-    const { data: allMenuItems } = await supabase.from('menu_items').select('*');
-    if (allMenuItems) {
-      setCrudMenuItems(allMenuItems as MenuItem[]);
-    }
-
     const { data: paymentList } = await supabase
       .from('payment_methods')
       .select('*')
@@ -172,61 +123,33 @@ export default function AdminPageContent() {
       setSoldOutOptions(soldOutOptionList as SoldOutOption[]);
     }
 
-    // 抓取進行中的團購活動
-    const { data: activeGroupData } = await supabase
-      .from('group_orders')
-      .select('*')
-      .neq('status', 'completed')
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const { data: groupList } = await supabase.from('group_orders').select('*').order('created_at', { ascending: false });
 
-    if (activeGroupData && activeGroupData.length > 0) {
-      const activeObj = activeGroupData[0] as GroupOrderAdmin;
-      setActiveGroup(activeObj);
-      setInputDeliveryFee(activeObj.delivery_fee);
-      setInputDiscount(activeObj.discount_amount);
-      setRoundingRule((activeObj.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
+    if (groupList) {
+      const openGroup = groupList.find((g) => g.status !== 'completed');
+      const completedList = groupList.filter((g) => g.status === 'completed');
 
-      const { data: subList } = await supabase
-        .from('order_submissions')
-        .select(`
-          id,
-          group_order_id,
-          order_number,
-          user_nickname,
-          payment_method_name,
-          sold_out_option,
-          total_amount,
-          final_amount,
-          is_paid,
-          signature_data,
-          created_at,
-          order_items (
-            id,
-            item_name,
-            quantity,
-            unit_price,
-            custom_notes
-          )
-        `)
-        .eq('group_order_id', activeObj.id)
-        .order('created_at', { ascending: true });
+      setArchivedGroups(completedList as GroupOrderAdmin[]);
 
-      if (subList) setSubmissions(subList as unknown as OrderSubmissionAdmin[]);
-    } else {
-      setActiveGroup(null);
-      setSubmissions([]);
-    }
+      if (openGroup) {
+        const g = openGroup as GroupOrderAdmin;
+        setActiveGroup(g);
+        setInputDeliveryFee(g.delivery_fee || 0);
+        setInputDiscount(g.discount_amount || 0);
+        setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
 
-    // 抓取歷史封存活動
-    const { data: archivedList } = await supabase
-      .from('group_orders')
-      .select('*')
-      .eq('status', 'completed')
-      .order('created_at', { ascending: false });
+        const { data: subList } = await supabase
+          .from('order_submissions')
+          .select(`
+            id, order_number, user_nickname, payment_method_name, sold_out_option,
+            total_amount, final_amount, is_paid, signature_data, created_at,
+            order_items (id, item_name, quantity, unit_price, custom_notes)
+          `)
+          .eq('group_order_id', g.id)
+          .order('created_at', { ascending: false });
 
-    if (archivedList) {
-      setArchivedGroups(archivedList as GroupOrderAdmin[]);
+        if (subList) setSubmissions(subList as unknown as OrderSubmissionAdmin[]);
+      }
     }
 
     setLoading(false);
@@ -285,21 +208,6 @@ export default function AdminPageContent() {
         setStoreImagePreview(URL.createObjectURL(file));
       }
     }
-  };
-
-  const handleOpenStoreModal = (store?: Store) => {
-    if (store) {
-      setEditingStore(store);
-      setStoreForm({ name: store.name, category_id: store.category_id || '' });
-      setStoreImagePreview(store.image_url || '');
-      setStoreImageFile(null);
-    } else {
-      setEditingStore(null);
-      setStoreForm({ name: '', category_id: categories[0]?.id || '' });
-      setStoreImagePreview('');
-      setStoreImageFile(null);
-    }
-    setIsStoreModalOpen(true);
   };
 
   const handleSaveStore = async (e: React.FormEvent) => {
@@ -506,12 +414,8 @@ export default function AdminPageContent() {
     fetchAdminData();
   };
 
-  const handleOpenItemModal = (item?: MenuItem, storeId?: string) => {
-    if (storeId) {
-      setSelectedCrudStoreId(storeId);
-    }
+  const handleOpenItemModal = (item?: MenuItem) => {
     if (item) {
-      if (item.store_id) setSelectedCrudStoreId(item.store_id);
       setEditingProduct(item);
       setProductForm({
         name: item.name,
@@ -563,11 +467,10 @@ export default function AdminPageContent() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetStoreId = editingProduct?.store_id || selectedCrudStoreId;
-    if (!targetStoreId || !productForm.name.trim()) return;
+    if (!selectedCrudStoreId || !productForm.name.trim()) return;
     try {
       const payload = {
-        store_id: targetStoreId,
+        store_id: selectedCrudStoreId,
         name: productForm.name.trim(),
         price: parseFloat(productForm.price) || 0,
         description: productForm.description.trim() || null,
@@ -586,7 +489,7 @@ export default function AdminPageContent() {
         showToast('🎉 新增餐點成功！');
       }
       setIsProductModalOpen(false);
-      const { data } = await supabase.from('menu_items').select('*');
+      const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
       if (data) setCrudMenuItems(data as MenuItem[]);
     } catch (err: any) {
       console.error('儲存餐點失敗:', err);
@@ -600,8 +503,10 @@ export default function AdminPageContent() {
       const { error } = await supabase.from('menu_items').delete().eq('id', productId);
       if (error) throw error;
       showToast('🗑️ 品項已刪除');
-      const { data } = await supabase.from('menu_items').select('*');
-      if (data) setCrudMenuItems(data as MenuItem[]);
+      if (selectedCrudStoreId) {
+        const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
+        if (data) setCrudMenuItems(data as MenuItem[]);
+      }
     } catch (err) {
       console.error('刪除品項失敗:', err);
     }
@@ -611,8 +516,10 @@ export default function AdminPageContent() {
     try {
       const { error } = await supabase.from('menu_items').update({ is_sold_out: !prod.is_sold_out }).eq('id', prod.id);
       if (error) throw error;
-      const { data } = await supabase.from('menu_items').select('*');
-      if (data) setCrudMenuItems(data as MenuItem[]);
+      if (selectedCrudStoreId) {
+        const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
+        if (data) setCrudMenuItems(data as MenuItem[]);
+      }
     } catch (err) {
       console.error('切換狀態失敗:', err);
     }
@@ -697,34 +604,6 @@ export default function AdminPageContent() {
     } else {
       alert('建立新團購活動失敗');
     }
-  };
-
-  const handleSaveGroupSettings = async (updatedData: {
-    title: string;
-    store_id: string;
-    announcement: string | null;
-    enable_min_threshold: boolean;
-    min_threshold_amount: number;
-    enable_countdown: boolean;
-    cutoff_time: string | null;
-    enable_budget_limit: boolean;
-    budget_limit_amount: number;
-  }) => {
-    if (activeGroup) {
-      const { error } = await supabase
-        .from('group_orders')
-        .update(updatedData)
-        .eq('id', activeGroup.id);
-      if (error) throw error;
-      showToast('✅ 團購活動設定與公告已更新！');
-    } else {
-      const { error } = await supabase
-        .from('group_orders')
-        .insert([{ ...updatedData, status: 'open' }]);
-      if (error) throw error;
-      showToast('🎉 新團購活動已成功發起！');
-    }
-    fetchAdminData();
   };
 
   const handleToggleGroupStatus = async (newStatus: 'open' | 'closed') => {
@@ -928,10 +807,8 @@ export default function AdminPageContent() {
     );
   }
 
-  const isDesktop = viewMode === 'desktop';
-
   return (
-    <div className={`min-h-screen pb-20 transition-colors ${isDesktop ? 'bg-slate-100/70' : 'bg-slate-200/60'}`}>
+    <div className="min-h-screen bg-slate-50 pb-20">
       <OfflineBanner />
       <Header />
 
@@ -941,126 +818,51 @@ export default function AdminPageContent() {
         </div>
       )}
 
-      {/* 根據視圖模式套用容器寬度：Desktop (max-w-7xl) vs Mobile (max-w-md 居中手機外框) */}
-      <main
-        className={`mx-auto pt-4 space-y-4 transition-all duration-300 ${
-          isDesktop
-            ? 'max-w-7xl px-4 sm:px-6 lg:px-8'
-            : 'max-w-md px-4 min-h-screen bg-slate-50 border-x border-slate-200/80 shadow-2xl rounded-3xl my-2'
-        }`}
-      >
-        {/* 頂部操作與模式切換 Bar */}
-        <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-sky-600 transition py-1"
-            >
-              ‹ 返回點餐大廳
-            </Link>
-            <span className="text-slate-300">|</span>
-            <span className="text-xs font-extrabold text-slate-800 truncate">
-              {activeGroup?.title || '咩nu 團購活動後台'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* 音效開關 */}
-            <button
-              type="button"
-              onClick={handleToggleSound}
-              className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 border ${
-                isSoundEnabled
-                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-              }`}
-              title={isSoundEnabled ? '新訂單音效提醒：已開啟（點擊靜音）' : '新訂單音效提醒：已靜音（點擊開啟）'}
-            >
-              <span>{isSoundEnabled ? '🔔 叮咚提醒: 開' : '🔕 叮咚提醒: 關'}</span>
-            </button>
-
-            {/* 螢幕模式切換器 */}
-            <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => handleToggleViewMode('desktop')}
-                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
-                  viewMode === 'desktop'
-                    ? 'bg-white text-sky-700 shadow-xs font-extrabold'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-                title="切換為電腦寬螢幕多欄排版"
-              >
-                <span>💻</span>
-                <span>電腦比例</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleToggleViewMode('mobile')}
-                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
-                  viewMode === 'mobile'
-                    ? 'bg-white text-sky-700 shadow-xs font-extrabold'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-                title="切換為手機單手聚焦排版"
-              >
-                <span>📱</span>
-                <span>手機比例</span>
-              </button>
-            </div>
-
-            <button
-              onClick={() => setIsUnlocked(false)}
-              className="text-xs bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold px-3 py-1.5 rounded-xl transition"
-            >
-              🔒 上鎖登出
-            </button>
-          </div>
+      <main className="max-w-md mx-auto px-4 pt-3 space-y-4">
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-sky-500 transition py-1"
+          >
+            ‹ 返回「咩nu」大廳
+          </Link>
+          <button
+            onClick={() => setIsUnlocked(false)}
+            className="text-xs text-slate-400 hover:text-red-500 transition font-semibold"
+          >
+            🔒 上鎖登出
+          </button>
         </div>
 
-        {/* 核心分頁 Tab 切換 */}
-        <div className={`flex bg-white p-1.5 rounded-2xl border border-slate-100 shadow-xs text-xs font-bold text-slate-600 ${isDesktop ? 'max-w-md' : 'w-full'}`}>
+        <div className="grid grid-cols-3 gap-1 bg-slate-200/60 p-1 rounded-2xl text-xs font-bold text-slate-600">
           <button
             onClick={() => setActiveTab('active')}
-            className={`flex-1 py-2 rounded-xl transition ${
-              activeTab === 'active'
-                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
+            className={`py-2 rounded-xl transition ${activeTab === 'active' ? 'bg-white text-sky-600 shadow-xs' : ''}`}
           >
             即時對帳
           </button>
           <button
             onClick={() => setActiveTab('crud')}
-            className={`flex-1 py-2 rounded-xl transition ${
-              activeTab === 'crud'
-                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
+            className={`py-2 rounded-xl transition ${activeTab === 'crud' ? 'bg-white text-sky-600 shadow-xs' : ''}`}
           >
             菜單/店家CRUD
           </button>
           <button
             onClick={() => setActiveTab('archive')}
-            className={`flex-1 py-2 rounded-xl transition ${
-              activeTab === 'archive'
-                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
+            className={`py-2 rounded-xl transition ${activeTab === 'archive' ? 'bg-white text-sky-600 shadow-xs' : ''}`}
           >
             歷史歸檔 ({archivedGroups.length})
           </button>
         </div>
 
         {loading ? (
-          <div className="bg-white rounded-3xl p-10 text-center text-slate-400 text-xs animate-pulse border border-slate-100">
+          <div className="bg-white rounded-3xl p-8 text-center text-slate-400 text-xs animate-pulse border border-slate-100">
             正在載入後台數據與團購活動資料...
           </div>
         ) : (
           <>
             {activeTab === 'active' && (
               <AdminDashboardSection
-                viewMode={viewMode}
                 groupOrder={activeGroup}
                 submissions={submissions}
                 itemSummary={itemSummary}
@@ -1086,7 +888,6 @@ export default function AdminPageContent() {
                 handleExportOrdersCSV={handleExportOrdersCSV}
                 handleOpenPrintModal={() => setIsPrintModalOpen(true)}
                 handleOpenManualOrderModal={() => setIsManualOrderModalOpen(true)}
-                handleOpenGroupSettingsModal={() => setIsGroupSettingsModalOpen(true)}
                 handleArchiveGroup={handleArchiveGroup}
                 handleToggleGroupStatus={handleToggleGroupStatus}
               />
@@ -1094,27 +895,21 @@ export default function AdminPageContent() {
 
             {activeTab === 'crud' && (
               <AdminCrudSection
-                viewMode={viewMode}
                 stores={stores}
                 categories={categories}
                 menuItems={crudMenuItems}
                 paymentMethods={paymentMethods}
                 soldOutOptions={soldOutOptions}
-                onCreateStore={() => handleOpenStoreModal()}
-                onEditStore={(store: Store) => handleOpenStoreModal(store)}
+                selectedStoreId={selectedCrudStoreId}
+                setSelectedStoreId={setSelectedCrudStoreId}
+                onCreateStore={() => setIsStoreModalOpen(true)}
                 onDeleteStore={handleDeleteStore}
-                onCreateCategory={() => {
-                  setEditingCat(null);
-                  setCatNameInput('');
-                  setIsCatModalOpen(true);
-                }}
                 onMoveCategory={(id: string, direction: 'up' | 'down') => {
                   const category = categories.find((c) => c.id === id);
                   if (category) handleMoveCategory(category, direction);
                 }}
                 onDeleteCategory={handleDeleteCategory}
                 onCreateMenuItem={() => handleOpenItemModal()}
-                onEditMenuItem={(item: MenuItem) => handleOpenItemModal(item)}
                 onOpenBatchImportModal={() => setIsBatchImportModalOpen(true)}
                 onDeleteMenuItem={handleDeleteProduct}
                 onToggleMenuItemActive={(id: string) => {
@@ -1144,17 +939,41 @@ export default function AdminPageContent() {
                   setSoldOutOptions((prev) => prev.map((x) => (x.id === id ? { ...x, title } : x)));
                 }}
                 onSaveSoldOutOption={handleSaveSoldOutOption}
+                onUpdateStore={(id: string, field: 'name' | 'category_id' | 'image_url' | 'is_active', value: string | boolean | null) => {
+                  if (field === 'name' && typeof value === 'string') {
+                    setStores((prev) => prev.map((store) => (store.id === id ? { ...store, name: value } : store)));
+                  }
+                  if (field === 'category_id' && (value === null || typeof value === 'string')) {
+                    setStores((prev) => prev.map((store) => (store.id === id ? { ...store, category_id: value } : store)));
+                  }
+                  if (field === 'image_url' && (value === null || typeof value === 'string')) {
+                    setStores((prev) => prev.map((store) => (store.id === id ? { ...store, image_url: value } : store)));
+                  }
+                }}
                 onUpdateCategory={(id: string, field: 'name', value: string) => {
                   if (field === 'name' && typeof value === 'string') {
                     setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, name: value } : cat)));
                   }
+                }}
+                onUpdateMenuItem={(id: string, field: keyof MenuItem, value: string | number | boolean | null) => {
+                  setCrudMenuItems((prev) =>
+                    prev.map((item) => {
+                      if (item.id !== id) return item;
+                      const next: MenuItem = { ...item };
+                      if (field === 'name' && typeof value === 'string') next.name = value;
+                      if (field === 'price' && typeof value === 'number') next.price = value;
+                      if (field === 'description' && (value === null || typeof value === 'string')) next.description = value;
+                      if (field === 'stock_quantity' && (value === null || typeof value === 'number')) next.stock_quantity = value;
+                      if (field === 'is_sold_out' && typeof value === 'boolean') next.is_sold_out = value;
+                      return next;
+                    })
+                  );
                 }}
               />
             )}
 
             {activeTab === 'archive' && (
               <AdminArchiveSection
-                viewMode={viewMode}
                 archivedGroups={archivedGroups}
                 selectedArchivedGroupId={selectedArchivedGroupId}
                 setSelectedArchivedGroupId={setSelectedArchivedGroupId}
@@ -1165,7 +984,7 @@ export default function AdminPageContent() {
         )}
       </main>
 
-      {/* 友善列印檢視 Modal */}
+      {/* 列印與分餐杯貼標籤 Modal */}
       <AdminPrintModal
         isOpen={isPrintModalOpen}
         onClose={() => setIsPrintModalOpen(false)}
@@ -1193,15 +1012,6 @@ export default function AdminPageContent() {
         storeId={selectedCrudStoreId}
         storeName={stores.find((s) => s.id === selectedCrudStoreId)?.name || '當前店家'}
         onImportSuccess={fetchAdminData}
-      />
-
-      {/* 團購活動與公告進階設定 Modal */}
-      <AdminGroupSettingsModal
-        isOpen={isGroupSettingsModalOpen}
-        onClose={() => setIsGroupSettingsModalOpen(false)}
-        groupOrder={activeGroup}
-        stores={stores}
-        onSaveGroupSettings={handleSaveGroupSettings}
       />
 
       {isStoreModalOpen && (
