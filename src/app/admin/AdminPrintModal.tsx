@@ -121,7 +121,7 @@ export default function AdminPrintModal({
                         <p className="text-[10px] text-slate-400 font-mono">#{sub.order_number}</p>
                       </td>
                       <td className="p-2 border-r border-slate-200 align-top space-y-0.5">
-                        {sub.order_items.map((i) => (
+                        {(sub.order_items || []).map((i) => (
                           <div key={i.id} className="text-[11px] text-slate-700">
                             <span>• {i.item_name} x {i.quantity}</span>
                             {i.custom_notes && (

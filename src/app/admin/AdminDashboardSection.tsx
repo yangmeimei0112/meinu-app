@@ -397,7 +397,7 @@ export function AdminDashboardSection({
 
                 {/* 餐點明細 */}
                 <div className="space-y-1">
-                  {sub.order_items.map((item) => (
+                  {(sub.order_items || []).map((item) => (
                     <div
                       key={item.id}
                       className="text-xs flex items-start justify-between text-slate-600 font-medium"

@@ -137,7 +137,7 @@ export default function AdminPageContent() {
     }
   };
 
-  const fetchAdminData = async () => {
+  const fetchAdminData = async (targetGroupId?: string) => {
     setLoading(true);
 
     try {
@@ -165,17 +165,28 @@ export default function AdminPageContent() {
       if (menuRes.data) setCrudMenuItems(menuRes.data as MenuItem[]);
 
       if (groupRes.data) {
-        const openGroup = groupRes.data.find((g) => g.status !== 'completed');
+        const openGroups = groupRes.data.filter((g) => g.status !== 'completed');
         const completedList = groupRes.data.filter((g) => g.status === 'completed');
 
         setArchivedGroups(completedList as GroupOrderAdmin[]);
 
-        if (openGroup) {
-          const g = openGroup as GroupOrderAdmin;
-          setActiveGroup(g);
-          setInputDeliveryFee(g.delivery_fee || 0);
-          setInputDiscount(g.discount_amount || 0);
-          setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
+        // 優先匹配傳入的 targetGroupId，或保留當前選中的 activeGroup，否則取最新進行中的團購
+        let selectedGroup: GroupOrderAdmin | null = null;
+        if (targetGroupId) {
+          selectedGroup = (openGroups.find((g) => g.id === targetGroupId) as GroupOrderAdmin) || null;
+        }
+        if (!selectedGroup && activeGroup) {
+          selectedGroup = (openGroups.find((g) => g.id === activeGroup.id) as GroupOrderAdmin) || null;
+        }
+        if (!selectedGroup && openGroups.length > 0) {
+          selectedGroup = openGroups[0] as GroupOrderAdmin;
+        }
+
+        if (selectedGroup) {
+          setActiveGroup(selectedGroup);
+          setInputDeliveryFee(selectedGroup.delivery_fee || 0);
+          setInputDiscount(selectedGroup.discount_amount || 0);
+          setRoundingRule((selectedGroup.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
 
           const { data: subList } = await supabase
             .from('order_submissions')
@@ -184,7 +195,7 @@ export default function AdminPageContent() {
               total_amount, final_amount, is_paid, signature_data, created_at,
               order_items (id, item_name, quantity, unit_price, custom_notes)
             `)
-            .eq('group_order_id', g.id)
+            .eq('group_order_id', selectedGroup.id)
             .order('created_at', { ascending: false });
 
           if (subList) setSubmissions(subList as unknown as OrderSubmissionAdmin[]);
@@ -217,21 +228,48 @@ export default function AdminPageContent() {
   }, [isUnlocked]);
 
   useEffect(() => {
-    if (!isUnlocked || !activeGroup) return;
+    if (!isUnlocked) return;
 
+    // 即時訂單、明細與活動變更監聽頻道
     const channel = supabase
-      .channel('admin-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'order_submissions' }, (payload) => {
-        playChimeSound();
-        showToast(`🔔 叮咚！收到 ${payload.new.user_nickname} 的新訂單！`);
-        fetchAdminData();
-      })
+      .channel('admin-realtime-global')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_submissions' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            playChimeSound();
+            const nickname = (payload.new as { user_nickname?: string })?.user_nickname || '團員';
+            showToast(`🔔 叮咚！收到 ${nickname} 的新訂單！`);
+          }
+          const incomingGroupId = (payload.new as { group_order_id?: string })?.group_order_id;
+          fetchAdminData(incomingGroupId);
+          // 雙重延遲更新，確保關聯的 order_items 批次寫入後立即渲染出完整餐點明細
+          setTimeout(() => {
+            fetchAdminData(incomingGroupId);
+          }, 500);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'order_items' },
+        () => {
+          fetchAdminData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'group_orders' },
+        () => {
+          fetchAdminData();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isUnlocked, activeGroup]);
+  }, [isUnlocked]);
 
   const handleStoreImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -723,7 +761,7 @@ export default function AdminPageContent() {
 
   const handleCopyPersonalReceipt = async (sub: OrderSubmissionAdmin) => {
     let text = `📢【咩nu 團購金額對帳】\n${sub.user_nickname} 你好！你點了：\n---\n`;
-    sub.order_items.forEach((item) => {
+    (sub.order_items || []).forEach((item) => {
       text += `• ${item.item_name} x ${item.quantity} ($${item.unit_price * item.quantity})\n`;
       if (item.custom_notes) text += `   備註：${item.custom_notes}\n`;
     });
@@ -827,7 +865,7 @@ export default function AdminPageContent() {
 
     let csvContent = '單號,訂購人,點餐明細,付款方式,缺貨備案,金額,付款狀態,送單時間\n';
     submissions.forEach((sub) => {
-      const itemsText = sub.order_items
+      const itemsText = (sub.order_items || [])
         .map((i) => `${i.item_name} x ${i.quantity}${i.custom_notes ? ` (${i.custom_notes})` : ''}`)
         .join('; ');
       const isPaidText = sub.is_paid ? '已付款' : '未付款';

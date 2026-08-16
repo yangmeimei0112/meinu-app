@@ -236,33 +236,45 @@ function CheckoutContent() {
 
       if (subErr || !submission) throw new Error('建立訂單失敗');
 
-      for (const item of cartItems) {
-        const customOptionText = item.selectedOptions
+      // 批次寫入所有訂單餐點項目
+      const itemsPayload = cartItems.map((item) => {
+        const customOptionText = (item.selectedOptions || [])
           .map((opt) => `${opt.groupTitle}:${opt.itemName}`)
           .join(', ');
+        return {
+          submission_id: submission.id,
+          item_name: item.name,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          custom_notes: item.customNotes
+            ? `${customOptionText} | 備註: ${item.customNotes}`
+            : customOptionText,
+        };
+      });
 
-        const { data: orderItem, error: itemErr } = await supabase
-          .from('order_items')
-          .insert({
-            submission_id: submission.id,
-            item_name: item.name,
-            quantity: item.quantity,
-            unit_price: item.unitPrice,
-            custom_notes: item.customNotes
-              ? `${customOptionText} | 備註: ${item.customNotes}`
-              : customOptionText,
-          })
-          .select('id')
-          .single();
+      const { data: insertedItems, error: itemsErr } = await supabase
+        .from('order_items')
+        .insert(itemsPayload)
+        .select('id, item_name');
 
-        if (!itemErr && orderItem) {
-          for (const opt of item.selectedOptions) {
-            await supabase.from('order_item_options').insert({
-              order_item_id: orderItem.id,
-              option_name: `${opt.groupTitle}: ${opt.itemName}`,
-              extra_price: opt.extraPrice,
+      if (!itemsErr && insertedItems) {
+        // 寫入規格選項
+        const optionsPayload: { order_item_id: string; option_name: string; extra_price: number }[] = [];
+        insertedItems.forEach((orderItem, idx) => {
+          const originalCartItem = cartItems[idx];
+          if (originalCartItem?.selectedOptions) {
+            originalCartItem.selectedOptions.forEach((opt) => {
+              optionsPayload.push({
+                order_item_id: orderItem.id,
+                option_name: `${opt.groupTitle}: ${opt.itemName}`,
+                extra_price: opt.extraPrice,
+              });
             });
           }
+        });
+
+        if (optionsPayload.length > 0) {
+          await supabase.from('order_item_options').insert(optionsPayload);
         }
       }
 
