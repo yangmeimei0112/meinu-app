@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -24,6 +24,14 @@ export default function AdminPageContent() {
   const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive'>('active');
   const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
   const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
+
+  // 🔔 即時音效狀態 Ref 保持最新值，防止閉包陷阱
+  const isSoundEnabledRef = useRef<boolean>(true);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    isSoundEnabledRef.current = isSoundEnabled;
+  }, [isSoundEnabled]);
 
   const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
   const [archivedGroups, setArchivedGroups] = useState<GroupOrderAdmin[]>([]);
@@ -65,12 +73,17 @@ export default function AdminPageContent() {
   const handleToggleSound = () => {
     const nextSound = !isSoundEnabled;
     setIsSoundEnabled(nextSound);
+    isSoundEnabledRef.current = nextSound;
     try {
       localStorage.setItem('menu_app_admin_sound_enabled', String(nextSound));
     } catch (e) {
       console.error(e);
     }
-    showToast(nextSound ? '🔔 已開啟新訂單叮咚提醒' : '🔕 已靜音新訂單提示音效');
+    if (nextSound) {
+      initAudio();
+      playChimeSound();
+    }
+    showToast(nextSound ? '🔔 已開啟新訂單叮咚提醒（試聽播放）' : '🔕 已靜音新訂單提示音效');
   };
 
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
@@ -119,13 +132,75 @@ export default function AdminPageContent() {
     setTimeout(() => setToastMessage(null), 2500);
   };
 
+  const initAudio = () => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (!audioContextRef.current) {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          audioContextRef.current = new AudioCtx();
+        }
+      }
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume().catch(() => {});
+      }
+    } catch (e) {
+      console.error('初始化 AudioContext 失敗：', e);
+    }
+  };
+
+  const playSynthesizedChime = () => {
+    try {
+      initAudio();
+      const ctx = audioContextRef.current;
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+
+      // 叮咚音 1 (Ding: 587.33Hz / D5)
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(587.33, now);
+      gain1.gain.setValueAtTime(0.3, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.45);
+
+      // 叮咚音 2 (Dong: 880.00Hz / A5)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, now + 0.12);
+      gain2.gain.setValueAtTime(0.35, now + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.75);
+    } catch (e) {
+      console.error('播放合成鈴聲失敗：', e);
+    }
+  };
+
   const playChimeSound = () => {
-    if (!isSoundEnabled) return;
+    if (!isSoundEnabledRef.current) return;
     try {
       const audio = new Audio('/notification.mp3');
-      audio.play().catch((err) => console.error('播放音效失敗：', err));
-    } catch (e) {
-      console.error(e);
+      audio.volume = 1.0;
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn('音訊檔案播放受阻，啟動 Web Audio API 合成鈴聲備援：', err);
+          playSynthesizedChime();
+        });
+      }
+    } catch {
+      playSynthesizedChime();
     }
   };
 
@@ -192,6 +267,7 @@ export default function AdminPageContent() {
         setIsUnlocked(true);
         setFailedAttempts(0);
         setCaptchaInput('');
+        initAudio();
         try {
           sessionStorage.removeItem('menu_app_admin_failed');
           sessionStorage.removeItem('menu_app_admin_lockout');
@@ -323,19 +399,32 @@ export default function AdminPageContent() {
       .channel('admin-realtime-global')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_submissions' },
+        { event: 'INSERT', schema: 'public', table: 'order_submissions' },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            playChimeSound();
-            const nickname = (payload.new as { user_nickname?: string })?.user_nickname || '團員';
-            showToast(`🔔 叮咚！收到 ${nickname} 的新訂單！`);
-          }
+          playChimeSound();
+          const nickname = (payload.new as { user_nickname?: string })?.user_nickname || '團員';
+          showToast(`🔔 叮咚！收到 ${nickname} 的新訂單！`);
           const incomingGroupId = (payload.new as { group_order_id?: string })?.group_order_id;
           fetchAdminData(incomingGroupId);
           // 雙重延遲更新，確保關聯的 order_items 批次寫入後立即渲染出完整餐點明細
           setTimeout(() => {
             fetchAdminData(incomingGroupId);
-          }, 500);
+          }, 450);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'order_submissions' },
+        (payload) => {
+          const incomingGroupId = (payload.new as { group_order_id?: string })?.group_order_id;
+          fetchAdminData(incomingGroupId);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'order_submissions' },
+        () => {
+          fetchAdminData();
         }
       )
       .on(
@@ -1113,19 +1202,36 @@ export default function AdminPageContent() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* 音效開關 */}
-            <button
-              type="button"
-              onClick={handleToggleSound}
-              className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 border ${
-                isSoundEnabled
-                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-              }`}
-              title={isSoundEnabled ? '新訂單音效提醒：已開啟（點擊靜音）' : '新訂單音效提醒：已靜音（點擊開啟）'}
-            >
-              <span>{isSoundEnabled ? '🔔 叮咚提醒: 開' : '🔕 叮咚提醒: 關'}</span>
-            </button>
+            {/* 音效開關與試聽按鈕 */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleToggleSound}
+                className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 border ${
+                  isSoundEnabled
+                    ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                    : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                }`}
+                title={isSoundEnabled ? '新訂單音效提醒：已開啟（點擊靜音）' : '新訂單音效提醒：已靜音（點擊開啟）'}
+              >
+                <span>{isSoundEnabled ? '🔔 叮咚提醒: 開' : '🔕 叮咚提醒: 關'}</span>
+              </button>
+
+              {isSoundEnabled && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    initAudio();
+                    playChimeSound();
+                    showToast('🔔 正在試聽新訂單提示音效...');
+                  }}
+                  className="text-xs px-2.5 py-1.5 rounded-xl font-bold bg-white text-slate-600 hover:text-amber-700 border border-slate-200 hover:border-amber-300 transition"
+                  title="點擊測試播放新訂單叮咚鈴聲"
+                >
+                  🔊 試聽
+                </button>
+              )}
+            </div>
 
             {/* 螢幕模式切換器 */}
             <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-bold">
