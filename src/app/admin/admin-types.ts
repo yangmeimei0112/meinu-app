@@ -8,6 +8,8 @@ export interface OrderItemAdmin {
 
 export interface OrderSubmissionAdmin {
   id: string;
+  group_order_id?: string;
+  store_name?: string;
   order_number: string;
   user_nickname: string;
   payment_method_name: string;
@@ -35,6 +37,9 @@ export interface GroupOrderAdmin {
   cutoff_time?: string | null;
   enable_budget_limit?: boolean;
   budget_limit_amount?: number;
+  stores?: { name: string } | null;
+  order_count?: number;
+  total_sales?: number;
 }
 
 export type AdminViewMode = 'desktop' | 'mobile';

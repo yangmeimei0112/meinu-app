@@ -7,6 +7,9 @@ import { useDebounce } from '@/lib/useDebounce';
 interface AdminDashboardSectionProps {
   viewMode?: AdminViewMode;
   groupOrder: GroupOrderAdmin | null;
+  activeGroups?: GroupOrderAdmin[];
+  selectedActiveGroupId?: string;
+  onSelectActiveGroup?: (groupId: string) => void;
   submissions: OrderSubmissionAdmin[];
   itemSummary: Record<string, number>;
   grandTotal: number;
@@ -39,6 +42,9 @@ interface AdminDashboardSectionProps {
 export function AdminDashboardSection({
   viewMode = 'desktop',
   groupOrder,
+  activeGroups = [],
+  selectedActiveGroupId = 'all',
+  onSelectActiveGroup,
   submissions,
   itemSummary,
   grandTotal,
@@ -373,9 +379,16 @@ export function AdminDashboardSection({
                       className="w-4 h-4 rounded text-sky-500 focus:ring-sky-400 cursor-pointer"
                     />
                     <div className="min-w-0">
-                      <h4 className="font-extrabold text-slate-800 text-base truncate">
-                        {sub.user_nickname}
-                      </h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-extrabold text-slate-800 text-base truncate">
+                          {sub.user_nickname}
+                        </h4>
+                        {sub.store_name && (
+                          <span className="bg-sky-50 text-sky-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-sky-100">
+                            {sub.store_name}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] text-slate-400 font-mono mt-0.5">
                         #{sub.order_number} • {sub.payment_method_name}
                       </p>
@@ -418,8 +431,8 @@ export function AdminDashboardSection({
                 {/* 缺貨備案提示 */}
                 {sub.sold_out_option && (
                   <div className="text-[10px] text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/50">
-                    <span className="font-bold text-slate-600">缺貨備案：</span>
-                    <span>{sub.sold_out_option}</span>
+                    <span className="font-bold text-slate-700">缺貨處理：</span>
+                    {sub.sold_out_option}
                   </div>
                 )}
 
@@ -476,6 +489,64 @@ export function AdminDashboardSection({
 
   return (
     <div className="space-y-5">
+      {/* 🏬 多店家/多團購活動即時切換導覽列 */}
+      {activeGroups && activeGroups.length > 1 && (
+        <div className="bg-white rounded-3xl p-3 border border-slate-100 shadow-xs flex items-center gap-2 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1 shrink-0 px-2 text-xs font-extrabold text-slate-500">
+            <span>🏬 進行中團購：</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={() => onSelectActiveGroup && onSelectActiveGroup('all')}
+              className={`px-3.5 py-1.5 rounded-2xl text-xs font-extrabold transition shrink-0 flex items-center gap-1.5 border cursor-pointer ${
+                selectedActiveGroupId === 'all'
+                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+              }`}
+            >
+              <span>✨ 全部活動訂單</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                  selectedActiveGroupId === 'all'
+                    ? 'bg-white/25 text-white'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {activeGroups.reduce((sum, g) => sum + (g.order_count || 0), 0)}
+              </span>
+            </button>
+
+            {activeGroups.map((g) => {
+              const isSelected = selectedActiveGroupId === g.id;
+              const storeName = g.stores?.name || g.title;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => onSelectActiveGroup && onSelectActiveGroup(g.id)}
+                  className={`px-3.5 py-1.5 rounded-2xl text-xs font-extrabold transition shrink-0 flex items-center gap-1.5 border cursor-pointer ${
+                    isSelected
+                      ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <span>{storeName}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {g.order_count || 0}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 團長旗艦儀表板頂部卡片 */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-900 text-white rounded-3xl p-5 sm:p-6 shadow-lg space-y-4 border border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

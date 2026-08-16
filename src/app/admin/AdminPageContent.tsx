@@ -34,6 +34,8 @@ export default function AdminPageContent() {
   }, [isSoundEnabled]);
 
   const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
+  const [activeGroups, setActiveGroups] = useState<GroupOrderAdmin[]>([]);
+  const [selectedActiveGroupId, setSelectedActiveGroupId] = useState<string>('all');
   const [archivedGroups, setArchivedGroups] = useState<GroupOrderAdmin[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -334,36 +336,66 @@ export default function AdminPageContent() {
 
         setArchivedGroups(completedList as GroupOrderAdmin[]);
 
-        // 優先匹配傳入的 targetGroupId，或保留當前選中的 activeGroup，否則取最新進行中的團購
-        let selectedGroup: GroupOrderAdmin | null = null;
-        if (targetGroupId) {
-          selectedGroup = (openGroups.find((g) => g.id === targetGroupId) as GroupOrderAdmin) || null;
-        }
-        if (!selectedGroup && activeGroup) {
-          selectedGroup = (openGroups.find((g) => g.id === activeGroup.id) as GroupOrderAdmin) || null;
-        }
-        if (!selectedGroup && openGroups.length > 0) {
-          selectedGroup = openGroups[0] as GroupOrderAdmin;
-        }
+        const effectiveGroupId = targetGroupId !== undefined ? targetGroupId : selectedActiveGroupId;
+        const openGroupIds = openGroups.map((g) => g.id);
 
-        if (selectedGroup) {
-          setActiveGroup(selectedGroup);
-          setInputDeliveryFee(selectedGroup.delivery_fee || 0);
-          setInputDiscount(selectedGroup.discount_amount || 0);
-          setRoundingRule((selectedGroup.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
-
-          const { data: subList } = await supabase
+        if (openGroupIds.length > 0) {
+          // 抓取所有進行中活動的訂單（關聯 group_orders 與 stores 名稱）
+          const { data: allSubList, error: subErr } = await supabase
             .from('order_submissions')
             .select(`
               id, order_number, user_nickname, payment_method_name, sold_out_option,
-              total_amount, final_amount, is_paid, signature_data, created_at,
+              total_amount, final_amount, is_paid, signature_data, created_at, group_order_id,
+              group_orders (title, stores (name)),
               order_items (id, item_name, quantity, unit_price, custom_notes)
             `)
-            .eq('group_order_id', selectedGroup.id)
+            .in('group_order_id', openGroupIds)
             .order('created_at', { ascending: false });
 
-          if (subList) setSubmissions(subList as unknown as OrderSubmissionAdmin[]);
+          if (subErr) console.error('抓取訂單失敗:', subErr);
+
+          const formattedSubs: OrderSubmissionAdmin[] = (allSubList || []).map((s: any) => ({
+            ...s,
+            store_name: s.group_orders?.stores?.name || s.group_orders?.title || '',
+            order_items: s.order_items || [],
+          }));
+
+          // 計算各團購活動的訂單數與總營業額
+          const groupsWithStats: GroupOrderAdmin[] = openGroups.map((g: any) => {
+            const gSubs = formattedSubs.filter((s) => s.group_order_id === g.id);
+            return {
+              ...g,
+              order_count: gSubs.length,
+              total_sales: gSubs.reduce((sum, s) => sum + s.final_amount, 0),
+            };
+          });
+
+          setActiveGroups(groupsWithStats);
+
+          // 決定平攤設定與活動狀態的主參考 group
+          let currentGroup: GroupOrderAdmin | null = null;
+          if (effectiveGroupId && effectiveGroupId !== 'all') {
+            currentGroup = groupsWithStats.find((g) => g.id === effectiveGroupId) || groupsWithStats[0];
+          } else {
+            // 如果選中 'all'，優先取有訂單的最新團購，否則取第一個
+            currentGroup = groupsWithStats.find((g) => (g.order_count || 0) > 0) || groupsWithStats[0];
+          }
+
+          if (currentGroup) {
+            setActiveGroup(currentGroup);
+            setInputDeliveryFee(currentGroup.delivery_fee || 0);
+            setInputDiscount(currentGroup.discount_amount || 0);
+            setRoundingRule((currentGroup.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
+          }
+
+          // 根據選中的店家/活動過濾要渲染的訂單
+          if (!effectiveGroupId || effectiveGroupId === 'all') {
+            setSubmissions(formattedSubs);
+          } else {
+            setSubmissions(formattedSubs.filter((s) => s.group_order_id === effectiveGroupId));
+          }
         } else {
+          setActiveGroups([]);
           setActiveGroup(null);
           setSubmissions([]);
         }
@@ -1316,6 +1348,12 @@ export default function AdminPageContent() {
               <AdminDashboardSection
                 viewMode={viewMode}
                 groupOrder={activeGroup}
+                activeGroups={activeGroups}
+                selectedActiveGroupId={selectedActiveGroupId}
+                onSelectActiveGroup={(groupId) => {
+                  setSelectedActiveGroupId(groupId);
+                  fetchAdminData(groupId);
+                }}
                 submissions={submissions}
                 itemSummary={itemSummary}
                 grandTotal={grandTotal}
