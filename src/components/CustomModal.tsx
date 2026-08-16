@@ -382,39 +382,15 @@ export default function CustomModal({
             })
           )}
 
-          {/* 快速特製備註標籤與輸入框 */}
-          <div className="pt-3 space-y-2">
-            <label className="text-xs font-bold text-slate-700">特製備註</label>
-            <div className="flex gap-1.5 flex-wrap">
-              {[
-                '🥬 不加蔥',
-                '🥫 醬另外放',
-                '🥢 要餐具',
-                '🧊 加厚冰',
-                '🌶️ 小辣',
-                '🚫 不加香菜',
-                '🧾 發票存載具',
-              ].map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() =>
-                    setCustomNotes((prev) =>
-                      prev.includes(tag) ? prev : prev ? `${prev}, ${tag}` : tag
-                    )
-                  }
-                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-medium transition active:scale-95"
-                >
-                  {tag}
-                </button>
-              ))}
-            </div>
+          {/* 特製備註輸入框 */}
+          <div className="pt-3 space-y-1.5">
+            <label className="text-xs font-bold text-slate-700">特製備註 (選填)</label>
             <input
               type="text"
               placeholder="有其他個人需求嗎？填寫備註..."
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
 

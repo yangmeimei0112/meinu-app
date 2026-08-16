@@ -165,7 +165,7 @@ export default function AdminManualOrderModal({
             <label className="text-xs font-bold text-slate-700">客製規格與特製備註</label>
             <input
               type="text"
-              placeholder="例如：微糖少冰、加波霸、不加蔥"
+              placeholder="例如：微糖少冰、加珍珠"
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
