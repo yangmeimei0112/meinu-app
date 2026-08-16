@@ -28,6 +28,8 @@ export default function AdminPageContent() {
   // 🔔 即時音效狀態 Ref 保持最新值，防止閉包陷阱
   const isSoundEnabledRef = useRef<boolean>(true);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const selectedActiveGroupIdRef = useRef<string>('all');
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     isSoundEnabledRef.current = isSoundEnabled;
@@ -36,6 +38,11 @@ export default function AdminPageContent() {
   const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
   const [activeGroups, setActiveGroups] = useState<GroupOrderAdmin[]>([]);
   const [selectedActiveGroupId, setSelectedActiveGroupId] = useState<string>('all');
+
+  useEffect(() => {
+    selectedActiveGroupIdRef.current = selectedActiveGroupId;
+  }, [selectedActiveGroupId]);
+
   const [archivedGroups, setArchivedGroups] = useState<GroupOrderAdmin[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -153,37 +160,63 @@ export default function AdminPageContent() {
     }
   };
 
-  const playSynthesizedChime = () => {
-    try {
+  // 🔔 全域點擊/觸控自動激活瀏覽器音效播放權限 (Autoplay Policy Unlock)
+  useEffect(() => {
+    const unlockAudio = () => {
       initAudio();
-      const ctx = audioContextRef.current;
-      if (!ctx) return;
+    };
+    window.addEventListener('click', unlockAudio, { passive: true });
+    window.addEventListener('touchstart', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio, { passive: true });
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
 
+  const triggerBellOscillators = (ctx: AudioContext) => {
+    try {
       const now = ctx.currentTime;
 
-      // 叮咚音 1 (Ding: 587.33Hz / D5)
+      // 叮 (Ding: 587.33Hz / D5 - 亮麗圓潤三角波)
       const osc1 = ctx.createOscillator();
       const gain1 = ctx.createGain();
-      osc1.type = 'sine';
+      osc1.type = 'triangle';
       osc1.frequency.setValueAtTime(587.33, now);
-      gain1.gain.setValueAtTime(0.3, now);
+      gain1.gain.setValueAtTime(0.5, now);
       gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
       osc1.connect(gain1);
       gain1.connect(ctx.destination);
       osc1.start(now);
       osc1.stop(now + 0.45);
 
-      // 叮咚音 2 (Dong: 880.00Hz / A5)
+      // 咚 (Dong: 880.00Hz / A5 - 清脆正弦波)
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
       osc2.type = 'sine';
       osc2.frequency.setValueAtTime(880, now + 0.12);
-      gain2.gain.setValueAtTime(0.35, now + 0.12);
-      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
+      gain2.gain.setValueAtTime(0.6, now + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
       osc2.connect(gain2);
       gain2.connect(ctx.destination);
       osc2.start(now + 0.12);
-      osc2.stop(now + 0.75);
+      osc2.stop(now + 0.8);
+    } catch (err) {
+      console.error('震盪器發聲失敗:', err);
+    }
+  };
+
+  const playSynthesizedChime = () => {
+    try {
+      initAudio();
+      const ctx = audioContextRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => triggerBellOscillators(ctx)).catch(() => {});
+      } else {
+        triggerBellOscillators(ctx);
+      }
     } catch (e) {
       console.error('播放合成鈴聲失敗：', e);
     }
@@ -192,15 +225,11 @@ export default function AdminPageContent() {
   const playChimeSound = () => {
     if (!isSoundEnabledRef.current) return;
     try {
+      // 🚀 雙引擎同時並行發聲：Web Audio API 原生震盪器 + notification.mp3
+      playSynthesizedChime();
       const audio = new Audio('/notification.mp3');
       audio.volume = 1.0;
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn('音訊檔案播放受阻，啟動 Web Audio API 合成鈴聲備援：', err);
-          playSynthesizedChime();
-        });
-      }
+      audio.play().catch(() => {});
     } catch {
       playSynthesizedChime();
     }
@@ -239,6 +268,18 @@ export default function AdminPageContent() {
     return () => clearInterval(timer);
   }, [lockoutRemaining]);
 
+  // 🛡️ 伺服端 Session 自動恢復檢驗
+  useEffect(() => {
+    fetch('/api/admin/verify')
+      .then((res) => {
+        if (res.ok) {
+          setIsUnlocked(true);
+          initAudio();
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isVerifying) return;
@@ -261,11 +302,16 @@ export default function AdminPageContent() {
     setIsVerifying(true);
 
     try {
-      // 🛡️ 人為時序混淆延遲：消除時序側信道分析並大幅減緩自動化字典攻擊速度
-      await securityDelay(400, 700);
+      // 🛡️ 透過伺服端 API 進行時序安全與環境變數密碼驗證
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passcode: passcode.trim() }),
+      });
 
-      const correctPasscode = process.env.NEXT_PUBLIC_ADMIN_PASSCODE || '8888';
-      if (passcode.trim() === correctPasscode) {
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setIsUnlocked(true);
         setFailedAttempts(0);
         setCaptchaInput('');
@@ -281,26 +327,32 @@ export default function AdminPageContent() {
         setCaptchaChallenge(generateMathChallenge());
         setCaptchaInput('');
 
-        try {
-          sessionStorage.setItem('menu_app_admin_failed', String(nextFail));
-        } catch {}
-
-        const lockoutSec = getLockoutDurationSec(nextFail);
-        if (lockoutSec > 0) {
-          const lockUntil = Date.now() + lockoutSec * 1000;
+        const lockSec = data.lockedUntilSec || getLockoutDurationSec(nextFail);
+        if (lockSec > 0) {
+          const lockUntil = Date.now() + lockSec * 1000;
           try {
             sessionStorage.setItem('menu_app_admin_lockout', String(lockUntil));
             localStorage.setItem('menu_app_admin_lockout', String(lockUntil));
           } catch {}
-          setLockoutRemaining(lockoutSec);
-          alert(`🚫 密碼錯誤次數已達 ${nextFail} 次！觸發防撞庫安全鎖定，請等待 ${lockoutSec} 秒後再試。`);
-        } else {
-          alert(`❌ 密碼錯誤！(第 ${nextFail} 次嘗試，預設：8888)`);
+          setLockoutRemaining(lockSec);
         }
+
+        alert(data.message || '❌ 密碼錯誤！');
       }
+    } catch (err) {
+      console.error(err);
+      alert('連線伺服器驗證失敗，請檢查網路連線');
     } finally {
       setIsVerifying(false);
     }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch {}
+    setIsUnlocked(false);
+    showToast('🔒 已安全登出團長後台');
   };
 
   const fetchAdminData = async (targetGroupId?: string) => {
@@ -359,6 +411,9 @@ export default function AdminPageContent() {
             store_name: s.group_orders?.stores?.name || s.group_orders?.title || '',
             order_items: s.order_items || [],
           }));
+
+          // 更新已知訂單 ID 集合，供雙保險輪詢精準判定新訂單
+          knownOrderIdsRef.current = new Set(formattedSubs.map((s) => s.id));
 
           // 計算各團購活動的訂單數與總營業額
           const groupsWithStats: GroupOrderAdmin[] = openGroups.map((g: any) => {
@@ -426,57 +481,90 @@ export default function AdminPageContent() {
   useEffect(() => {
     if (!isUnlocked) return;
 
-    // 即時訂單、明細與活動變更監聽頻道
+    // 1. 即時訂單、明細與活動變更監聽頻道 (WebSocket 即時廣播)
     const channel = supabase
       .channel('admin-realtime-global')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'order_submissions' },
         (payload) => {
+          const newSubId = (payload.new as { id?: string })?.id;
+          if (newSubId) knownOrderIdsRef.current.add(newSubId);
           playChimeSound();
           const nickname = (payload.new as { user_nickname?: string })?.user_nickname || '團員';
           showToast(`🔔 叮咚！收到 ${nickname} 的新訂單！`);
-          const incomingGroupId = (payload.new as { group_order_id?: string })?.group_order_id;
-          fetchAdminData(incomingGroupId);
+          fetchAdminData(selectedActiveGroupIdRef.current);
           // 雙重延遲更新，確保關聯的 order_items 批次寫入後立即渲染出完整餐點明細
           setTimeout(() => {
-            fetchAdminData(incomingGroupId);
-          }, 450);
+            fetchAdminData(selectedActiveGroupIdRef.current);
+          }, 500);
         }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'order_submissions' },
-        (payload) => {
-          const incomingGroupId = (payload.new as { group_order_id?: string })?.group_order_id;
-          fetchAdminData(incomingGroupId);
+        () => {
+          fetchAdminData(selectedActiveGroupIdRef.current);
         }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'order_submissions' },
         () => {
-          fetchAdminData();
+          fetchAdminData(selectedActiveGroupIdRef.current);
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_items' },
         () => {
-          fetchAdminData();
+          fetchAdminData(selectedActiveGroupIdRef.current);
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'group_orders' },
         () => {
-          fetchAdminData();
+          fetchAdminData(selectedActiveGroupIdRef.current);
         }
       )
       .subscribe();
 
+    // 2. 智慧雙保險輪詢 (Smart High-Frequency Polling - 3 秒)
+    // 即使背景分頁降頻或 WebSocket 休眠，也能在 3 秒內自動捕獲新訂單並響鈴
+    const pollingTimer = setInterval(async () => {
+      try {
+        const { data: latestSubs } = await supabase
+          .from('order_submissions')
+          .select('id, user_nickname, created_at')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (latestSubs && latestSubs.length > 0 && knownOrderIdsRef.current.size > 0) {
+          let hasNew = false;
+          let latestNewNick = '';
+          for (const sub of latestSubs) {
+            if (!knownOrderIdsRef.current.has(sub.id)) {
+              hasNew = true;
+              latestNewNick = sub.user_nickname;
+              knownOrderIdsRef.current.add(sub.id);
+            }
+          }
+
+          if (hasNew) {
+            playChimeSound();
+            showToast(`🔔 叮咚！收到 ${latestNewNick || '團員'} 的新訂單！`);
+            fetchAdminData(selectedActiveGroupIdRef.current);
+          }
+        }
+      } catch (err) {
+        console.error('智慧輪詢更新失敗:', err);
+      }
+    }, 3000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(pollingTimer);
     };
   }, [isUnlocked]);
 
@@ -1296,8 +1384,8 @@ export default function AdminPageContent() {
             </div>
 
             <button
-              onClick={() => setIsUnlocked(false)}
-              className="text-xs bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold px-3 py-1.5 rounded-xl transition"
+              onClick={handleLogout}
+              className="text-xs bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
             >
               🔒 上鎖登出
             </button>
