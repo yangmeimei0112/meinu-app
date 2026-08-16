@@ -187,8 +187,10 @@ export function AdminDashboardSection({
 
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <label className="text-[10px] text-slate-400 font-bold">外送費 (+)</label>
+          <label htmlFor="split-delivery-fee" className="text-[10px] text-slate-400 font-bold block mb-1">外送費 (+)</label>
           <input
+            id="split-delivery-fee"
+            name="deliveryFee"
             type="number"
             value={inputDeliveryFee}
             onChange={(e) => setInputDeliveryFee(Number(e.target.value))}
@@ -196,8 +198,10 @@ export function AdminDashboardSection({
           />
         </div>
         <div>
-          <label className="text-[10px] text-slate-400 font-bold">折扣 (-)</label>
+          <label htmlFor="split-discount" className="text-[10px] text-slate-400 font-bold block mb-1">折扣 (-)</label>
           <input
+            id="split-discount"
+            name="discount"
             type="number"
             value={inputDiscount}
             onChange={(e) => setInputDiscount(Number(e.target.value))}
@@ -205,8 +209,10 @@ export function AdminDashboardSection({
           />
         </div>
         <div>
-          <label className="text-[10px] text-slate-400 font-bold">取整規則</label>
+          <label htmlFor="split-rounding-rule" className="text-[10px] text-slate-400 font-bold block mb-1">取整規則</label>
           <select
+            id="split-rounding-rule"
+            name="roundingRule"
             value={roundingRule}
             onChange={(e) => setRoundingRule(e.target.value as 'floor' | 'ceil' | 'round')}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
@@ -296,8 +302,12 @@ export function AdminDashboardSection({
         {/* 搜尋與狀態過濾器 */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
           <div className="relative flex-1">
+            <label htmlFor="admin-order-search-input" className="sr-only">搜尋團員暱稱或單號</label>
             <input
+              id="admin-order-search-input"
+              name="orderSearchQuery"
               type="text"
+              aria-label="搜尋團員暱稱或單號"
               placeholder="🔍 搜尋團員暱稱或單號..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -365,7 +375,11 @@ export function AdminDashboardSection({
                 {/* 頂部姓名、單號與付款切換 */}
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                   <div className="flex items-center gap-2.5 min-w-0">
+                    <label htmlFor={`sub-select-${sub.id}`} className="sr-only">{`選取 ${sub.user_nickname} 的訂單`}</label>
                     <input
+                      id={`sub-select-${sub.id}`}
+                      name={`sub_select_${sub.id}`}
+                      aria-label={`選取 ${sub.user_nickname} 的訂單`}
                       type="checkbox"
                       checked={isChecked}
                       onChange={(e) => {

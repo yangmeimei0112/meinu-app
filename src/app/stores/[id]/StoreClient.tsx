@@ -356,8 +356,12 @@ export default function StoreClient({ storeId }: { storeId: string }) {
               </h3>
 
               <div className="relative">
+                <label htmlFor="menu-search-query-input" className="sr-only">搜尋餐點名稱或關鍵字</label>
                 <input
+                  id="menu-search-query-input"
+                  name="menuSearch"
                   type="text"
+                  aria-label="搜尋餐點名稱或關鍵字"
                   placeholder="搜尋餐點名稱或關鍵字..."
                   value={menuSearchQuery}
                   onChange={(e) => setMenuSearchQuery(e.target.value)}

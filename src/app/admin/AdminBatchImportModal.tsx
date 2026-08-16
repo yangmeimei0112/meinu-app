@@ -205,10 +205,13 @@ export default function AdminBatchImportModal({
         {/* 上傳檔案與文字輸入 */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-bold text-slate-700">上傳 CSV 檔案或貼上內容</label>
-            <label className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1 rounded-lg transition">
+            <label htmlFor="csv-batch-textarea" className="text-xs font-bold text-slate-700">上傳 CSV 檔案或貼上內容</label>
+            <label htmlFor="csv-file-upload-input" className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1 rounded-lg transition">
               <span>📂 選擇檔案</span>
               <input
+                id="csv-file-upload-input"
+                name="csvFileUpload"
+                aria-label="選擇 CSV 檔案上傳"
                 type="file"
                 accept=".csv"
                 onChange={handleFileUpload}
@@ -218,6 +221,9 @@ export default function AdminBatchImportModal({
           </div>
 
           <textarea
+            id="csv-batch-textarea"
+            name="csvBatchContent"
+            aria-label="CSV 批次匯入內容"
             rows={7}
             placeholder={`餐點名稱,價格,簡介,是否售完,客製選項設定\n珍珠奶茶,50,波霸奶茶,false,甜度[半糖:0|微糖:0];加料[波霸:10]`}
             value={csvContent}

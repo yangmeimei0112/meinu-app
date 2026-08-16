@@ -80,8 +80,12 @@ export default function HomePage() {
 
           {/* 🔍 店家搜尋列 */}
           <div className="relative">
+            <label htmlFor="home-store-search-input" className="sr-only">搜尋店家名稱</label>
             <input
+              id="home-store-search-input"
+              name="storeSearch"
               type="text"
+              aria-label="搜尋店家名稱"
               placeholder="搜尋店家名稱..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

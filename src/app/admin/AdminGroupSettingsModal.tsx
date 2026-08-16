@@ -126,10 +126,12 @@ export default function AdminGroupSettingsModal({
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           {/* 活動名稱 */}
           <div>
-            <label className="font-bold text-slate-700 block mb-1">
+            <label htmlFor="group-modal-title" className="font-bold text-slate-700 block mb-1">
               團購活動標題 <span className="text-rose-500">*</span>
             </label>
             <input
+              id="group-modal-title"
+              name="groupTitle"
               type="text"
               required
               value={title}
@@ -141,10 +143,12 @@ export default function AdminGroupSettingsModal({
 
           {/* 合作門市選擇 */}
           <div>
-            <label className="font-bold text-slate-700 block mb-1">
+            <label htmlFor="group-modal-store" className="font-bold text-slate-700 block mb-1">
               合作店家 / 門市 <span className="text-rose-500">*</span>
             </label>
             <select
+              id="group-modal-store"
+              name="groupStoreId"
               value={storeId}
               onChange={(e) => setStoreId(e.target.value)}
               required
@@ -160,11 +164,13 @@ export default function AdminGroupSettingsModal({
 
           {/* 團長即時公告欄 */}
           <div className="bg-sky-50/60 rounded-2xl p-3.5 border border-sky-100 space-y-1.5">
-            <label className="font-bold text-sky-900 flex items-center gap-1.5">
+            <label htmlFor="group-modal-announcement" className="font-bold text-sky-900 flex items-center gap-1.5">
               <span>📢 團長即時公告欄</span>
               <span className="text-[10px] text-sky-600 font-normal">（前台頂部即時顯示彩色跑馬燈）</span>
             </label>
             <input
+              id="group-modal-announcement"
+              name="groupAnnouncement"
               type="text"
               value={announcement}
               onChange={(e) => setAnnouncement(e.target.value)}
@@ -176,10 +182,13 @@ export default function AdminGroupSettingsModal({
           {/* 湊單門檻進度條 */}
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-800 flex items-center gap-1.5">
+              <label htmlFor="group-modal-enable-min-threshold" className="font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
                 <span>🚚 起送 / 免運湊單進度條</span>
               </label>
               <input
+                id="group-modal-enable-min-threshold"
+                name="enableMinThreshold"
+                aria-label="啟用起送/免運門檻進度條"
                 type="checkbox"
                 checked={enableMinThreshold}
                 onChange={(e) => setEnableMinThreshold(e.target.checked)}
@@ -188,10 +197,12 @@ export default function AdminGroupSettingsModal({
             </div>
             {enableMinThreshold && (
               <div className="pt-1">
-                <label className="text-[11px] text-slate-500 font-medium block mb-1">
+                <label htmlFor="group-modal-min-threshold" className="text-[11px] text-slate-500 font-medium block mb-1">
                   起送/免運門檻金額 ($)：
                 </label>
                 <input
+                  id="group-modal-min-threshold"
+                  name="minThresholdAmount"
                   type="number"
                   min="1"
                   value={minThresholdAmount}
@@ -206,10 +217,13 @@ export default function AdminGroupSettingsModal({
           {/* 截單倒數計時器 */}
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-800 flex items-center gap-1.5">
+              <label htmlFor="group-modal-enable-countdown" className="font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
                 <span>⏱️ 預計截單倒數計時器</span>
               </label>
               <input
+                id="group-modal-enable-countdown"
+                name="enableCountdown"
+                aria-label="啟用截單倒數計時器"
                 type="checkbox"
                 checked={enableCountdown}
                 onChange={(e) => setEnableCountdown(e.target.checked)}
@@ -218,10 +232,12 @@ export default function AdminGroupSettingsModal({
             </div>
             {enableCountdown && (
               <div className="pt-1">
-                <label className="text-[11px] text-slate-500 font-medium block mb-1">
+                <label htmlFor="group-modal-cutoff-time" className="text-[11px] text-slate-500 font-medium block mb-1">
                   預計截止時間：
                 </label>
                 <input
+                  id="group-modal-cutoff-time"
+                  name="cutoffTime"
                   type="datetime-local"
                   value={cutoffTime}
                   onChange={(e) => setCutoffTime(e.target.value)}
@@ -234,10 +250,13 @@ export default function AdminGroupSettingsModal({
           {/* 個人消費/公費補助上限 */}
           <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
-              <label className="font-bold text-slate-800 flex items-center gap-1.5">
+              <label htmlFor="group-modal-enable-budget" className="font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
                 <span>💵 每人預算上限 / 公費補貼提醒</span>
               </label>
               <input
+                id="group-modal-enable-budget"
+                name="enableBudgetLimit"
+                aria-label="啟用每人預算上限/公費補貼提醒"
                 type="checkbox"
                 checked={enableBudgetLimit}
                 onChange={(e) => setEnableBudgetLimit(e.target.checked)}
@@ -246,10 +265,12 @@ export default function AdminGroupSettingsModal({
             </div>
             {enableBudgetLimit && (
               <div className="pt-1">
-                <label className="text-[11px] text-slate-500 font-medium block mb-1">
+                <label htmlFor="group-modal-budget-limit" className="text-[11px] text-slate-500 font-medium block mb-1">
                   每人補助/預算上限金額 ($)：
                 </label>
                 <input
+                  id="group-modal-budget-limit"
+                  name="budgetLimitAmount"
                   type="number"
                   min="1"
                   value={budgetLimitAmount}

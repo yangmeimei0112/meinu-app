@@ -186,8 +186,12 @@ export function AdminCrudSection({
           {/* 搜尋與上下架過濾列 */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
             <div className="relative flex-1">
+              <label htmlFor="crud-product-search-input" className="sr-only">搜尋餐點名稱或說明</label>
               <input
+                id="crud-product-search-input"
+                name="crudProductSearch"
                 type="text"
+                aria-label="搜尋餐點名稱或說明"
                 placeholder={`🔍 搜尋「${activeStudioStore.name}」的餐點名稱或說明...`}
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
@@ -432,6 +436,9 @@ export function AdminCrudSection({
                   {categories.map((cat) => (
                     <div key={cat.id} className="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2">
                       <input
+                        id={`cat-item-${cat.id}`}
+                        name={`category_${cat.id}_name`}
+                        aria-label={`分類名稱 ${cat.name}`}
                         value={cat.name}
                         onChange={(e) => onUpdateCategory(cat.id, 'name', e.target.value)}
                         className="flex-1 text-xs font-bold text-slate-800 bg-transparent focus:outline-none"
@@ -481,6 +488,9 @@ export function AdminCrudSection({
                     <div key={method.id} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <input
+                          id={`pm-name-${method.id}`}
+                          name={`payment_method_${method.id}_name`}
+                          aria-label={`付款方式名稱 ${method.name}`}
                           value={method.name}
                           onChange={(e) => onUpdatePaymentMethod(method.id, 'name', e.target.value)}
                           className="font-bold text-xs text-slate-800 bg-transparent flex-1 focus:outline-none"
@@ -512,6 +522,9 @@ export function AdminCrudSection({
                         </div>
                       </div>
                       <input
+                        id={`pm-account-${method.id}`}
+                        name={`payment_method_${method.id}_account`}
+                        aria-label={`收款帳號或說明 ${method.name}`}
                         value={method.account_info ?? ''}
                         onChange={(e) => onUpdatePaymentMethod(method.id, 'account_info', e.target.value || null)}
                         placeholder="收款帳號或說明 (例如：(013) 123-456789)"
@@ -540,6 +553,9 @@ export function AdminCrudSection({
                   {soldOutOptions.map((opt) => (
                     <div key={opt.id} className="bg-white p-2 rounded-xl border border-slate-200 flex items-center gap-2">
                       <input
+                        id={`soldout-title-${opt.id}`}
+                        name={`soldout_option_${opt.id}_title`}
+                        aria-label={`缺貨備案名稱 ${opt.title}`}
                         value={opt.title}
                         onChange={(e) => onUpdateSoldOutOption(opt.id, e.target.value)}
                         className="flex-1 text-xs font-bold text-slate-800 bg-transparent focus:outline-none"

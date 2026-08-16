@@ -30,6 +30,22 @@ export default function AdminPageContent() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const selectedActiveGroupIdRef = useRef<string>('all');
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const processedNotificationIdsRef = useRef<Set<string>>(new Set());
+  const isInitialLoadRef = useRef<boolean>(true);
+  const lastNotificationTimeRef = useRef<number>(0);
+
+  const notifyNewOrder = (orderId: string, nickname: string) => {
+    if (processedNotificationIdsRef.current.has(orderId)) return;
+    processedNotificationIdsRef.current.add(orderId);
+    knownOrderIdsRef.current.add(orderId);
+
+    const now = Date.now();
+    if (now - lastNotificationTimeRef.current > 1800) {
+      lastNotificationTimeRef.current = now;
+      playChimeSound();
+      showToast(`🔔 叮咚！收到 ${nickname || '團員'} 的新訂單！`);
+    }
+  };
 
   useEffect(() => {
     isSoundEnabledRef.current = isSoundEnabled;
@@ -412,8 +428,18 @@ export default function AdminPageContent() {
             order_items: s.order_items || [],
           }));
 
-          // 更新已知訂單 ID 集合，供雙保險輪詢精準判定新訂單
-          knownOrderIdsRef.current = new Set(formattedSubs.map((s) => s.id));
+          // 累計記錄所有已知訂單 ID，絕不清空既有歷史
+          (allSubList || []).forEach((s: any) => {
+            knownOrderIdsRef.current.add(s.id);
+          });
+
+          // 首次載入：將目前既有訂單全部標記為已通知，避免後台重開或切換時誤發通知
+          if (isInitialLoadRef.current) {
+            (allSubList || []).forEach((s: any) => {
+              processedNotificationIdsRef.current.add(s.id);
+            });
+            isInitialLoadRef.current = false;
+          }
 
           // 計算各團購活動的訂單數與總營業額
           const groupsWithStats: GroupOrderAdmin[] = openGroups.map((g: any) => {
@@ -488,11 +514,10 @@ export default function AdminPageContent() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'order_submissions' },
         (payload) => {
-          const newSubId = (payload.new as { id?: string })?.id;
-          if (newSubId) knownOrderIdsRef.current.add(newSubId);
-          playChimeSound();
-          const nickname = (payload.new as { user_nickname?: string })?.user_nickname || '團員';
-          showToast(`🔔 叮咚！收到 ${nickname} 的新訂單！`);
+          const newSub = payload.new as { id?: string; user_nickname?: string };
+          if (newSub?.id) {
+            notifyNewOrder(newSub.id, newSub.user_nickname || '團員');
+          }
           fetchAdminData(selectedActiveGroupIdRef.current);
           // 雙重延遲更新，確保關聯的 order_items 批次寫入後立即渲染出完整餐點明細
           setTimeout(() => {
@@ -530,8 +555,8 @@ export default function AdminPageContent() {
       )
       .subscribe();
 
-    // 2. 智慧雙保險輪詢 (Smart High-Frequency Polling - 3 秒)
-    // 即使背景分頁降頻或 WebSocket 休眠，也能在 3 秒內自動捕獲新訂單並響鈴
+    // 2. 智慧雙保險輪詢 (Smart High-Frequency Polling - 3.5 秒)
+    // 即使背景分頁降頻或 WebSocket 休眠，也能在 3.5 秒內自動捕獲新訂單並響鈴（每筆單號終身僅響鈴一次）
     const pollingTimer = setInterval(async () => {
       try {
         const { data: latestSubs } = await supabase
@@ -540,27 +565,23 @@ export default function AdminPageContent() {
           .order('created_at', { ascending: false })
           .limit(10);
 
-        if (latestSubs && latestSubs.length > 0 && knownOrderIdsRef.current.size > 0) {
+        if (latestSubs && latestSubs.length > 0 && !isInitialLoadRef.current) {
           let hasNew = false;
-          let latestNewNick = '';
           for (const sub of latestSubs) {
-            if (!knownOrderIdsRef.current.has(sub.id)) {
+            if (!processedNotificationIdsRef.current.has(sub.id)) {
               hasNew = true;
-              latestNewNick = sub.user_nickname;
-              knownOrderIdsRef.current.add(sub.id);
+              notifyNewOrder(sub.id, sub.user_nickname);
             }
           }
 
           if (hasNew) {
-            playChimeSound();
-            showToast(`🔔 叮咚！收到 ${latestNewNick || '團員'} 的新訂單！`);
             fetchAdminData(selectedActiveGroupIdRef.current);
           }
         }
       } catch (err) {
         console.error('智慧輪詢更新失敗:', err);
       }
-    }, 3000);
+    }, 3500);
 
     return () => {
       supabase.removeChannel(channel);
@@ -1221,8 +1242,12 @@ export default function AdminPageContent() {
               </div>
             ) : (
               <form onSubmit={handleUnlock} className="space-y-3 pt-2">
+                <label htmlFor="admin-passcode-input" className="sr-only">團長後台解鎖密碼</label>
                 <input
+                  id="admin-passcode-input"
+                  name="adminPasscode"
                   type="password"
+                  aria-label="團長後台密碼"
                   placeholder="輸入密碼 (預設：8888)"
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value)}
@@ -1250,8 +1275,12 @@ export default function AdminPageContent() {
                       <span className="bg-white px-3 py-1.5 rounded-xl border border-amber-200 font-mono font-extrabold text-amber-900 text-sm tracking-wider shadow-xs">
                         {captchaChallenge.question}
                       </span>
+                      <label htmlFor="admin-captcha-input" className="sr-only">人機驗證答案</label>
                       <input
+                        id="admin-captcha-input"
+                        name="captchaAnswer"
                         type="number"
+                        aria-label="人機驗證答案"
                         placeholder="請填答案"
                         value={captchaInput}
                         onChange={(e) => setCaptchaInput(e.target.value)}
@@ -1593,8 +1622,10 @@ export default function AdminPageContent() {
 
             <form onSubmit={handleSaveStore} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-600">店家名稱</label>
+                <label htmlFor="store-form-name" className="text-xs font-bold text-slate-600">店家名稱</label>
                 <input
+                  id="store-form-name"
+                  name="storeName"
                   type="text"
                   required
                   placeholder="例如：50嵐"
@@ -1606,7 +1637,7 @@ export default function AdminPageContent() {
 
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-bold text-slate-600">店家封面照片</label>
+                  <label htmlFor="store-form-image" className="text-xs font-bold text-slate-600">店家封面照片</label>
                   <span className="text-[10px] text-sky-600 font-bold">💡 建議像素：800 x 600 px (自動轉 WebP)</span>
                 </div>
 
@@ -1619,7 +1650,10 @@ export default function AdminPageContent() {
 
                   <div className="flex-1">
                     <input
+                      id="store-form-image"
+                      name="storeImage"
                       type="file"
+                      aria-label="上傳店家封面照片"
                       accept="image/*"
                       onChange={handleStoreImageChange}
                       className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-sky-50 file:text-sky-600 hover:file:bg-sky-100 cursor-pointer"
@@ -1659,8 +1693,10 @@ export default function AdminPageContent() {
 
             <form onSubmit={handleSaveCategory} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-600">類別名稱</label>
+                <label htmlFor="cat-form-name" className="text-xs font-bold text-slate-600">類別名稱</label>
                 <input
+                  id="cat-form-name"
+                  name="categoryName"
                   type="text"
                   required
                   placeholder="例如：手搖飲料"
@@ -1699,8 +1735,10 @@ export default function AdminPageContent() {
 
             <form onSubmit={handleSaveProduct} className="space-y-3">
               <div>
-                <label className="text-xs font-bold text-slate-600">餐點名稱 *</label>
+                <label htmlFor="prod-form-name" className="text-xs font-bold text-slate-600">餐點名稱 *</label>
                 <input
+                  id="prod-form-name"
+                  name="productName"
                   type="text"
                   required
                   placeholder="例如：珍珠奶茶"
@@ -1712,8 +1750,10 @@ export default function AdminPageContent() {
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-bold text-slate-600">基本價格 ($) *</label>
+                  <label htmlFor="prod-form-price" className="text-xs font-bold text-slate-600">基本價格 ($) *</label>
                   <input
+                    id="prod-form-price"
+                    name="productPrice"
                     type="number"
                     required
                     placeholder="例如：50"
@@ -1723,8 +1763,10 @@ export default function AdminPageContent() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-600">庫存數量 (選填)</label>
+                  <label htmlFor="prod-form-stock" className="text-xs font-bold text-slate-600">庫存數量 (選填)</label>
                   <input
+                    id="prod-form-stock"
+                    name="productStock"
                     type="number"
                     placeholder="不限數量"
                     value={productForm.stock_quantity}
@@ -1735,8 +1777,10 @@ export default function AdminPageContent() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-slate-600">餐點描述 (選填)</label>
+                <label htmlFor="prod-form-desc" className="text-xs font-bold text-slate-600">餐點描述 (選填)</label>
                 <input
+                  id="prod-form-desc"
+                  name="productDescription"
                   type="text"
                   placeholder="例如：香濃好喝人氣款"
                   value={productForm.description}
@@ -1766,6 +1810,9 @@ export default function AdminPageContent() {
                     <div key={group.id} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
                       <div className="flex gap-2 items-center">
                         <input
+                          id={`cg-title-${group.id}`}
+                          name={`cg_title_${group.id}`}
+                          aria-label="客製化區塊標題"
                           type="text"
                           required
                           placeholder="區塊標題 (例：甜度、加料)"
@@ -1778,6 +1825,9 @@ export default function AdminPageContent() {
                           className="flex-1 bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold"
                         />
                         <select
+                          id={`cg-type-${group.id}`}
+                          name={`cg_type_${group.id}`}
+                          aria-label="客製化選擇模式"
                           value={group.type}
                           onChange={(e) =>
                             setProductCustomGroups(
@@ -1795,6 +1845,9 @@ export default function AdminPageContent() {
 
                         {group.type === 'limit' && (
                           <input
+                            id={`cg-limit-${group.id}`}
+                            name={`cg_limit_${group.id}`}
+                            aria-label="限制數量"
                             type="number"
                             placeholder="N"
                             value={group.limit_number || 1}
@@ -1822,6 +1875,9 @@ export default function AdminPageContent() {
                         {group.options.map((opt) => (
                           <div key={opt.id} className="flex gap-2 items-center">
                             <input
+                              id={`opt-name-${opt.id}`}
+                              name={`opt_name_${opt.id}`}
+                              aria-label="選項名稱"
                               type="text"
                               required
                               placeholder="選項名稱 (例：半糖)"
@@ -1843,6 +1899,9 @@ export default function AdminPageContent() {
                               className="flex-1 bg-white border border-slate-200 p-1.5 rounded-lg text-xs font-bold"
                             />
                             <input
+                              id={`opt-price-${opt.id}`}
+                              name={`opt_price_${opt.id}`}
+                              aria-label="加價金額"
                               type="number"
                               placeholder="加價 ($)"
                               value={opt.price_adjustment}
@@ -1921,8 +1980,12 @@ export default function AdminPageContent() {
               <span className="font-extrabold text-sky-600 text-sm">${changeModalTarget.amount} 元</span>
             </p>
 
+            <label htmlFor="change-received-cash" className="sr-only">實收現金金額</label>
             <input
+              id="change-received-cash"
+              name="receivedCash"
               type="number"
+              aria-label="實收現金金額"
               placeholder="例如：1000"
               value={receivedCash}
               onChange={(e) => setReceivedCash(e.target.value)}

@@ -384,8 +384,10 @@ export default function CustomModal({
 
           {/* 特製備註輸入框 */}
           <div className="pt-3 space-y-1.5">
-            <label className="text-xs font-bold text-slate-700">特製備註 (選填)</label>
+            <label htmlFor="custom-notes-input" className="text-xs font-bold text-slate-700">特製備註 (選填)</label>
             <input
+              id="custom-notes-input"
+              name="customNotes"
               type="text"
               placeholder="有其他個人需求嗎？填寫備註..."
               value={customNotes}

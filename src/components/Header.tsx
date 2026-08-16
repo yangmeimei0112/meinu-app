@@ -83,13 +83,17 @@ export default function Header() {
         {/* 快碼搜尋 */}
         <form onSubmit={handleSearchCode} className="flex-1 max-w-[105px]">
           <div className="relative">
+            <label htmlFor="header-shortcode-input" className="sr-only">活動快碼</label>
             <input
+              id="header-shortcode-input"
+              name="shortCode"
               type="text"
+              aria-label="活動快碼"
               maxLength={6}
               placeholder="#快碼"
               value={shortCode}
-              onChange={(e) => setShortCode(e.target.value)}
-              className="w-full bg-slate-100 text-[11px] text-slate-800 rounded-full py-1 pl-2.5 pr-6 focus:outline-none focus:ring-2 focus:ring-sky-400 border border-transparent transition"
+              onChange={(e) => setShortCode(e.target.value.toUpperCase())}
+              className="w-full bg-slate-50 text-slate-800 border border-slate-200 rounded-xl py-1 px-2.5 text-xs text-center font-mono font-bold tracking-wider placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
             <button
               type="submit"

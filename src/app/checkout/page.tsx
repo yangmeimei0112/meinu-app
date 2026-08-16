@@ -428,11 +428,13 @@ function CheckoutContent() {
             </div>
 
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-2">
-              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+              <label htmlFor="checkout-nickname-input" className="text-xs font-bold text-slate-700 flex items-center justify-between">
                 <span>2. 你的訂購暱稱 <span className="text-sky-500">*</span></span>
                 <span className="text-[10px] text-slate-400">下次會自動記憶</span>
               </label>
               <input
+                id="checkout-nickname-input"
+                name="userNickname"
                 type="text"
                 placeholder="例如：小明 / 行銷部 賢義"
                 value={nickname}

@@ -112,8 +112,10 @@ export default function AdminManualOrderModal({
         <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
           {/* 朋友暱稱 */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700">朋友暱稱 <span className="text-rose-500">*</span></label>
+            <label htmlFor="manual-order-nickname" className="text-xs font-bold text-slate-700">朋友暱稱 <span className="text-rose-500">*</span></label>
             <input
+              id="manual-order-nickname"
+              name="manualNickname"
               type="text"
               placeholder="例如：小明 / 研發部 阿義"
               value={nickname}
@@ -124,8 +126,10 @@ export default function AdminManualOrderModal({
 
           {/* 選擇餐點 */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700">選擇餐點品項</label>
+            <label htmlFor="manual-order-item" className="text-xs font-bold text-slate-700">選擇餐點品項</label>
             <select
+              id="manual-order-item"
+              name="manualItemId"
               value={selectedItemId}
               onChange={(e) => setSelectedItemId(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-800"
@@ -140,7 +144,7 @@ export default function AdminManualOrderModal({
 
           {/* 數量 */}
           <div className="flex items-center justify-between pt-1">
-            <label className="text-xs font-bold text-slate-700">點餐數量</label>
+            <span className="text-xs font-bold text-slate-700">點餐數量</span>
             <div className="flex items-center gap-3 bg-slate-100 rounded-xl p-1">
               <button
                 type="button"
@@ -162,8 +166,10 @@ export default function AdminManualOrderModal({
 
           {/* 規格與備註 */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700">客製規格與特製備註</label>
+            <label htmlFor="manual-order-custom-notes" className="text-xs font-bold text-slate-700">客製規格與特製備註</label>
             <input
+              id="manual-order-custom-notes"
+              name="manualCustomNotes"
               type="text"
               placeholder="例如：微糖少冰、加珍珠"
               value={customNotes}
@@ -174,8 +180,10 @@ export default function AdminManualOrderModal({
 
           {/* 付款方式 */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700">付款方式</label>
+            <label htmlFor="manual-order-payment-method" className="text-xs font-bold text-slate-700">付款方式</label>
             <select
+              id="manual-order-payment-method"
+              name="manualPaymentMethod"
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-800"
@@ -190,8 +198,10 @@ export default function AdminManualOrderModal({
 
           {/* 缺貨備案 */}
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-700">遇缺貨備案</label>
+            <label htmlFor="manual-order-soldout-option" className="text-xs font-bold text-slate-700">遇缺貨備案</label>
             <select
+              id="manual-order-soldout-option"
+              name="manualSoldOutOption"
               value={soldOutOption}
               onChange={(e) => setSoldOutOption(e.target.value)}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-800"
