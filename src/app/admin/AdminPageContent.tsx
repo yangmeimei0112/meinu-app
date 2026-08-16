@@ -16,6 +16,7 @@ import AdminManualOrderModal from './AdminManualOrderModal';
 import AdminBatchImportModal from './AdminBatchImportModal';
 import AdminGroupSettingsModal from './AdminGroupSettingsModal';
 import { compressImageToWebP } from '@/lib/image-compress';
+import { generateMathChallenge, getLockoutDurationSec, securityDelay } from '@/lib/security';
 
 export default function AdminPageContent() {
   const [passcode, setPasscode] = useState<string>('');
@@ -128,12 +129,99 @@ export default function AdminPageContent() {
     }
   };
 
-  const handleUnlock = (e: React.FormEvent) => {
+  // 🛡️ 資安防護：防撞庫與防暴力破解密碼機制
+  const [failedAttempts, setFailedAttempts] = useState<number>(0);
+  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
+  const [captchaChallenge, setCaptchaChallenge] = useState<{ question: string; answer: number }>(() => generateMathChallenge());
+  const [captchaInput, setCaptchaInput] = useState<string>('');
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+
+  useEffect(() => {
+    const rawLockout = typeof window !== 'undefined' ? (sessionStorage.getItem('menu_app_admin_lockout') || localStorage.getItem('menu_app_admin_lockout')) : null;
+    if (rawLockout) {
+      const lockUntil = Number(rawLockout);
+      const diff = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
+      if (diff > 0) setLockoutRemaining(diff);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (lockoutRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setLockoutRemaining((prev) => {
+        if (prev <= 1) {
+          try {
+            sessionStorage.removeItem('menu_app_admin_lockout');
+            localStorage.removeItem('menu_app_admin_lockout');
+          } catch {}
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockoutRemaining]);
+
+  const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcode === '8888') {
-      setIsUnlocked(true);
-    } else {
-      alert('❌ 密碼錯誤！預設密碼為：8888');
+    if (isVerifying) return;
+
+    if (lockoutRemaining > 0) {
+      alert(`🔒 系統處於防撞庫安全鎖定中，請於 ${lockoutRemaining} 秒後再試！`);
+      return;
+    }
+
+    // 當錯誤次數 >= 2 時強制驗證動態人機挑戰
+    if (failedAttempts >= 2) {
+      if (!captchaInput.trim() || Number(captchaInput.trim()) !== captchaChallenge.answer) {
+        alert('⚠️ 人機驗證算術答案錯誤！請重新計算輸入。');
+        setCaptchaChallenge(generateMathChallenge());
+        setCaptchaInput('');
+        return;
+      }
+    }
+
+    setIsVerifying(true);
+
+    try {
+      // 🛡️ 人為時序混淆延遲：消除時序側信道分析並大幅減緩自動化字典攻擊速度
+      await securityDelay(400, 700);
+
+      const correctPasscode = process.env.NEXT_PUBLIC_ADMIN_PASSCODE || '8888';
+      if (passcode.trim() === correctPasscode) {
+        setIsUnlocked(true);
+        setFailedAttempts(0);
+        setCaptchaInput('');
+        try {
+          sessionStorage.removeItem('menu_app_admin_failed');
+          sessionStorage.removeItem('menu_app_admin_lockout');
+          localStorage.removeItem('menu_app_admin_lockout');
+        } catch {}
+      } else {
+        const nextFail = failedAttempts + 1;
+        setFailedAttempts(nextFail);
+        setCaptchaChallenge(generateMathChallenge());
+        setCaptchaInput('');
+
+        try {
+          sessionStorage.setItem('menu_app_admin_failed', String(nextFail));
+        } catch {}
+
+        const lockoutSec = getLockoutDurationSec(nextFail);
+        if (lockoutSec > 0) {
+          const lockUntil = Date.now() + lockoutSec * 1000;
+          try {
+            sessionStorage.setItem('menu_app_admin_lockout', String(lockUntil));
+            localStorage.setItem('menu_app_admin_lockout', String(lockUntil));
+          } catch {}
+          setLockoutRemaining(lockoutSec);
+          alert(`🚫 密碼錯誤次數已達 ${nextFail} 次！觸發防撞庫安全鎖定，請等待 ${lockoutSec} 秒後再試。`);
+        } else {
+          alert(`❌ 密碼錯誤！(第 ${nextFail} 次嘗試，預設：8888)`);
+        }
+      }
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -917,21 +1005,70 @@ export default function AdminPageContent() {
               <p className="text-xs text-slate-400 mt-1">請輸入團長密碼解鎖權限</p>
             </div>
 
-            <form onSubmit={handleUnlock} className="space-y-3 pt-2">
-              <input
-                type="password"
-                placeholder="輸入密碼 (預設：8888)"
-                value={passcode}
-                onChange={(e) => setPasscode(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-center text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-400"
-              />
-              <button
-                type="submit"
-                className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 rounded-2xl text-sm transition shadow-sm active:scale-95"
-              >
-                解鎖進入後台 ➔
-              </button>
-            </form>
+            {lockoutRemaining > 0 ? (
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center space-y-1">
+                <p className="text-xs font-bold text-rose-700">🔒 密碼錯誤次數過多</p>
+                <p className="text-[11px] text-rose-600">系統防撞庫鎖定中，請於 <span className="font-bold font-mono">{lockoutRemaining}</span> 秒後再試</p>
+              </div>
+            ) : (
+              <form onSubmit={handleUnlock} className="space-y-3 pt-2">
+                <input
+                  type="password"
+                  placeholder="輸入密碼 (預設：8888)"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  disabled={isVerifying}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-center text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-50"
+                />
+
+                {/* 🛡️ 撞庫防護：連續錯誤 2 次以上啟動動態人機挑戰 */}
+                {failedAttempts >= 2 && (
+                  <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3 text-left space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-amber-800">
+                      <span>🤖 人機驗證安全挑戰：</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCaptchaChallenge(generateMathChallenge());
+                          setCaptchaInput('');
+                        }}
+                        className="text-sky-600 hover:text-sky-700 underline text-[10px] cursor-pointer"
+                      >
+                        🔄 換一題
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-white px-3 py-1.5 rounded-xl border border-amber-200 font-mono font-extrabold text-amber-900 text-sm tracking-wider shadow-xs">
+                        {captchaChallenge.question}
+                      </span>
+                      <input
+                        type="number"
+                        placeholder="請填答案"
+                        value={captchaInput}
+                        onChange={(e) => setCaptchaInput(e.target.value)}
+                        disabled={isVerifying}
+                        className="flex-1 bg-white border border-amber-200 rounded-xl py-1.5 px-3 text-center text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isVerifying}
+                  className="w-full bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 text-white font-bold py-3 rounded-2xl text-sm transition shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {isVerifying ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      安全校驗中...
+                    </>
+                  ) : (
+                    '解鎖進入後台 ➔'
+                  )}
+                </button>
+              </form>
+            )}
           </div>
         </main>
         <div />

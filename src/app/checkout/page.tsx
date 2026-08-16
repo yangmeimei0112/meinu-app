@@ -9,6 +9,7 @@ import BudgetLimitNotice from '@/components/BudgetLimitNotice';
 import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
 import { PaymentMethod, SoldOutOption, GroupOrder } from '@/types/database';
+import { sanitizeInput, checkRateLimit, isHumanInteractionTime } from '@/lib/security';
 
 function CheckoutContent() {
   const router = useRouter();
@@ -25,6 +26,10 @@ function CheckoutContent() {
   const [selectedSoldOut, setSelectedSoldOut] = useState<string>('');
   const [hasDuplicateNickname, setHasDuplicateNickname] = useState<boolean>(false);
   const [checkingDuplicate, setCheckingDuplicate] = useState<boolean>(false);
+
+  // 🛡️ 資安防護：蜜罐陷阱欄位與人類互動載入時間戳
+  const [honeypotTrap, setHoneypotTrap] = useState<string>('');
+  const [pageLoadTime] = useState<number>(() => Date.now());
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -151,8 +156,31 @@ function CheckoutContent() {
   const grandTotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
 
   const handleSubmitOrder = async () => {
-    if (!nickname.trim()) {
-      showToast('⚠️ 請填寫您的暱稱，方便團長對帳！');
+    // 🛡️ 1. 蜜罐陷阱檢查：自動化爬蟲機器人常自動填充所有 input 欄位
+    if (honeypotTrap.trim()) {
+      console.warn('Bot detected via honeypot trap');
+      setIsSubmitting(false);
+      showToast('⚠️ 系統防護攔截：偵測到異常請求');
+      return;
+    }
+
+    // 🛡️ 2. 人類操作時間閾值檢查：防止腳本在開啟網頁後極速自動送單
+    if (!isHumanInteractionTime(pageLoadTime, 1000)) {
+      showToast('⚠️ 操作速度過快，請稍候 1 秒後再點擊送單！');
+      return;
+    }
+
+    // 🛡️ 3. 客戶端送單頻率防刷單限制 (Rate Limit)
+    const rateCheck = checkRateLimit();
+    if (!rateCheck.allowed) {
+      showToast(rateCheck.reason || '⚠️ 操作過於頻繁，請稍候再試！');
+      return;
+    }
+
+    // 🛡️ 4. XSS 輸入清洗與長度限制
+    const cleanNickname = sanitizeInput(nickname, 30);
+    if (!cleanNickname) {
+      showToast('⚠️ 請填寫您的有效暱稱，方便團長對帳！');
       return;
     }
 
@@ -164,7 +192,7 @@ function CheckoutContent() {
     setIsSubmitting(true);
 
     try {
-      localStorage.setItem('menu_app_user_nickname', nickname.trim());
+      localStorage.setItem('menu_app_user_nickname', cleanNickname);
 
       const storeId = cartItems[0].storeId;
       const storeName = cartItems[0].storeName;
@@ -205,12 +233,12 @@ function CheckoutContent() {
         .from('order_submissions')
         .select('id')
         .eq('group_order_id', activeGroupId)
-        .ilike('user_nickname', nickname.trim())
+        .ilike('user_nickname', cleanNickname)
         .limit(1);
 
       if ((duplicateRows?.length || 0) > 0) {
         const shouldContinue = window.confirm(
-          `⚠️ 目前已有一位「${nickname.trim()}」送單囉！\n請問您是「${nickname.trim()}」本人，還是另一位同名朋友？\n\n建議加上姓氏或代號（例如：戴小明、小明B）避免對帳混淆。\n\n要繼續以此暱稱送單嗎？`
+          `⚠️ 目前已有一位「${cleanNickname}」送單囉！\n請問您是「${cleanNickname}」本人，還是另一位同名朋友？\n\n建議加上姓氏或代號（例如：戴小明、小明B）避免對帳混淆。\n\n要繼續以此暱稱送單嗎？`
         );
         if (!shouldContinue) {
           setIsSubmitting(false);
@@ -224,9 +252,9 @@ function CheckoutContent() {
         .insert({
           group_order_id: activeGroupId,
           order_number: orderNumber,
-          user_nickname: nickname.trim(),
-          payment_method_name: selectedPayment,
-          sold_out_option: selectedSoldOut,
+          user_nickname: cleanNickname,
+          payment_method_name: sanitizeInput(selectedPayment, 40),
+          sold_out_option: sanitizeInput(selectedSoldOut, 40),
           total_amount: grandTotal,
           final_amount: grandTotal,
           is_paid: false,
@@ -236,18 +264,20 @@ function CheckoutContent() {
 
       if (subErr || !submission) throw new Error('建立訂單失敗');
 
-      // 批次寫入所有訂單餐點項目
+      // 批次寫入所有訂單餐點項目（進行安全清洗）
       const itemsPayload = cartItems.map((item) => {
+        const cleanItemName = sanitizeInput(item.name, 60);
+        const cleanNotes = sanitizeInput(item.customNotes, 150);
         const customOptionText = (item.selectedOptions || [])
-          .map((opt) => `${opt.groupTitle}:${opt.itemName}`)
+          .map((opt) => `${sanitizeInput(opt.groupTitle, 30)}:${sanitizeInput(opt.itemName, 30)}`)
           .join(', ');
         return {
           submission_id: submission.id,
-          item_name: item.name,
-          quantity: item.quantity,
+          item_name: cleanItemName,
+          quantity: Math.max(1, Math.min(99, item.quantity)),
           unit_price: item.unitPrice,
-          custom_notes: item.customNotes
-            ? `${customOptionText} | 備註: ${item.customNotes}`
+          custom_notes: cleanNotes
+            ? `${customOptionText} | 備註: ${cleanNotes}`
             : customOptionText,
         };
       });
@@ -329,6 +359,20 @@ function CheckoutContent() {
         </Link>
 
         <h2 className="text-xl font-extrabold text-slate-800">📋 確認點餐與結帳</h2>
+
+        {/* 🍯 蜜罐陷阱欄位：視覺不可見，專門捕捉盲目填充的自動化腳本 */}
+        <div aria-hidden="true" style={{ opacity: 0, position: 'absolute', top: -9999, left: -9999, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }}>
+          <label htmlFor="user_website_trap">請勿填寫此欄位</label>
+          <input
+            id="user_website_trap"
+            type="text"
+            name="user_website_trap"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeypotTrap}
+            onChange={(e) => setHoneypotTrap(e.target.value)}
+          />
+        </div>
 
         {cartItems.length === 0 ? (
           <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 space-y-3">
