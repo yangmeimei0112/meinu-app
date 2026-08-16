@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import type { Category, MenuItem, PaymentMethod, SoldOutOption, Store } from '@/types/database';
 import { AdminViewMode } from './admin-types';
+import { useDebounce } from '@/lib/useDebounce';
 
 interface AdminCrudSectionProps {
   viewMode?: AdminViewMode;
@@ -72,29 +73,36 @@ export function AdminCrudSection({
   const [productSearch, setProductSearch] = useState<string>('');
   const [itemStatusFilter, setItemStatusFilter] = useState<'all' | 'active' | 'sold_out'>('all');
 
+  // 防抖搜尋
+  const debouncedProductSearch = useDebounce(productSearch, 180);
+
   // 全域設定折疊面板開關
   const [showGlobalSettings, setShowGlobalSettings] = useState<boolean>(false);
   const [globalSettingTab, setGlobalSettingTab] = useState<'categories' | 'payments' | 'sold_outs'>('categories');
 
   const isDesktop = viewMode === 'desktop';
-  const activeStudioStore = stores.find((s) => s.id === activeStudioStoreId);
+  const activeStudioStore = useMemo(() => stores.find((s) => s.id === activeStudioStoreId), [stores, activeStudioStoreId]);
 
   // 取得當前工作室店家的菜單品項
-  const studioMenuItems = menuItems.filter((item) => item.store_id === activeStudioStoreId);
-  const filteredStudioMenuItems = studioMenuItems
-    .filter((item) => {
+  const studioMenuItems = useMemo(() => menuItems.filter((item) => item.store_id === activeStudioStoreId), [menuItems, activeStudioStoreId]);
+  
+  const filteredStudioMenuItems = useMemo(() => {
+    const query = debouncedProductSearch.trim().toLowerCase();
+    return studioMenuItems.filter((item) => {
       const matchText =
-        item.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-        (item.description && item.description.toLowerCase().includes(productSearch.toLowerCase()));
+        !query ||
+        item.name.toLowerCase().includes(query) ||
+        (item.description && item.description.toLowerCase().includes(query));
       if (!matchText) return false;
 
       if (itemStatusFilter === 'active') return !item.is_sold_out;
       if (itemStatusFilter === 'sold_out') return item.is_sold_out;
       return true;
     });
+  }, [studioMenuItems, debouncedProductSearch, itemStatusFilter]);
 
-  const activeItemCount = studioMenuItems.filter((i) => !i.is_sold_out).length;
-  const soldOutItemCount = studioMenuItems.filter((i) => i.is_sold_out).length;
+  const activeItemCount = useMemo(() => studioMenuItems.filter((i) => !i.is_sold_out).length, [studioMenuItems]);
+  const soldOutItemCount = useMemo(() => studioMenuItems.filter((i) => i.is_sold_out).length, [studioMenuItems]);
 
   // ==========================================
   // 第二層：🥤 專屬菜單設計工作室 (Store Menu Studio)

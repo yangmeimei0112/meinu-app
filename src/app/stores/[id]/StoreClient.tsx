@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import CustomModal from '@/components/CustomModal';
@@ -10,7 +10,9 @@ import BudgetLimitNotice from '@/components/BudgetLimitNotice';
 import LiveOrderCounter from '@/components/LiveOrderCounter';
 import { supabase } from '@/lib/supabase';
 import { Store, MenuItem } from '@/types/database';
-import { CartItem, MultiStoreCart } from '@/types/cart';
+import { CartItem } from '@/types/cart';
+import { useMultiCart } from '@/lib/useMultiCart';
+import { useDebounce } from '@/lib/useDebounce';
 
 interface GroupOrderMeta {
   id: string;
@@ -35,54 +37,49 @@ export default function StoreClient({ storeId }: { storeId: string }) {
   const [countdownSeconds, setCountdownSeconds] = useState<number>(0);
 
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
-  const [multiCart, setMultiCart] = useState<MultiStoreCart>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [menuSearchQuery, setMenuSearchQuery] = useState<string>('');
 
-  const showToast = (msg: string) => {
+  // 搜尋防抖 Hook
+  const debouncedMenuSearch = useDebounce(menuSearchQuery, 200);
+
+  // 多店家購物車 Hook
+  const { cart, addItem, clearStoreCart } = useMultiCart();
+
+  const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
-  };
-
-  useEffect(() => {
-    const saved = localStorage.getItem('menu_app_multi_cart');
-    if (saved) {
-      try {
-        setMultiCart(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
-      }
-    }
   }, []);
 
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
 
-      const { data: storeData } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('id', storeId)
-        .single();
+      // 並行發送查詢，消除網路請求瀑布流
+      const [storeRes, menuRes, groupRes] = await Promise.all([
+        supabase
+          .from('stores')
+          .select('id, name, image_url, category_id, is_active')
+          .eq('id', storeId)
+          .single(),
+        supabase
+          .from('menu_items')
+          .select('id, store_id, name, price, description, is_sold_out, custom_groups')
+          .eq('store_id', storeId),
+        supabase
+          .from('group_orders')
+          .select('*')
+          .eq('store_id', storeId)
+          .neq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(1),
+      ]);
 
-      const { data: menuData } = await supabase
-        .from('menu_items')
-        .select('*')
-        .eq('store_id', storeId);
+      if (storeRes.data) setStore(storeRes.data as Store);
+      if (menuRes.data) setMenuItems(menuRes.data as MenuItem[]);
 
-      const { data: groupData } = await supabase
-        .from('group_orders')
-        .select('*')
-        .eq('store_id', storeId)
-        .neq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (storeData) setStore(storeData as Store);
-      if (menuData) setMenuItems(menuData as MenuItem[]);
-
-      if (groupData && groupData.length > 0) {
-        const meta = groupData[0] as GroupOrderMeta;
+      if (groupRes.data && groupRes.data.length > 0) {
+        const meta = groupRes.data[0] as GroupOrderMeta;
         setGroupMeta(meta);
 
         if (meta.cutoff_time) {
@@ -148,43 +145,39 @@ export default function StoreClient({ storeId }: { storeId: string }) {
     }
   };
 
-  const currentStoreItems = multiCart[storeId]?.items || [];
-  const currentStoreTotal = currentStoreItems.reduce((sum, i) => sum + i.totalPrice, 0);
+  const currentStoreItems = useMemo(() => cart[storeId]?.items || [], [cart, storeId]);
+  const currentStoreTotal = useMemo(
+    () => currentStoreItems.reduce((sum, i) => sum + i.totalPrice, 0),
+    [currentStoreItems]
+  );
   const isClosed = groupMeta?.status === 'closed';
 
-  const filteredMenuItems = menuItems.filter((item) => {
-    const keyword = menuSearchQuery.trim().toLowerCase();
-    if (!keyword) return true;
-    const nameMatch = item.name.toLowerCase().includes(keyword);
-    const descMatch = (item.description || '').toLowerCase().includes(keyword);
-    return nameMatch || descMatch;
-  });
+  // 記憶化餐點搜尋過濾結果
+  const filteredMenuItems = useMemo(() => {
+    const keyword = debouncedMenuSearch.trim().toLowerCase();
+    if (!keyword) return menuItems;
+    return menuItems.filter((item) => {
+      const nameMatch = item.name.toLowerCase().includes(keyword);
+      const descMatch = (item.description || '').toLowerCase().includes(keyword);
+      return nameMatch || descMatch;
+    });
+  }, [menuItems, debouncedMenuSearch]);
 
-  const handleAddToCart = (newItem: CartItem) => {
-    if (!store) return;
-    if (isClosed) {
-      alert('⚠️ 團長已截單，目前停止收單中！');
-      return;
-    }
-    const updated: MultiStoreCart = {
-      ...multiCart,
-      [storeId]: {
-        storeId: store.id,
-        storeName: store.name,
-        items: [...currentStoreItems, newItem],
-      },
-    };
-    setMultiCart(updated);
-    localStorage.setItem('menu_app_multi_cart', JSON.stringify(updated));
-    showToast(`🛒 已將「${newItem.name}」加入購物車！`);
-  };
+  const handleAddToCart = useCallback(
+    (newItem: CartItem) => {
+      if (isClosed) {
+        alert('⚠️ 團長已截單，目前停止收單中！');
+        return;
+      }
+      addItem(newItem);
+      showToast(`🛒 已將「${newItem.name}」加入購物車！`);
+    },
+    [isClosed, addItem, showToast]
+  );
 
-  const handleClearStoreCart = () => {
-    const updated = { ...multiCart };
-    delete updated[storeId];
-    setMultiCart(updated);
-    localStorage.setItem('menu_app_multi_cart', JSON.stringify(updated));
-  };
+  const handleClearStoreCart = useCallback(() => {
+    clearStoreCart(storeId);
+  }, [clearStoreCart, storeId]);
 
   const formatCountdown = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -326,6 +319,8 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                     <img
                       src={store.image_url}
                       alt={store.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -380,7 +375,7 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                     onClick={() => {
                       if (!isSoldOut) setSelectedMenuItem(item);
                     }}
-                    className={`bg-white rounded-3xl p-4 border shadow-xs transition flex items-center justify-between gap-3 ${
+                    className={`bg-white rounded-3xl p-4 border shadow-xs transition flex items-center justify-between gap-3 content-auto ${
                       isSoldOut
                         ? 'border-slate-200 opacity-60 cursor-not-allowed'
                         : 'border-slate-100 hover:border-sky-200 cursor-pointer active:scale-[0.99]'
@@ -418,36 +413,33 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                       className={`px-3.5 py-2 rounded-xl text-xs font-bold transition shrink-0 border ${
                         isSoldOut
                           ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                          : 'bg-sky-50 text-sky-600 hover:bg-sky-500 hover:text-white border-sky-100'
+                          : 'bg-sky-50 hover:bg-sky-500 text-sky-600 hover:text-white border-sky-200'
                       }`}
                     >
-                      {isSoldOut ? '已售完' : '+ 加入'}
+                      {isSoldOut ? '已售完' : '選購 +'}
                     </button>
                   </div>
                 );
               })}
-
-              {filteredMenuItems.length === 0 && (
-                <div className="bg-white rounded-3xl p-6 border border-dashed border-slate-200 text-center text-xs text-slate-400">
-                  找不到符合關鍵字的餐點，請試試其他搜尋字詞。
-                </div>
-              )}
             </div>
           </>
         )}
       </main>
 
-      {selectedMenuItem && store && (
-        <CustomModal
-          item={selectedMenuItem}
-          storeId={store.id}
-          storeName={store.name}
-          onClose={() => setSelectedMenuItem(null)}
-          onAddToCart={handleAddToCart}
-        />
-      )}
+      {/* 彈出客製化規格選擇跳窗 */}
+      <CustomModal
+        item={selectedMenuItem}
+        storeId={store?.id || ''}
+        storeName={store?.name || ''}
+        onClose={() => setSelectedMenuItem(null)}
+        onAddToCart={handleAddToCart}
+      />
 
-      <CartBar cartItems={currentStoreItems} onClearCart={handleClearStoreCart} />
+      {/* 底部懸浮購物車條 */}
+      <CartBar
+        cartItems={currentStoreItems}
+        onClearCart={handleClearStoreCart}
+      />
     </div>
   );
 }

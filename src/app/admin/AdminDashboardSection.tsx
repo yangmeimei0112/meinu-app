@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { OrderSubmissionAdmin, GroupOrderAdmin, AdminViewMode } from './admin-types';
+import { useDebounce } from '@/lib/useDebounce';
 
 interface AdminDashboardSectionProps {
   viewMode?: AdminViewMode;
@@ -69,38 +70,60 @@ export function AdminDashboardSection({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
 
-  // 計算各金流分類實收與待收
-  const cashSubmissions = submissions.filter((s) => s.payment_method_name.includes('現金'));
-  const cashPaid = cashSubmissions.filter((s) => s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
-  const cashUnpaid = cashSubmissions.filter((s) => !s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
+  // 防抖搜尋
+  const debouncedSearch = useDebounce(searchQuery, 180);
 
-  const linePaySubmissions = submissions.filter((s) => s.payment_method_name.toLowerCase().includes('line'));
-  const linePayPaid = linePaySubmissions.filter((s) => s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
-  const linePayUnpaid = linePaySubmissions.filter((s) => !s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
+  // 記憶化各金流分類實收與待收
+  const { cashPaid, cashUnpaid, linePayPaid, linePayUnpaid, transferPaid, transferUnpaid } = useMemo(() => {
+    let cPaid = 0, cUnpaid = 0;
+    let lPaid = 0, lUnpaid = 0;
+    let tPaid = 0, tUnpaid = 0;
 
-  const transferSubmissions = submissions.filter(
-    (s) => !s.payment_method_name.includes('現金') && !s.payment_method_name.toLowerCase().includes('line')
-  );
-  const transferPaid = transferSubmissions.filter((s) => s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
-  const transferUnpaid = transferSubmissions.filter((s) => !s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
+    submissions.forEach((s) => {
+      const name = s.payment_method_name.toLowerCase();
+      if (name.includes('現金')) {
+        if (s.is_paid) cPaid += s.final_amount;
+        else cUnpaid += s.final_amount;
+      } else if (name.includes('line')) {
+        if (s.is_paid) lPaid += s.final_amount;
+        else lUnpaid += s.final_amount;
+      } else {
+        if (s.is_paid) tPaid += s.final_amount;
+        else tUnpaid += s.final_amount;
+      }
+    });
+
+    return {
+      cashPaid: cPaid,
+      cashUnpaid: cUnpaid,
+      linePayPaid: lPaid,
+      linePayUnpaid: lUnpaid,
+      transferPaid: tPaid,
+      transferUnpaid: tUnpaid,
+    };
+  }, [submissions]);
 
   const isClosed = groupOrder?.status === 'closed';
-  const totalItemCount = Object.values(itemSummary).reduce((a, b) => a + b, 0);
-  const unpaidSubmissionsCount = submissions.filter((s) => !s.is_paid).length;
-  const paidSubmissionsCount = submissions.filter((s) => s.is_paid).length;
+  const totalItemCount = useMemo(() => Object.values(itemSummary).reduce((a, b) => a + b, 0), [itemSummary]);
+  const unpaidSubmissionsCount = useMemo(() => submissions.filter((s) => !s.is_paid).length, [submissions]);
+  const paidSubmissionsCount = useMemo(() => submissions.filter((s) => s.is_paid).length, [submissions]);
 
-  // 過濾團員清單
-  const filteredSubmissions = submissions.filter((sub) => {
-    const matchesSearch =
-      sub.user_nickname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sub.order_number.toLowerCase().includes(searchQuery.toLowerCase());
+  // 記憶化過濾團員清單
+  const filteredSubmissions = useMemo(() => {
+    const query = debouncedSearch.trim().toLowerCase();
+    return submissions.filter((sub) => {
+      const matchesSearch =
+        !query ||
+        sub.user_nickname.toLowerCase().includes(query) ||
+        sub.order_number.toLowerCase().includes(query);
 
-    if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-    if (statusFilter === 'unpaid') return !sub.is_paid;
-    if (statusFilter === 'paid') return sub.is_paid;
-    return true;
-  });
+      if (statusFilter === 'unpaid') return !sub.is_paid;
+      if (statusFilter === 'paid') return sub.is_paid;
+      return true;
+    });
+  }, [submissions, debouncedSearch, statusFilter]);
 
   const isDesktop = viewMode === 'desktop';
 

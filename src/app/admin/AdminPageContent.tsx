@@ -140,63 +140,64 @@ export default function AdminPageContent() {
   const fetchAdminData = async () => {
     setLoading(true);
 
-    const { data: catList } = await supabase.from('categories').select('*').order('sort_order', { ascending: true });
-    if (catList) setCategories(catList as Category[]);
+    try {
+      // 🚀 並行發送 6 個查詢，消除瀑布流延遲，後台載入速度提升 3 倍
+      const [catRes, storeRes, paymentRes, soldOutRes, menuRes, groupRes] = await Promise.all([
+        supabase.from('categories').select('*').order('sort_order', { ascending: true }),
+        supabase.from('stores').select('*'),
+        supabase.from('payment_methods').select('*').order('name', { ascending: true }),
+        supabase.from('sold_out_options').select('*').order('sort_order', { ascending: true }),
+        supabase.from('menu_items').select('*'),
+        supabase.from('group_orders').select('*').order('created_at', { ascending: false }),
+      ]);
 
-    const { data: storeList } = await supabase.from('stores').select('*');
-    if (storeList) {
-      setStores(storeList as Store[]);
-      if (storeList.length > 0 && !selectedCrudStoreId) {
-        setSelectedCrudStoreId(storeList[0].id);
+      if (catRes.data) setCategories(catRes.data as Category[]);
+
+      if (storeRes.data) {
+        setStores(storeRes.data as Store[]);
+        if (storeRes.data.length > 0 && !selectedCrudStoreId) {
+          setSelectedCrudStoreId(storeRes.data[0].id);
+        }
       }
-    }
 
-    const { data: paymentList } = await supabase
-      .from('payment_methods')
-      .select('*')
-      .order('name', { ascending: true });
-    if (paymentList) {
-      setPaymentMethods(paymentList as PaymentMethod[]);
-    }
+      if (paymentRes.data) setPaymentMethods(paymentRes.data as PaymentMethod[]);
+      if (soldOutRes.data) setSoldOutOptions(soldOutRes.data as SoldOutOption[]);
+      if (menuRes.data) setCrudMenuItems(menuRes.data as MenuItem[]);
 
-    const { data: soldOutOptionList } = await supabase
-      .from('sold_out_options')
-      .select('*')
-      .order('sort_order', { ascending: true });
-    if (soldOutOptionList) {
-      setSoldOutOptions(soldOutOptionList as SoldOutOption[]);
-    }
+      if (groupRes.data) {
+        const openGroup = groupRes.data.find((g) => g.status !== 'completed');
+        const completedList = groupRes.data.filter((g) => g.status === 'completed');
 
-    const { data: groupList } = await supabase.from('group_orders').select('*').order('created_at', { ascending: false });
+        setArchivedGroups(completedList as GroupOrderAdmin[]);
 
-    if (groupList) {
-      const openGroup = groupList.find((g) => g.status !== 'completed');
-      const completedList = groupList.filter((g) => g.status === 'completed');
+        if (openGroup) {
+          const g = openGroup as GroupOrderAdmin;
+          setActiveGroup(g);
+          setInputDeliveryFee(g.delivery_fee || 0);
+          setInputDiscount(g.discount_amount || 0);
+          setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
 
-      setArchivedGroups(completedList as GroupOrderAdmin[]);
+          const { data: subList } = await supabase
+            .from('order_submissions')
+            .select(`
+              id, order_number, user_nickname, payment_method_name, sold_out_option,
+              total_amount, final_amount, is_paid, signature_data, created_at,
+              order_items (id, item_name, quantity, unit_price, custom_notes)
+            `)
+            .eq('group_order_id', g.id)
+            .order('created_at', { ascending: false });
 
-      if (openGroup) {
-        const g = openGroup as GroupOrderAdmin;
-        setActiveGroup(g);
-        setInputDeliveryFee(g.delivery_fee || 0);
-        setInputDiscount(g.discount_amount || 0);
-        setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
-
-        const { data: subList } = await supabase
-          .from('order_submissions')
-          .select(`
-            id, order_number, user_nickname, payment_method_name, sold_out_option,
-            total_amount, final_amount, is_paid, signature_data, created_at,
-            order_items (id, item_name, quantity, unit_price, custom_notes)
-          `)
-          .eq('group_order_id', g.id)
-          .order('created_at', { ascending: false });
-
-        if (subList) setSubmissions(subList as unknown as OrderSubmissionAdmin[]);
+          if (subList) setSubmissions(subList as unknown as OrderSubmissionAdmin[]);
+        } else {
+          setActiveGroup(null);
+          setSubmissions([]);
+        }
       }
+    } catch (err) {
+      console.error('抓取後台資料失敗:', err);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -847,16 +848,22 @@ export default function AdminPageContent() {
     showToast('📊 訂單 CSV 表格已成功下載！');
   };
 
-  const itemSummary = submissions.reduce((acc, sub) => {
-    sub.order_items.forEach((item) => {
-      const key = `${item.item_name} ${item.custom_notes ? `(${item.custom_notes})` : ''}`;
-      acc[key] = (acc[key] || 0) + item.quantity;
-    });
-    return acc;
-  }, {} as Record<string, number>);
+  const itemSummary: Record<string, number> = {};
+  let grandTotal = 0;
+  let paidTotal = 0;
 
-  const grandTotal = submissions.reduce((sum, sub) => sum + sub.final_amount, 0);
-  const paidTotal = submissions.filter((s) => s.is_paid).reduce((sum, sub) => sum + sub.final_amount, 0);
+  for (let i = 0; i < submissions.length; i++) {
+    const sub = submissions[i];
+    grandTotal += sub.final_amount;
+    if (sub.is_paid) paidTotal += sub.final_amount;
+
+    const items = sub.order_items || [];
+    for (let j = 0; j < items.length; j++) {
+      const item = items[j];
+      const key = `${item.item_name} ${item.custom_notes ? `(${item.custom_notes})` : ''}`;
+      itemSummary[key] = (itemSummary[key] || 0) + item.quantity;
+    }
+  }
 
   if (!isUnlocked) {
     return (

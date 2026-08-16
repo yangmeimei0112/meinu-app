@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import LiveOrderCounter from '@/components/LiveOrderCounter';
 import { supabase } from '@/lib/supabase';
 import { Store, Category } from '@/types/database';
+import { useDebounce } from '@/lib/useDebounce';
 
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -15,6 +16,9 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
 
+  // 搜尋關鍵字輕量防抖，避免高頻輸入時造成卡頓
+  const debouncedSearch = useDebounce(searchQuery, 200);
+
   // 取得環境變數中的 Git 資訊
   const commitMsg = process.env.NEXT_PUBLIC_GIT_COMMIT_MSG || 'v1.0.0';
   const commitHash = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || 'dev';
@@ -22,34 +26,38 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
-      
-      const { data: catData } = await supabase
-        .from('categories')
-        .select('*')
-        .order('sort_order', { ascending: true });
 
-      const { data: storeData } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('is_active', true);
+      // 並行發送查詢，消除網路請求瀑布流延遲
+      const [catRes, storeRes] = await Promise.all([
+        supabase
+          .from('categories')
+          .select('id, name, sort_order')
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('stores')
+          .select('id, name, image_url, category_id, is_active')
+          .eq('is_active', true),
+      ]);
 
-      if (catData) setCategories(catData as Category[]);
-      if (storeData) setStores(storeData as Store[]);
-      
+      if (catRes.data) setCategories(catRes.data as Category[]);
+      if (storeRes.data) setStores(storeRes.data as Store[]);
+
       setLoading(false);
     }
 
     fetchData();
   }, []);
 
-  const filteredStores = stores.filter((store: Store) => {
-    const matchesCategory =
-      selectedCategory === 'all' || store.category_id === selectedCategory;
-    const matchesSearch = store.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
+  // 記憶化店家篩選結果
+  const filteredStores = useMemo(() => {
+    const query = debouncedSearch.trim().toLowerCase();
+    return stores.filter((store: Store) => {
+      const matchesCategory =
+        selectedCategory === 'all' || store.category_id === selectedCategory;
+      const matchesSearch = !query || store.name.toLowerCase().includes(query);
+      return matchesCategory && matchesSearch;
+    });
+  }, [stores, selectedCategory, debouncedSearch]);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
@@ -89,7 +97,7 @@ export default function HomePage() {
             <button
               type="button"
               onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+              className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                 selectedCategory === 'all'
                   ? 'bg-sky-500 text-white shadow-xs'
                   : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -102,7 +110,7 @@ export default function HomePage() {
                 type="button"
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition active:scale-95 ${
                   selectedCategory === cat.id
                     ? 'bg-sky-500 text-white shadow-xs'
                     : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -139,13 +147,15 @@ export default function HomePage() {
                 <Link
                   key={store.id}
                   href={`/stores/${store.id}`}
-                  className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs hover:border-sky-200 hover:shadow-md transition cursor-pointer flex items-center gap-3.5 active:scale-[0.99] block"
+                  className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs hover:border-sky-200 hover:shadow-md transition cursor-pointer flex items-center gap-3.5 active:scale-[0.99] block content-auto"
                 >
                   <div className="w-16 h-16 rounded-2xl bg-sky-50 flex items-center justify-center text-2xl shrink-0 overflow-hidden border border-sky-100">
                     {store.image_url ? (
                       <img
                         src={store.image_url}
                         alt={store.name}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                       />
                     ) : (
