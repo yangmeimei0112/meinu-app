@@ -15,6 +15,7 @@ export interface CartItem {
   selectedOptions: SelectedOption[];
   customNotes: string;
   totalPrice: number;
+  rawCustomSelections?: Record<string, string[]>;
 }
 
 // 多店家購物車結構：key 為 storeId
@@ -24,4 +25,4 @@ export interface StoreCartGroup {
   items: CartItem[];
 }
 
-export type MultiStoreCart = Record<string, StoreCartGroup>;
+export type MultiStoreCart = Record<string, StoreCartGroup>;

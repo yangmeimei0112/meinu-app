@@ -1,25 +1,26 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
+
+function getSnapshot() {
+  return typeof navigator !== 'undefined' ? !navigator.onLine : false;
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
+function subscribe(callback: () => void) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
 
 export default function OfflineBanner() {
-  const [isOffline, setIsOffline] = useState<boolean>(false);
-
-  useEffect(() => {
-    const handleOffline = () => setIsOffline(true);
-    const handleOnline = () => setIsOffline(false);
-
-    // 初始檢測與監聽網路狀態
-    setIsOffline(!navigator.onLine);
-
-    window.addEventListener('offline', handleOffline);
-    window.addEventListener('online', handleOnline);
-
-    return () => {
-      window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('online', handleOnline);
-    };
-  }, []);
+  const isOffline = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (!isOffline) return null;
 

@@ -4,9 +4,11 @@ import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
+import OfflineBanner from '@/components/OfflineBanner';
+import BudgetLimitNotice from '@/components/BudgetLimitNotice';
 import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
-import { PaymentMethod, SoldOutOption } from '@/types/database';
+import { PaymentMethod, SoldOutOption, GroupOrder } from '@/types/database';
 
 function CheckoutContent() {
   const router = useRouter();
@@ -16,10 +18,13 @@ function CheckoutContent() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [soldOutOptions, setSoldOutOptions] = useState<SoldOutOption[]>([]);
+  const [activeGroupOrder, setActiveGroupOrder] = useState<GroupOrder | null>(null);
 
   const [nickname, setNickname] = useState<string>('');
   const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [selectedSoldOut, setSelectedSoldOut] = useState<string>('');
+  const [hasDuplicateNickname, setHasDuplicateNickname] = useState<boolean>(false);
+  const [checkingDuplicate, setCheckingDuplicate] = useState<boolean>(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -30,7 +35,6 @@ function CheckoutContent() {
     if (savedMulti) {
       try {
         const parsed: MultiStoreCart = JSON.parse(savedMulti);
-        // 若網址上有指定 storeId，則抓該店；否則抓第一家店
         const key = targetStoreId || Object.keys(parsed)[0];
         if (key && parsed[key]) {
           setCartItems(parsed[key].items);
@@ -44,7 +48,7 @@ function CheckoutContent() {
     if (savedNickname) setNickname(savedNickname);
   }, [targetStoreId]);
 
-  // 2. 抓取付款方式與缺貨備案
+  // 2. 抓取付款方式、缺貨備案與團購活動資訊
   useEffect(() => {
     async function fetchCheckoutMeta() {
       const { data: pmData } = await supabase
@@ -65,10 +69,74 @@ function CheckoutContent() {
         setSoldOutOptions(soData as SoldOutOption[]);
         setSelectedSoldOut(soData[0].title);
       }
+
+      if (targetStoreId) {
+        const { data: groupData } = await supabase
+          .from('group_orders')
+          .select('*')
+          .eq('store_id', targetStoreId)
+          .neq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (groupData && groupData.length > 0) {
+          setActiveGroupOrder(groupData[0] as GroupOrder);
+        }
+      }
     }
 
     fetchCheckoutMeta();
-  }, []);
+  }, [targetStoreId]);
+
+  // 3. 同暱稱防撞名提醒（僅提醒，不阻擋）
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function checkDuplicateNickname() {
+      const trimmedNickname = nickname.trim();
+      if (!trimmedNickname || cartItems.length === 0) {
+        setHasDuplicateNickname(false);
+        return;
+      }
+
+      setCheckingDuplicate(true);
+      try {
+        const storeId = cartItems[0].storeId;
+        const { data: existingGroup } = await supabase
+          .from('group_orders')
+          .select('id, status')
+          .eq('store_id', storeId)
+          .neq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        const group = existingGroup?.[0];
+        if (!group || group.status === 'completed') {
+          if (!isCancelled) setHasDuplicateNickname(false);
+          return;
+        }
+
+        const { data: duplicateRows } = await supabase
+          .from('order_submissions')
+          .select('id')
+          .eq('group_order_id', group.id)
+          .ilike('user_nickname', trimmedNickname)
+          .limit(1);
+
+        if (!isCancelled) {
+          setHasDuplicateNickname((duplicateRows?.length || 0) > 0);
+        }
+      } finally {
+        if (!isCancelled) setCheckingDuplicate(false);
+      }
+    }
+
+    checkDuplicateNickname();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [nickname, cartItems]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -104,12 +172,18 @@ function CheckoutContent() {
       let activeGroupId = '';
       const { data: existingGroup } = await supabase
         .from('group_orders')
-        .select('id')
+        .select('id, status')
         .eq('store_id', storeId)
-        .eq('status', 'open')
+        .neq('status', 'completed')
+        .order('created_at', { ascending: false })
         .limit(1);
 
       if (existingGroup && existingGroup.length > 0) {
+        if (existingGroup[0].status === 'closed') {
+          alert('🚫 團長已截單，目前停止收單中！無法送出訂單。');
+          setIsSubmitting(false);
+          return;
+        }
         activeGroupId = existingGroup[0].id;
       } else {
         const { data: newGroup, error: groupErr } = await supabase
@@ -124,6 +198,24 @@ function CheckoutContent() {
 
         if (groupErr || !newGroup) throw new Error('建立團購活動失敗');
         activeGroupId = newGroup.id;
+      }
+
+      // 同暱稱防撞二次確認
+      const { data: duplicateRows } = await supabase
+        .from('order_submissions')
+        .select('id')
+        .eq('group_order_id', activeGroupId)
+        .ilike('user_nickname', nickname.trim())
+        .limit(1);
+
+      if ((duplicateRows?.length || 0) > 0) {
+        const shouldContinue = window.confirm(
+          `⚠️ 目前已有一位「${nickname.trim()}」送單囉！\n請問您是「${nickname.trim()}」本人，還是另一位同名朋友？\n\n建議加上姓氏或代號（例如：戴小明、小明B）避免對帳混淆。\n\n要繼續以此暱稱送單嗎？`
+        );
+        if (!shouldContinue) {
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       const orderNumber = `MN-${Date.now().toString().slice(-6)}`;
@@ -182,7 +274,19 @@ function CheckoutContent() {
         localStorage.setItem('menu_app_multi_cart', JSON.stringify(parsed));
       }
 
+      // 儲存至單一最新與歷史訂單清單 (供「我的訂單」頁面查詢)
       localStorage.setItem('menu_app_last_order_id', submission.id);
+      try {
+        const historyRaw = localStorage.getItem('menu_app_order_history');
+        const historyList: string[] = historyRaw ? JSON.parse(historyRaw) : [];
+        if (!historyList.includes(submission.id)) {
+          historyList.unshift(submission.id);
+          localStorage.setItem('menu_app_order_history', JSON.stringify(historyList.slice(0, 50)));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
       alert(`🎉 訂單送出成功！單號：${orderNumber}`);
       router.push(`/order-status/${submission.id}`);
     } catch (err) {
@@ -195,6 +299,7 @@ function CheckoutContent() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
+      <OfflineBanner />
       <Header />
 
       {toastMessage && (
@@ -225,6 +330,15 @@ function CheckoutContent() {
           </div>
         ) : (
           <>
+            {/* 個人預算補貼提醒 */}
+            {activeGroupOrder?.enable_budget_limit &&
+              activeGroupOrder?.budget_limit_amount && (
+                <BudgetLimitNotice
+                  budgetLimit={activeGroupOrder.budget_limit_amount}
+                  totalAmount={grandTotal}
+                />
+              )}
+
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                 1. 點餐明細 ({cartItems[0]?.storeName})
@@ -269,6 +383,14 @@ function CheckoutContent() {
                 onChange={(e) => setNickname(e.target.value)}
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
               />
+              {checkingDuplicate && nickname.trim() && (
+                <p className="text-[11px] text-slate-400">正在檢查是否重複暱稱...</p>
+              )}
+              {!checkingDuplicate && hasDuplicateNickname && nickname.trim() && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 text-[11px] text-amber-700 font-semibold">
+                  ⚠️ 目前已有同名暱稱，建議加上姓氏或代號避免對帳混淆。
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">

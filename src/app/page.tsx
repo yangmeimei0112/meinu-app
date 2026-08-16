@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import OfflineBanner from '@/components/OfflineBanner';
+import LiveOrderCounter from '@/components/LiveOrderCounter';
 import { supabase } from '@/lib/supabase';
 import { Store, Category } from '@/types/database';
 
@@ -52,9 +54,13 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
       <div>
+        <OfflineBanner />
         <Header />
 
-        <main className="flex-1 max-w-md mx-auto w-full px-4 pt-4 space-y-4 pb-12">
+        <main className="flex-1 max-w-md mx-auto w-full px-4 pt-3 space-y-3 pb-12">
+          {/* 實時全團點餐進度卡片 */}
+          <LiveOrderCounter />
+
           {/* 淡藍主題歡迎橫幅 */}
           <div className="bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 text-white rounded-3xl p-5 shadow-sm">
             <p className="text-xs font-medium opacity-90">👋 歡迎來到</p>

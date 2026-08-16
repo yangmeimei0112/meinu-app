@@ -6,23 +6,71 @@ import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import SignatureModal from '@/components/SignatureModal';
 import { supabase } from '@/lib/supabase';
-import { Store, MenuItem, Category, CustomGroup } from '@/types/database';
+import { Store, MenuItem, Category, CustomGroup, PaymentMethod, SoldOutOption } from '@/types/database';
 import { AdminArchiveSection } from './AdminArchiveSection';
-import { AdminCrudSection } from './AdminCrudSection';
+import { AdminCrudSection } from '@/app/admin/AdminCrudSection';
 import { AdminDashboardSection } from './AdminDashboardSection';
-import { GroupOrderAdmin, OrderSubmissionAdmin } from './admin-types';
+import { GroupOrderAdmin, OrderSubmissionAdmin, AdminViewMode } from './admin-types';
+import AdminPrintModal from './AdminPrintModal';
+import AdminManualOrderModal from './AdminManualOrderModal';
+import AdminBatchImportModal from './AdminBatchImportModal';
+import AdminGroupSettingsModal from './AdminGroupSettingsModal';
+import { compressImageToWebP } from '@/lib/image-compress';
 
 export default function AdminPageContent() {
   const [passcode, setPasscode] = useState<string>('');
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive'>('active');
+  const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
+  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
 
   const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
   const [archivedGroups, setArchivedGroups] = useState<GroupOrderAdmin[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [soldOutOptions, setSoldOutOptions] = useState<SoldOutOption[]>([]);
   const [submissions, setSubmissions] = useState<OrderSubmissionAdmin[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // 初始化視圖模式與音效偏好
+  useEffect(() => {
+    try {
+      const savedMode = localStorage.getItem('menu_app_admin_view_mode') as AdminViewMode;
+      if (savedMode === 'mobile' || savedMode === 'desktop') {
+        setViewMode(savedMode);
+      } else if (typeof window !== 'undefined' && window.innerWidth < 768) {
+        setViewMode('mobile');
+      }
+
+      const savedSound = localStorage.getItem('menu_app_admin_sound_enabled');
+      if (savedSound !== null) {
+        setIsSoundEnabled(savedSound === 'true');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const handleToggleViewMode = (mode: AdminViewMode) => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('menu_app_admin_view_mode', mode);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleToggleSound = () => {
+    const nextSound = !isSoundEnabled;
+    setIsSoundEnabled(nextSound);
+    try {
+      localStorage.setItem('menu_app_admin_sound_enabled', String(nextSound));
+    } catch (e) {
+      console.error(e);
+    }
+    showToast(nextSound ? '🔔 已開啟新訂單叮咚音效提醒' : '🔕 已靜音新訂單提示音效');
+  };
 
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
@@ -48,6 +96,12 @@ export default function AdminPageContent() {
   });
   const [productCustomGroups, setProductCustomGroups] = useState<CustomGroup[]>([]);
 
+  // 額外彈窗控制：列印、人工代點、CSV 批次匯入、團購設定
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
+  const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState<boolean>(false);
+  const [isBatchImportModalOpen, setIsBatchImportModalOpen] = useState<boolean>(false);
+  const [isGroupSettingsModalOpen, setIsGroupSettingsModalOpen] = useState<boolean>(false);
+
   const [signatureTarget, setSignatureTarget] = useState<OrderSubmissionAdmin | null>(null);
   const [changeModalTarget, setChangeModalTarget] = useState<{ nickname: string; amount: number } | null>(null);
   const [receivedCash, setReceivedCash] = useState<string>('');
@@ -65,6 +119,7 @@ export default function AdminPageContent() {
   };
 
   const playChimeSound = () => {
+    if (!isSoundEnabled) return;
     try {
       const audio = new Audio('/notification.mp3');
       audio.play().catch((err) => console.error('播放音效失敗：', err));
@@ -96,33 +151,82 @@ export default function AdminPageContent() {
       }
     }
 
-    const { data: groupList } = await supabase.from('group_orders').select('*').order('created_at', { ascending: false });
+    const { data: allMenuItems } = await supabase.from('menu_items').select('*');
+    if (allMenuItems) {
+      setCrudMenuItems(allMenuItems as MenuItem[]);
+    }
 
-    if (groupList) {
-      const openGroup = groupList.find((g) => g.status !== 'completed');
-      const completedList = groupList.filter((g) => g.status === 'completed');
+    const { data: paymentList } = await supabase
+      .from('payment_methods')
+      .select('*')
+      .order('name', { ascending: true });
+    if (paymentList) {
+      setPaymentMethods(paymentList as PaymentMethod[]);
+    }
 
-      setArchivedGroups(completedList as GroupOrderAdmin[]);
+    const { data: soldOutOptionList } = await supabase
+      .from('sold_out_options')
+      .select('*')
+      .order('sort_order', { ascending: true });
+    if (soldOutOptionList) {
+      setSoldOutOptions(soldOutOptionList as SoldOutOption[]);
+    }
 
-      if (openGroup) {
-        const g = openGroup as GroupOrderAdmin;
-        setActiveGroup(g);
-        setInputDeliveryFee(g.delivery_fee || 0);
-        setInputDiscount(g.discount_amount || 0);
-        setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
+    // 抓取進行中的團購活動
+    const { data: activeGroupData } = await supabase
+      .from('group_orders')
+      .select('*')
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-        const { data: subList } = await supabase
-          .from('order_submissions')
-          .select(`
-            id, order_number, user_nickname, payment_method_name, sold_out_option,
-            total_amount, final_amount, is_paid, signature_data, created_at,
-            order_items (id, item_name, quantity, unit_price, custom_notes)
-          `)
-          .eq('group_order_id', g.id)
-          .order('created_at', { ascending: false });
+    if (activeGroupData && activeGroupData.length > 0) {
+      const activeObj = activeGroupData[0] as GroupOrderAdmin;
+      setActiveGroup(activeObj);
+      setInputDeliveryFee(activeObj.delivery_fee);
+      setInputDiscount(activeObj.discount_amount);
+      setRoundingRule((activeObj.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
 
-        if (subList) setSubmissions(subList as unknown as OrderSubmissionAdmin[]);
-      }
+      const { data: subList } = await supabase
+        .from('order_submissions')
+        .select(`
+          id,
+          group_order_id,
+          order_number,
+          user_nickname,
+          payment_method_name,
+          sold_out_option,
+          total_amount,
+          final_amount,
+          is_paid,
+          signature_data,
+          created_at,
+          order_items (
+            id,
+            item_name,
+            quantity,
+            unit_price,
+            custom_notes
+          )
+        `)
+        .eq('group_order_id', activeObj.id)
+        .order('created_at', { ascending: true });
+
+      if (subList) setSubmissions(subList as unknown as OrderSubmissionAdmin[]);
+    } else {
+      setActiveGroup(null);
+      setSubmissions([]);
+    }
+
+    // 抓取歷史封存活動
+    const { data: archivedList } = await supabase
+      .from('group_orders')
+      .select('*')
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false });
+
+    if (archivedList) {
+      setArchivedGroups(archivedList as GroupOrderAdmin[]);
     }
 
     setLoading(false);
@@ -161,12 +265,41 @@ export default function AdminPageContent() {
     };
   }, [isUnlocked, activeGroup]);
 
-  const handleStoreImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleStoreImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setStoreImageFile(file);
-      setStoreImagePreview(URL.createObjectURL(file));
+      try {
+        const compressedWebPDataUrl = await compressImageToWebP(file);
+        setStoreImagePreview(compressedWebPDataUrl);
+        const res = await fetch(compressedWebPDataUrl);
+        const blob = await res.blob();
+        const compressedFile = new File(
+          [blob],
+          `${file.name.replace(/\.[^/.]+$/, '')}.webp`,
+          { type: 'image/webp' }
+        );
+        setStoreImageFile(compressedFile);
+      } catch (err) {
+        console.error('WebP 壓縮失敗，使用原始檔案', err);
+        setStoreImageFile(file);
+        setStoreImagePreview(URL.createObjectURL(file));
+      }
     }
+  };
+
+  const handleOpenStoreModal = (store?: Store) => {
+    if (store) {
+      setEditingStore(store);
+      setStoreForm({ name: store.name, category_id: store.category_id || '' });
+      setStoreImagePreview(store.image_url || '');
+      setStoreImageFile(null);
+    } else {
+      setEditingStore(null);
+      setStoreForm({ name: '', category_id: categories[0]?.id || '' });
+      setStoreImagePreview('');
+      setStoreImageFile(null);
+    }
+    setIsStoreModalOpen(true);
   };
 
   const handleSaveStore = async (e: React.FormEvent) => {
@@ -280,8 +413,105 @@ export default function AdminPageContent() {
     fetchAdminData();
   };
 
-  const handleOpenItemModal = (item?: MenuItem) => {
+  const handleCreatePaymentMethod = async () => {
+    const payload = {
+      name: `新付款方式 ${paymentMethods.length + 1}`,
+      account_info: null,
+      is_active: true,
+    };
+    const { error } = await supabase.from('payment_methods').insert([payload]);
+    if (error) {
+      showToast('❌ 新增付款方式失敗');
+      return;
+    }
+    showToast('➕ 已新增付款方式');
+    fetchAdminData();
+  };
+
+  const handleSavePaymentMethod = async (id: string, payload: { name: string; account_info: string | null }) => {
+    const { error } = await supabase.from('payment_methods').update(payload).eq('id', id);
+    if (error) {
+      showToast('❌ 儲存付款方式失敗');
+      return;
+    }
+    showToast('✅ 付款方式已更新');
+    fetchAdminData();
+  };
+
+  const handleDeletePaymentMethod = async (id: string) => {
+    if (!confirm('確定要刪除此付款方式嗎？')) return;
+    const { error } = await supabase.from('payment_methods').delete().eq('id', id);
+    if (error) {
+      showToast('❌ 刪除付款方式失敗');
+      return;
+    }
+    showToast('🗑️ 付款方式已刪除');
+    fetchAdminData();
+  };
+
+  const handleTogglePaymentMethodActive = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase.from('payment_methods').update({ is_active: !currentStatus }).eq('id', id);
+    if (error) {
+      showToast('❌ 切換付款方式狀態失敗');
+      return;
+    }
+    showToast(!currentStatus ? '✅ 已啟用付款方式' : '⏸️ 已停用付款方式');
+    fetchAdminData();
+  };
+
+  const handleCreateSoldOutOption = async () => {
+    const nextOrder = soldOutOptions.length > 0 ? Math.max(...soldOutOptions.map((x) => x.sort_order)) + 1 : 1;
+    const payload = { title: '請團長聯繫我', sort_order: nextOrder };
+    const { error } = await supabase.from('sold_out_options').insert([payload]);
+    if (error) {
+      showToast('❌ 新增缺貨備案失敗');
+      return;
+    }
+    showToast('➕ 已新增缺貨備案');
+    fetchAdminData();
+  };
+
+  const handleSaveSoldOutOption = async (id: string, title: string) => {
+    const { error } = await supabase.from('sold_out_options').update({ title: title.trim() }).eq('id', id);
+    if (error) {
+      showToast('❌ 儲存缺貨備案失敗');
+      return;
+    }
+    showToast('✅ 缺貨備案已更新');
+    fetchAdminData();
+  };
+
+  const handleDeleteSoldOutOption = async (id: string) => {
+    if (!confirm('確定要刪除此缺貨備案嗎？')) return;
+    const { error } = await supabase.from('sold_out_options').delete().eq('id', id);
+    if (error) {
+      showToast('❌ 刪除缺貨備案失敗');
+      return;
+    }
+    showToast('🗑️ 缺貨備案已刪除');
+    fetchAdminData();
+  };
+
+  const handleMoveSoldOutOption = async (id: string, direction: 'up' | 'down') => {
+    const sorted = [...soldOutOptions].sort((a, b) => a.sort_order - b.sort_order);
+    const index = sorted.findIndex((x) => x.id === id);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (index < 0 || targetIndex < 0 || targetIndex >= sorted.length) return;
+
+    const current = sorted[index];
+    const target = sorted[targetIndex];
+
+    await supabase.from('sold_out_options').update({ sort_order: target.sort_order }).eq('id', current.id);
+    await supabase.from('sold_out_options').update({ sort_order: current.sort_order }).eq('id', target.id);
+    fetchAdminData();
+  };
+
+  const handleOpenItemModal = (item?: MenuItem, storeId?: string) => {
+    if (storeId) {
+      setSelectedCrudStoreId(storeId);
+    }
     if (item) {
+      if (item.store_id) setSelectedCrudStoreId(item.store_id);
       setEditingProduct(item);
       setProductForm({
         name: item.name,
@@ -333,10 +563,11 @@ export default function AdminPageContent() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCrudStoreId || !productForm.name.trim()) return;
+    const targetStoreId = editingProduct?.store_id || selectedCrudStoreId;
+    if (!targetStoreId || !productForm.name.trim()) return;
     try {
       const payload = {
-        store_id: selectedCrudStoreId,
+        store_id: targetStoreId,
         name: productForm.name.trim(),
         price: parseFloat(productForm.price) || 0,
         description: productForm.description.trim() || null,
@@ -355,7 +586,7 @@ export default function AdminPageContent() {
         showToast('🎉 新增餐點成功！');
       }
       setIsProductModalOpen(false);
-      const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
+      const { data } = await supabase.from('menu_items').select('*');
       if (data) setCrudMenuItems(data as MenuItem[]);
     } catch (err: any) {
       console.error('儲存餐點失敗:', err);
@@ -369,10 +600,8 @@ export default function AdminPageContent() {
       const { error } = await supabase.from('menu_items').delete().eq('id', productId);
       if (error) throw error;
       showToast('🗑️ 品項已刪除');
-      if (selectedCrudStoreId) {
-        const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
-        if (data) setCrudMenuItems(data as MenuItem[]);
-      }
+      const { data } = await supabase.from('menu_items').select('*');
+      if (data) setCrudMenuItems(data as MenuItem[]);
     } catch (err) {
       console.error('刪除品項失敗:', err);
     }
@@ -382,10 +611,8 @@ export default function AdminPageContent() {
     try {
       const { error } = await supabase.from('menu_items').update({ is_sold_out: !prod.is_sold_out }).eq('id', prod.id);
       if (error) throw error;
-      if (selectedCrudStoreId) {
-        const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
-        if (data) setCrudMenuItems(data as MenuItem[]);
-      }
+      const { data } = await supabase.from('menu_items').select('*');
+      if (data) setCrudMenuItems(data as MenuItem[]);
     } catch (err) {
       console.error('切換狀態失敗:', err);
     }
@@ -443,21 +670,73 @@ export default function AdminPageContent() {
     fetchAdminData();
   };
 
-  const handleReopenGroup = async (targetStoreId?: string) => {
-    const sId = targetStoreId || activeGroup?.store_id;
-    if (!sId) return;
+  const handleReopenGroup = async (group: GroupOrderAdmin) => {
+    const { data: newGroup, error } = await supabase
+      .from('group_orders')
+      .insert({
+        title: `${group.title} (新開團)`,
+        store_id: group.store_id,
+        status: 'open',
+        announcement: group.announcement,
+        delivery_fee: group.delivery_fee,
+        discount_amount: group.discount_amount,
+        rounding_rule: group.rounding_rule,
+        enable_min_threshold: group.enable_min_threshold,
+        min_threshold_amount: group.min_threshold_amount,
+        enable_countdown: group.enable_countdown,
+        enable_budget_limit: group.enable_budget_limit,
+        budget_limit_amount: group.budget_limit_amount,
+      })
+      .select('*')
+      .single();
 
-    const { error } = await supabase.from('group_orders').insert({
-      title: '新開團購活動',
-      store_id: sId,
-      status: 'open',
-      delivery_fee: 0,
-      discount_amount: 0,
-    });
+    if (!error && newGroup) {
+      showToast('🔄 已成功一鍵發起新團購活動！');
+      setActiveTab('active');
+      fetchAdminData();
+    } else {
+      alert('建立新團購活動失敗');
+    }
+  };
+
+  const handleSaveGroupSettings = async (updatedData: {
+    title: string;
+    store_id: string;
+    announcement: string | null;
+    enable_min_threshold: boolean;
+    min_threshold_amount: number;
+    enable_countdown: boolean;
+    cutoff_time: string | null;
+    enable_budget_limit: boolean;
+    budget_limit_amount: number;
+  }) => {
+    if (activeGroup) {
+      const { error } = await supabase
+        .from('group_orders')
+        .update(updatedData)
+        .eq('id', activeGroup.id);
+      if (error) throw error;
+      showToast('✅ 團購活動設定與公告已更新！');
+    } else {
+      const { error } = await supabase
+        .from('group_orders')
+        .insert([{ ...updatedData, status: 'open' }]);
+      if (error) throw error;
+      showToast('🎉 新團購活動已成功發起！');
+    }
+    fetchAdminData();
+  };
+
+  const handleToggleGroupStatus = async (newStatus: 'open' | 'closed') => {
+    if (!activeGroup) return;
+    const { error } = await supabase
+      .from('group_orders')
+      .update({ status: newStatus })
+      .eq('id', activeGroup.id);
 
     if (!error) {
-      showToast('🎉 已成功以此店家一鍵開新團！');
-      fetchAdminData();
+      setActiveGroup({ ...activeGroup, status: newStatus });
+      showToast(`活動已切換為：${newStatus === 'closed' ? '🔒 已截單 (停止收單)' : '🟢 開放收單中'}`);
     }
   };
 
@@ -503,6 +782,103 @@ export default function AdminPageContent() {
       console.error('複製失敗:', err);
       showToast('⚠️ 複製失敗，請手動選擇文字複製');
     }
+  };
+
+  const handleCopyStoreOrderText = async () => {
+    const storeName = stores.find((s) => s.id === activeGroup?.store_id)?.name || '店家';
+    let text = `【${storeName} 團購訂單明細】\n---\n`;
+    const totalCount = Object.values(itemSummary).reduce((a, b) => a + b, 0);
+    Object.entries(itemSummary).forEach(([name, qty], idx) => {
+      text += `${idx + 1}. ${name} x ${qty}\n`;
+    });
+    text += `---\n總計：${submissions.length} 人點餐，共 ${totalCount} 份，總金額 $${grandTotal} 元。\n謝謝！`;
+
+    try {
+      if (navigator.clipboard && document.hasFocus()) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      showToast('📋 已複製店家下單格式文字！');
+    } catch (err) {
+      console.error(err);
+      showToast('⚠️ 複製失敗');
+    }
+  };
+
+  const handleCopyUnpaidReminder = async () => {
+    const unpaidList = submissions.filter((s) => !s.is_paid);
+    if (unpaidList.length === 0) {
+      showToast('🎉 全員皆已付款完成，無需催款！');
+      return;
+    }
+
+    let text = `📢【團購付款提醒】餐點已訂好/抵達囉！請以下朋友記得轉帳或付款給團長：\n---\n`;
+    unpaidList.forEach((sub) => {
+      text += `❌ ${sub.user_nickname}：$${sub.final_amount} 元 (${sub.payment_method_name})\n`;
+    });
+    const defaultPayment = paymentMethods[0];
+    if (defaultPayment?.account_info) {
+      text += `---\n💳 團長收款帳號：${defaultPayment.name} - ${defaultPayment.account_info}\n`;
+    }
+    text += `轉帳後請通知團長核對，感謝各位配合！🙏🙏`;
+
+    try {
+      if (navigator.clipboard && document.hasFocus()) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-9999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      showToast('📢 已複製群組未付款催款文字！');
+    } catch (err) {
+      console.error(err);
+      showToast('⚠️ 複製失敗');
+    }
+  };
+
+  const handleExportOrdersCSV = () => {
+    if (submissions.length === 0) {
+      showToast('⚠️ 目前沒有任何訂單可匯出');
+      return;
+    }
+
+    let csvContent = '單號,訂購人,點餐明細,付款方式,缺貨備案,金額,付款狀態,送單時間\n';
+    submissions.forEach((sub) => {
+      const itemsText = sub.order_items
+        .map((i) => `${i.item_name} x ${i.quantity}${i.custom_notes ? ` (${i.custom_notes})` : ''}`)
+        .join('; ');
+      const isPaidText = sub.is_paid ? '已付款' : '未付款';
+      const dateText = new Date(sub.created_at).toLocaleString('zh-TW');
+      csvContent += `"${sub.order_number}","${sub.user_nickname}","${itemsText}","${sub.payment_method_name}","${sub.sold_out_option || ''}","${sub.final_amount}","${isPaidText}","${dateText}"\n`;
+    });
+
+    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csvContent], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `meinu_orders_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('📊 訂單 CSV 表格已成功下載！');
   };
 
   const itemSummary = submissions.reduce((acc, sub) => {
@@ -552,8 +928,10 @@ export default function AdminPageContent() {
     );
   }
 
+  const isDesktop = viewMode === 'desktop';
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className={`min-h-screen pb-20 transition-colors ${isDesktop ? 'bg-slate-100/70' : 'bg-slate-200/60'}`}>
       <OfflineBanner />
       <Header />
 
@@ -563,130 +941,268 @@ export default function AdminPageContent() {
         </div>
       )}
 
-      <main className="max-w-md mx-auto px-4 pt-3 space-y-4">
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-sky-500 transition py-1"
-          >
-            ‹ 返回「咩nu」大廳
-          </Link>
-          <button
-            onClick={() => setIsUnlocked(false)}
-            className="text-xs text-slate-400 hover:text-red-500 transition font-semibold"
-          >
-            🔒 上鎖登出
-          </button>
+      {/* 根據視圖模式套用容器寬度：Desktop (max-w-7xl) vs Mobile (max-w-md 居中手機外框) */}
+      <main
+        className={`mx-auto pt-4 space-y-4 transition-all duration-300 ${
+          isDesktop
+            ? 'max-w-7xl px-4 sm:px-6 lg:px-8'
+            : 'max-w-md px-4 min-h-screen bg-slate-50 border-x border-slate-200/80 shadow-2xl rounded-3xl my-2'
+        }`}
+      >
+        {/* 頂部操作與模式切換 Bar */}
+        <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-sky-600 transition py-1"
+            >
+              ‹ 返回點餐大廳
+            </Link>
+            <span className="text-slate-300">|</span>
+            <span className="text-xs font-extrabold text-slate-800 truncate">
+              {activeGroup?.title || '咩nu 團購活動後台'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* 音效開關 */}
+            <button
+              type="button"
+              onClick={handleToggleSound}
+              className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 border ${
+                isSoundEnabled
+                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                  : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+              }`}
+              title={isSoundEnabled ? '新訂單音效提醒：已開啟（點擊靜音）' : '新訂單音效提醒：已靜音（點擊開啟）'}
+            >
+              <span>{isSoundEnabled ? '🔔 叮咚提醒: 開' : '🔕 叮咚提醒: 關'}</span>
+            </button>
+
+            {/* 螢幕模式切換器 */}
+            <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => handleToggleViewMode('desktop')}
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                  viewMode === 'desktop'
+                    ? 'bg-white text-sky-700 shadow-xs font-extrabold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                title="切換為電腦寬螢幕多欄排版"
+              >
+                <span>💻</span>
+                <span>電腦比例</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleViewMode('mobile')}
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                  viewMode === 'mobile'
+                    ? 'bg-white text-sky-700 shadow-xs font-extrabold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+                title="切換為手機單手聚焦排版"
+              >
+                <span>📱</span>
+                <span>手機比例</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setIsUnlocked(false)}
+              className="text-xs bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold px-3 py-1.5 rounded-xl transition"
+            >
+              🔒 上鎖登出
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-1 bg-slate-200/60 p-1 rounded-2xl text-xs font-bold text-slate-600">
+        {/* 核心分頁 Tab 切換 */}
+        <div className={`flex bg-white p-1.5 rounded-2xl border border-slate-100 shadow-xs text-xs font-bold text-slate-600 ${isDesktop ? 'max-w-md' : 'w-full'}`}>
           <button
             onClick={() => setActiveTab('active')}
-            className={`py-2 rounded-xl transition ${activeTab === 'active' ? 'bg-white text-sky-600 shadow-xs' : ''}`}
+            className={`flex-1 py-2 rounded-xl transition ${
+              activeTab === 'active'
+                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
           >
             即時對帳
           </button>
           <button
             onClick={() => setActiveTab('crud')}
-            className={`py-2 rounded-xl transition ${activeTab === 'crud' ? 'bg-white text-sky-600 shadow-xs' : ''}`}
+            className={`flex-1 py-2 rounded-xl transition ${
+              activeTab === 'crud'
+                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
           >
             菜單/店家CRUD
           </button>
           <button
             onClick={() => setActiveTab('archive')}
-            className={`py-2 rounded-xl transition ${activeTab === 'archive' ? 'bg-white text-sky-600 shadow-xs' : ''}`}
+            className={`flex-1 py-2 rounded-xl transition ${
+              activeTab === 'archive'
+                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
           >
             歷史歸檔 ({archivedGroups.length})
           </button>
         </div>
 
-        {activeTab === 'active' && (
-          <AdminDashboardSection
-            submissions={submissions}
-            itemSummary={itemSummary}
-            grandTotal={grandTotal}
-            paidTotal={paidTotal}
-            inputDeliveryFee={inputDeliveryFee}
-            inputDiscount={inputDiscount}
-            roundingRule={roundingRule}
-            selectedSubmissionIds={selectedSubmissionIds}
-            setSelectedSubmissionIds={setSelectedSubmissionIds}
-            calculateAdjustedAmount={calculateAdjustedAmount}
-            setInputDeliveryFee={setInputDeliveryFee}
-            setInputDiscount={setInputDiscount}
-            setRoundingRule={setRoundingRule}
-            handleApplyFeeSplit={handleApplyFeeSplit}
-            handleBatchMarkPaid={handleBatchMarkPaid}
-            handleTogglePaid={handleTogglePaid}
-            setSignatureTarget={setSignatureTarget}
-            setChangeModalTarget={setChangeModalTarget}
-            handleCopyPersonalReceipt={handleCopyPersonalReceipt}
-            handleArchiveGroup={handleArchiveGroup}
-          />
-        )}
+        {loading ? (
+          <div className="bg-white rounded-3xl p-10 text-center text-slate-400 text-xs animate-pulse border border-slate-100">
+            正在載入後台數據與團購活動資料...
+          </div>
+        ) : (
+          <>
+            {activeTab === 'active' && (
+              <AdminDashboardSection
+                viewMode={viewMode}
+                groupOrder={activeGroup}
+                submissions={submissions}
+                itemSummary={itemSummary}
+                grandTotal={grandTotal}
+                paidTotal={paidTotal}
+                inputDeliveryFee={inputDeliveryFee}
+                inputDiscount={inputDiscount}
+                roundingRule={roundingRule}
+                selectedSubmissionIds={selectedSubmissionIds}
+                setSelectedSubmissionIds={setSelectedSubmissionIds}
+                calculateAdjustedAmount={calculateAdjustedAmount}
+                setInputDeliveryFee={setInputDeliveryFee}
+                setInputDiscount={setInputDiscount}
+                setRoundingRule={setRoundingRule}
+                handleApplyFeeSplit={handleApplyFeeSplit}
+                handleBatchMarkPaid={handleBatchMarkPaid}
+                handleTogglePaid={handleTogglePaid}
+                setSignatureTarget={setSignatureTarget}
+                setChangeModalTarget={setChangeModalTarget}
+                handleCopyPersonalReceipt={handleCopyPersonalReceipt}
+                handleCopyStoreOrderText={handleCopyStoreOrderText}
+                handleCopyUnpaidReminder={handleCopyUnpaidReminder}
+                handleExportOrdersCSV={handleExportOrdersCSV}
+                handleOpenPrintModal={() => setIsPrintModalOpen(true)}
+                handleOpenManualOrderModal={() => setIsManualOrderModalOpen(true)}
+                handleOpenGroupSettingsModal={() => setIsGroupSettingsModalOpen(true)}
+                handleArchiveGroup={handleArchiveGroup}
+                handleToggleGroupStatus={handleToggleGroupStatus}
+              />
+            )}
 
-        {activeTab === 'crud' && (
-          <AdminCrudSection
-            stores={stores}
-            categories={categories}
-            menuItems={crudMenuItems}
-            selectedStoreId={selectedCrudStoreId}
-            setSelectedStoreId={setSelectedCrudStoreId}
-            onCreateStore={() => setIsStoreModalOpen(true)}
-            onDeleteStore={handleDeleteStore}
-            onMoveCategory={(id, direction) => {
-              const category = categories.find((c) => c.id === id);
-              if (category) handleMoveCategory(category, direction);
-            }}
-            onDeleteCategory={handleDeleteCategory}
-            onCreateMenuItem={() => handleOpenItemModal()}
-            onDeleteMenuItem={handleDeleteProduct}
-            onToggleMenuItemActive={(id) => {
-              const item = crudMenuItems.find((m) => m.id === id);
-              if (item) handleToggleProductStatus(item);
-            }}
-            onUpdateStore={(id, field, value) => {
-              if (field === 'name' && typeof value === 'string') {
-                setStores((prev) => prev.map((store) => (store.id === id ? { ...store, name: value } : store)));
-              }
-              if (field === 'category_id' && (value === null || typeof value === 'string')) {
-                setStores((prev) => prev.map((store) => (store.id === id ? { ...store, category_id: value } : store)));
-              }
-              if (field === 'image_url' && (value === null || typeof value === 'string')) {
-                setStores((prev) => prev.map((store) => (store.id === id ? { ...store, image_url: value } : store)));
-              }
-            }}
-            onUpdateCategory={(id, field, value) => {
-              if (field === 'name' && typeof value === 'string') {
-                setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, name: value } : cat)));
-              }
-            }}
-            onUpdateMenuItem={(id, field, value) => {
-              setCrudMenuItems((prev) =>
-                prev.map((item) => {
-                  if (item.id !== id) return item;
-                  const next: MenuItem = { ...item };
-                  if (field === 'name' && typeof value === 'string') next.name = value;
-                  if (field === 'price' && typeof value === 'number') next.price = value;
-                  if (field === 'description' && (value === null || typeof value === 'string')) next.description = value;
-                  if (field === 'stock_quantity' && (value === null || typeof value === 'number')) next.stock_quantity = value;
-                  if (field === 'is_sold_out' && typeof value === 'boolean') next.is_sold_out = value;
-                  return next;
-                })
-              );
-            }}
-          />
-        )}
+            {activeTab === 'crud' && (
+              <AdminCrudSection
+                viewMode={viewMode}
+                stores={stores}
+                categories={categories}
+                menuItems={crudMenuItems}
+                paymentMethods={paymentMethods}
+                soldOutOptions={soldOutOptions}
+                onCreateStore={() => handleOpenStoreModal()}
+                onEditStore={(store: Store) => handleOpenStoreModal(store)}
+                onDeleteStore={handleDeleteStore}
+                onCreateCategory={() => {
+                  setEditingCat(null);
+                  setCatNameInput('');
+                  setIsCatModalOpen(true);
+                }}
+                onMoveCategory={(id: string, direction: 'up' | 'down') => {
+                  const category = categories.find((c) => c.id === id);
+                  if (category) handleMoveCategory(category, direction);
+                }}
+                onDeleteCategory={handleDeleteCategory}
+                onCreateMenuItem={() => handleOpenItemModal()}
+                onEditMenuItem={(item: MenuItem) => handleOpenItemModal(item)}
+                onOpenBatchImportModal={() => setIsBatchImportModalOpen(true)}
+                onDeleteMenuItem={handleDeleteProduct}
+                onToggleMenuItemActive={(id: string) => {
+                  const item = crudMenuItems.find((m) => m.id === id);
+                  if (item) handleToggleProductStatus(item);
+                }}
+                onCreatePaymentMethod={handleCreatePaymentMethod}
+                onDeletePaymentMethod={handleDeletePaymentMethod}
+                onTogglePaymentMethodActive={handleTogglePaymentMethodActive}
+                onUpdatePaymentMethod={(id: string, field: 'name' | 'account_info', value: string | null) => {
+                  setPaymentMethods((prev) =>
+                    prev.map((method) =>
+                      method.id === id
+                        ? {
+                            ...method,
+                            [field]: value,
+                          }
+                        : method
+                    )
+                  );
+                }}
+                onSavePaymentMethod={handleSavePaymentMethod}
+                onCreateSoldOutOption={handleCreateSoldOutOption}
+                onDeleteSoldOutOption={handleDeleteSoldOutOption}
+                onMoveSoldOutOption={handleMoveSoldOutOption}
+                onUpdateSoldOutOption={(id: string, title: string) => {
+                  setSoldOutOptions((prev) => prev.map((x) => (x.id === id ? { ...x, title } : x)));
+                }}
+                onSaveSoldOutOption={handleSaveSoldOutOption}
+                onUpdateCategory={(id: string, field: 'name', value: string) => {
+                  if (field === 'name' && typeof value === 'string') {
+                    setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, name: value } : cat)));
+                  }
+                }}
+              />
+            )}
 
-        {activeTab === 'archive' && (
-          <AdminArchiveSection
-            archivedGroups={archivedGroups}
-            selectedArchivedGroupId={selectedArchivedGroupId}
-            setSelectedArchivedGroupId={setSelectedArchivedGroupId}
-            handleReopenGroup={handleReopenGroup}
-          />
+            {activeTab === 'archive' && (
+              <AdminArchiveSection
+                viewMode={viewMode}
+                archivedGroups={archivedGroups}
+                selectedArchivedGroupId={selectedArchivedGroupId}
+                setSelectedArchivedGroupId={setSelectedArchivedGroupId}
+                handleReopenGroup={handleReopenGroup}
+              />
+            )}
+          </>
         )}
       </main>
+
+      {/* 友善列印檢視 Modal */}
+      <AdminPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        groupOrder={activeGroup}
+        submissions={submissions}
+        itemSummary={itemSummary}
+        grandTotal={grandTotal}
+      />
+
+      {/* 團長代點餐 Modal */}
+      <AdminManualOrderModal
+        isOpen={isManualOrderModalOpen}
+        onClose={() => setIsManualOrderModalOpen(false)}
+        groupOrder={activeGroup}
+        menuItems={crudMenuItems}
+        paymentMethods={paymentMethods}
+        soldOutOptions={soldOutOptions}
+        onOrderAdded={fetchAdminData}
+      />
+
+      {/* 菜單 CSV 批量匯入 Modal */}
+      <AdminBatchImportModal
+        isOpen={isBatchImportModalOpen}
+        onClose={() => setIsBatchImportModalOpen(false)}
+        storeId={selectedCrudStoreId}
+        storeName={stores.find((s) => s.id === selectedCrudStoreId)?.name || '當前店家'}
+        onImportSuccess={fetchAdminData}
+      />
+
+      {/* 團購活動與公告進階設定 Modal */}
+      <AdminGroupSettingsModal
+        isOpen={isGroupSettingsModalOpen}
+        onClose={() => setIsGroupSettingsModalOpen(false)}
+        groupOrder={activeGroup}
+        stores={stores}
+        onSaveGroupSettings={handleSaveGroupSettings}
+      />
 
       {isStoreModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -711,7 +1227,7 @@ export default function AdminPageContent() {
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-slate-600">店家封面照片</label>
-                  <span className="text-[10px] text-sky-600 font-bold">💡 建議像素：800 x 600 px</span>
+                  <span className="text-[10px] text-sky-600 font-bold">💡 建議像素：800 x 600 px (自動轉 WebP)</span>
                 </div>
 
                 <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
@@ -728,7 +1244,7 @@ export default function AdminPageContent() {
                       onChange={handleStoreImageChange}
                       className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-sky-50 file:text-sky-600 hover:file:bg-sky-100 cursor-pointer"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">支援 JPG、PNG 格式 (小於 2MB)</p>
+                    <p className="text-[10px] text-slate-400 mt-1">前端自動壓縮為輕量 WebP 格式</p>
                   </div>
                 </div>
               </div>

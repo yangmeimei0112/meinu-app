@@ -2,197 +2,408 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { MenuItem } from '@/types/database';
+import { MenuItem, CustomGroup } from '@/types/database';
 import { CartItem, SelectedOption } from '@/types/cart';
-
-interface OptionGroupData {
-  id: string;
-  title: string;
-  min_select: number;
-  max_select: number;
-  option_items: {
-    id: string;
-    name: string;
-    extra_price: number;
-  }[];
-}
 
 interface CustomModalProps {
   item: MenuItem | null;
   storeId: string;
   storeName: string;
+  existingCartItem?: CartItem | null;
   onClose: () => void;
   onAddToCart: (cartItem: CartItem) => void;
+  onUpdateCartItem?: (updatedItem: CartItem) => void;
 }
 
 export default function CustomModal({
   item,
   storeId,
   storeName,
+  existingCartItem,
   onClose,
   onAddToCart,
+  onUpdateCartItem,
 }: CustomModalProps) {
-  const [optionGroups, setOptionGroups] = useState<OptionGroupData[]>([]);
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, { name: string; price: number }>>({});
-  const [quantity, setQuantity] = useState<number>(1);
-  const [customNotes, setCustomNotes] = useState<string>('');
-  const [loadingOptions, setLoadingOptions] = useState<boolean>(true);
+  const [customGroups, setCustomGroups] = useState<CustomGroup[]>([]);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
+  const [quantity, setQuantity] = useState<number>(existingCartItem?.quantity || 1);
+  const [customNotes, setCustomNotes] = useState<string>(existingCartItem?.customNotes || '');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [hasDraft, setHasDraft] = useState<boolean>(false);
 
+  // 1. 載入客製化分組（優先讀取 item.custom_groups JSONB）
   useEffect(() => {
     if (!item) return;
 
-    // 將 item.id 提取成變數，避免 TypeScript 判定可能為 null
-    const targetItemId = item.id;
+    async function loadGroups() {
+      setLoading(true);
+      setErrorMsg(null);
 
-    async function fetchOptions() {
-      setLoadingOptions(true);
-      const { data } = await supabase
-        .from('option_groups')
-        .select(`
-          id,
-          title,
-          min_select,
-          max_select,
-          option_items (
+      let groups: CustomGroup[] = [];
+
+      if (item?.custom_groups && Array.isArray(item.custom_groups) && item.custom_groups.length > 0) {
+        groups = item.custom_groups;
+      } else {
+        // 向下相容 option_groups 資料表
+        const { data } = await supabase
+          .from('option_groups')
+          .select(`
             id,
-            name,
-            extra_price
-          )
-        `)
-        .eq('menu_item_id', targetItemId)
-        .order('sort_order', { ascending: true });
+            title,
+            min_select,
+            max_select,
+            option_items (
+              id,
+              name,
+              extra_price
+            )
+          `)
+          .eq('menu_item_id', item?.id)
+          .order('sort_order', { ascending: true });
 
-      if (data) {
-        setOptionGroups(data as OptionGroupData[]);
-        const defaultSelections: Record<string, { name: string; price: number }> = {};
-        data.forEach((group) => {
-          if (group.option_items && group.option_items.length > 0) {
-            defaultSelections[group.title] = {
-              name: group.option_items[0].name,
-              price: group.option_items[0].extra_price,
-            };
+        if (data && data.length > 0) {
+          interface OptionGroupRow {
+            id: string;
+            title: string;
+            min_select: number;
+            max_select: number;
+            option_items: Array<{
+              id: string;
+              name: string;
+              extra_price: number;
+            }>;
+          }
+          groups = (data as unknown as OptionGroupRow[]).map((g) => ({
+            id: g.id,
+            title: g.title,
+            type: g.max_select === 1 ? 'single' : g.max_select > 1 ? 'limit' : 'any',
+            limit_number: g.max_select,
+            options: (g.option_items || []).map((opt) => ({
+              id: opt.id,
+              name: opt.name,
+              price_adjustment: opt.extra_price || 0,
+            })),
+          }));
+        }
+      }
+
+      setCustomGroups(groups);
+
+      // 初始化選擇
+      if (existingCartItem && existingCartItem.rawCustomSelections) {
+        setSelectedOptions(existingCartItem.rawCustomSelections);
+      } else {
+        const initialSelections: Record<string, string[]> = {};
+        groups.forEach((g) => {
+          if (g.type === 'single' && g.options.length > 0) {
+            initialSelections[g.id] = [g.options[0].id];
+          } else {
+            initialSelections[g.id] = [];
           }
         });
-        setSelectedOptions(defaultSelections);
+        setSelectedOptions(initialSelections);
+
+        // 檢查是否有未完成草稿
+        const draftKey = `menu_app_draft_${item?.id}`;
+        const savedDraft = localStorage.getItem(draftKey);
+        if (savedDraft) {
+          try {
+            const parsed = JSON.parse(savedDraft);
+            if (parsed && parsed.selectedOptions) {
+              setHasDraft(true);
+            }
+          } catch (e) {
+            console.error('讀取草稿失敗', e);
+          }
+        }
       }
-      setLoadingOptions(false);
+
+      setLoading(false);
     }
 
-    fetchOptions();
-  }, [item]);
+    loadGroups();
+  }, [item, existingCartItem]);
+
+  // 2. 自動暫存草稿至 LocalStorage（僅在新增模式）
+  useEffect(() => {
+    if (!item || existingCartItem || loading) return;
+    const draftKey = `menu_app_draft_${item.id}`;
+    const draftData = {
+      selectedOptions,
+      quantity,
+      customNotes,
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(draftKey, JSON.stringify(draftData));
+  }, [selectedOptions, quantity, customNotes, item, existingCartItem, loading]);
+
+  const handleRestoreDraft = () => {
+    if (!item) return;
+    const draftKey = `menu_app_draft_${item.id}`;
+    const savedDraft = localStorage.getItem(draftKey);
+    if (savedDraft) {
+      try {
+        const parsed = JSON.parse(savedDraft);
+        if (parsed.selectedOptions) setSelectedOptions(parsed.selectedOptions);
+        if (parsed.quantity) setQuantity(parsed.quantity);
+        if (parsed.customNotes) setCustomNotes(parsed.customNotes);
+        setHasDraft(false);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    if (!item) return;
+    localStorage.removeItem(`menu_app_draft_${item.id}`);
+    setHasDraft(false);
+  };
 
   if (!item) return null;
 
-  const optionsExtraTotal = Object.values(selectedOptions).reduce(
-    (sum, opt) => sum + opt.price,
-    0
-  );
-  const singleUnitPrice = item.price + optionsExtraTotal;
-  const itemTotalPrice = singleUnitPrice * quantity;
+  // 處理選項點擊
+  const handleSelectOption = (group: CustomGroup, optionId: string) => {
+    setErrorMsg(null);
+    const currentList = selectedOptions[group.id] || [];
 
-  const handleOptionSelect = (groupTitle: string, optionName: string, extraPrice: number) => {
-    setSelectedOptions((prev) => ({
-      ...prev,
-      [groupTitle]: { name: optionName, price: extraPrice },
-    }));
+    if (group.type === 'single') {
+      setSelectedOptions((prev) => ({ ...prev, [group.id]: [optionId] }));
+    } else if (group.type === 'any') {
+      const updated = currentList.includes(optionId)
+        ? currentList.filter((id) => id !== optionId)
+        : [...currentList, optionId];
+      setSelectedOptions((prev) => ({ ...prev, [group.id]: updated }));
+    } else if (group.type === 'limit') {
+      const limitMax = group.limit_number || 1;
+      if (currentList.includes(optionId)) {
+        setSelectedOptions((prev) => ({
+          ...prev,
+          [group.id]: currentList.filter((id) => id !== optionId),
+        }));
+      } else {
+        if (currentList.length >= limitMax) {
+          setErrorMsg(`「${group.title}」最多只能選擇 ${limitMax} 個選項！`);
+          return;
+        }
+        setSelectedOptions((prev) => ({
+          ...prev,
+          [group.id]: [...currentList, optionId],
+        }));
+      }
+    }
   };
 
-  const handleConfirmAddToCart = () => {
-    const formattedOptions: SelectedOption[] = Object.entries(selectedOptions).map(
-      ([groupTitle, opt]) => ({
-        groupTitle,
-        itemName: opt.name,
-        extraPrice: opt.price,
-      })
-    );
+  // 計算加價總額與選取項目文字
+  let totalExtraPrice = 0;
+  const formattedSelectedOptions: SelectedOption[] = [];
 
-    const newCartItem: CartItem = {
-      cartItemId: `${item.id}-${Date.now()}`,
+  customGroups.forEach((group) => {
+    const selectedIds = selectedOptions[group.id] || [];
+    group.options.forEach((opt) => {
+      if (selectedIds.includes(opt.id)) {
+        totalExtraPrice += opt.price_adjustment || 0;
+        formattedSelectedOptions.push({
+          groupTitle: group.title,
+          itemName: opt.name,
+          extraPrice: opt.price_adjustment || 0,
+        });
+      }
+    });
+  });
+
+  const singleUnitPrice = item.price + totalExtraPrice;
+  const itemTotalPrice = singleUnitPrice * quantity;
+
+  // 確認加入購物車或更新購物車
+  const handleConfirm = () => {
+    // 驗證規則
+    for (const group of customGroups) {
+      const selected = selectedOptions[group.id] || [];
+      if (group.type === 'single' && selected.length === 0) {
+        setErrorMsg(`請選擇「${group.title}」（必選 1 個）`);
+        return;
+      }
+      if (group.type === 'limit' && group.limit_number && selected.length === 0) {
+        setErrorMsg(`請選擇「${group.title}」（至少選 1 個，最多 ${group.limit_number} 個）`);
+        return;
+      }
+    }
+
+    const cartItemPayload: CartItem = {
+      cartItemId: existingCartItem ? existingCartItem.cartItemId : `${item.id}-${Date.now()}`,
       menuItemId: item.id,
       storeId,
       storeName,
       name: item.name,
       unitPrice: item.price,
       quantity,
-      selectedOptions: formattedOptions,
+      selectedOptions: formattedSelectedOptions,
       customNotes,
       totalPrice: itemTotalPrice,
+      rawCustomSelections: selectedOptions,
     };
 
-    onAddToCart(newCartItem);
+    if (existingCartItem && onUpdateCartItem) {
+      onUpdateCartItem(cartItemPayload);
+    } else {
+      onAddToCart(cartItemPayload);
+      // 清除草稿
+      localStorage.removeItem(`menu_app_draft_${item.id}`);
+    }
+
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center sm:items-center p-0 sm:p-4">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150">
+      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[88vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 shadow-2xl">
+        {/* Modal 頂部標題 */}
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
-            <h3 className="text-lg font-bold text-slate-800">{item.name}</h3>
-            <p className="text-xs text-orange-500 font-extrabold">${item.price} 元起</p>
+            <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+              <span>{item.name}</span>
+              {existingCartItem && (
+                <span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-bold">
+                  修改規格
+                </span>
+              )}
+            </h3>
+            <p className="text-xs text-sky-600 font-extrabold mt-0.5">
+              基本單價 ${item.price} 元起
+            </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center text-sm"
+            className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition flex items-center justify-center text-sm font-bold active:scale-95"
           >
             ✕
           </button>
         </div>
 
-        <div className="p-4 overflow-y-auto space-y-5 flex-1 text-slate-700">
-          {loadingOptions ? (
-            <div className="text-center py-8 text-slate-400 text-xs animate-pulse">
-              載入客製選項中...
+        {/* 草稿恢復提示條 */}
+        {hasDraft && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-xs text-amber-800">
+            <span className="font-bold">📋 偵測到上次選到一半的草稿</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleRestoreDraft}
+                className="bg-amber-500 text-white px-2.5 py-1 rounded-lg font-bold text-[11px] hover:bg-amber-600 transition"
+              >
+                恢復選擇
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="text-slate-400 hover:text-slate-600 text-[11px]"
+              >
+                捨棄
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 錯誤警告 */}
+        {errorMsg && (
+          <div className="mx-4 mt-3 bg-red-50 text-red-600 text-xs font-bold p-2.5 rounded-xl border border-red-100 flex items-center gap-1.5 animate-shake">
+            <span>⚠️</span>
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {/* 客製選項主體 */}
+        <div className="p-4 overflow-y-auto space-y-4 flex-1 text-slate-700 divide-y divide-slate-100">
+          {loading ? (
+            <div className="text-center py-10 text-slate-400 text-xs animate-pulse">
+              正在載入餐點規格選項...
+            </div>
+          ) : customGroups.length === 0 ? (
+            <div className="text-center py-6 text-slate-400 text-xs">
+              此餐點為基本款，無其他客製化選項。
             </div>
           ) : (
-            optionGroups.map((group) => (
-              <div key={group.id} className="space-y-2">
-                <label className="text-xs font-bold text-slate-600">
-                  {group.title} <span className="text-orange-500">*</span>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {group.option_items.map((opt) => {
-                    const isSelected =
-                      selectedOptions[group.title]?.name === opt.name;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() =>
-                          handleOptionSelect(group.title, opt.name, opt.extra_price)
-                        }
-                        className={`p-2.5 rounded-xl text-xs font-semibold border text-left transition flex items-center justify-between ${
-                          isSelected
-                            ? 'border-orange-500 bg-orange-50 text-orange-600 shadow-xs'
-                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span>{opt.name}</span>
-                        {opt.extra_price > 0 && (
-                          <span className="text-[10px] text-orange-500 font-bold">
-                            +${opt.extra_price}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+            customGroups.map((group) => {
+              const currentSelected = selectedOptions[group.id] || [];
+              return (
+                <div key={group.id} className="pt-3 first:pt-0 space-y-2">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span className="flex items-center gap-1">
+                      <span>{group.title}</span>
+                      {group.type === 'single' && <span className="text-sky-500">*</span>}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      {group.type === 'single' && '必選 1 個'}
+                      {group.type === 'any' && '可多選或不選'}
+                      {group.type === 'limit' && `最多選 ${group.limit_number || 1} 個`}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {group.options.map((opt) => {
+                      const isChecked = currentSelected.includes(opt.id);
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => handleSelectOption(group, opt.id)}
+                          className={`p-2.5 rounded-2xl text-xs font-bold border text-left transition flex items-center justify-between active:scale-[0.98] ${
+                            isChecked
+                              ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100/80'
+                          }`}
+                        >
+                          <span className="truncate mr-1">{opt.name}</span>
+                          {opt.price_adjustment > 0 ? (
+                            <span
+                              className={`text-[10px] font-extrabold shrink-0 ${
+                                isChecked ? 'text-white' : 'text-sky-600'
+                              }`}
+                            >
+                              +${opt.price_adjustment}
+                            </span>
+                          ) : (
+                            <span
+                              className={`text-[10px] ${
+                                isChecked ? 'text-sky-100' : 'text-slate-400'
+                              }`}
+                            >
+                              +0
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-600">特製備註</label>
+          {/* 快速特製備註標籤與輸入框 */}
+          <div className="pt-3 space-y-2">
+            <label className="text-xs font-bold text-slate-700">特製備註</label>
             <div className="flex gap-1.5 flex-wrap">
-              {['🥬 不加蔥', '🥫 醬另外放', '🥢 要餐具', '🧊 加厚冰'].map((tag) => (
+              {[
+                '🥬 不加蔥',
+                '🥫 醬另外放',
+                '🥢 要餐具',
+                '🧊 加厚冰',
+                '🌶️ 小辣',
+                '🚫 不加香菜',
+                '🧾 發票存載具',
+              ].map((tag) => (
                 <button
                   key={tag}
                   type="button"
                   onClick={() =>
-                    setCustomNotes((prev) => (prev ? `${prev}, ${tag}` : tag))
+                    setCustomNotes((prev) =>
+                      prev.includes(tag) ? prev : prev ? `${prev}, ${tag}` : tag
+                    )
                   }
-                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-medium transition"
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-medium transition active:scale-95"
                 >
                   {tag}
                 </button>
@@ -200,15 +411,16 @@ export default function CustomModal({
             </div>
             <input
               type="text"
-              placeholder="有特殊需求嗎？填寫備註..."
+              placeholder="有其他個人需求嗎？填寫備註..."
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-xs font-bold text-slate-600">購買數量</span>
+          {/* 購買數量調整 */}
+          <div className="pt-3 flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700">購買數量</span>
             <div className="flex items-center gap-3 bg-slate-100 rounded-xl p-1">
               <button
                 type="button"
@@ -229,14 +441,19 @@ export default function CustomModal({
           </div>
         </div>
 
-        <div className="p-4 border-t border-slate-100 bg-slate-50">
+        {/* Modal 底部結算與按鈕 */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+          <div>
+            <span className="text-[10px] text-slate-400 font-bold block">合計金額</span>
+            <span className="text-lg font-extrabold text-sky-600">${itemTotalPrice} 元</span>
+          </div>
           <button
             type="button"
-            onClick={handleConfirmAddToCart}
-            className="w-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold py-3 rounded-2xl text-sm shadow-md hover:brightness-105 active:scale-[0.99] transition flex items-center justify-between px-5"
+            onClick={handleConfirm}
+            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-3 rounded-2xl text-xs shadow-md transition active:scale-[0.99] flex items-center justify-center gap-1"
           >
-            <span>加入購物車</span>
-            <span>${itemTotalPrice} 元</span>
+            <span>{existingCartItem ? '儲存修改' : '加入購物車'}</span>
+            <span>(${itemTotalPrice} 元)</span>
           </button>
         </div>
       </div>

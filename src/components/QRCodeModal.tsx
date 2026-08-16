@@ -18,21 +18,15 @@ export default function QRCodeModal({
   title = '掃碼直達「咩nu」大廳',
 }: QRCodeModalProps) {
   const [copied, setCopied] = useState(false);
-  const [targetUrl, setTargetUrl] = useState('');
   const [mounted, setMounted] = useState(false);
   const qrContainerRef = useRef<HTMLDivElement>(null);
+
+  const targetUrl = url || (typeof window !== 'undefined' ? window.location.origin : '');
 
   // 確保 Client-side 渲染 Portal
   useEffect(() => {
     setMounted(true);
   }, []);
-
-  // 取得當前網址
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setTargetUrl(url || window.location.origin);
-    }
-  }, [url, isOpen]);
 
   // 按 ESC 鍵關閉與鎖定背景滾動
   useEffect(() => {

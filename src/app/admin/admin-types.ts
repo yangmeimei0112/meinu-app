@@ -29,4 +29,14 @@ export interface GroupOrderAdmin {
   delivery_fee: number;
   discount_amount: number;
   rounding_rule: string;
+  enable_min_threshold?: boolean;
+  min_threshold_amount?: number;
+  enable_countdown?: boolean;
+  cutoff_time?: string | null;
+  enable_budget_limit?: boolean;
+  budget_limit_amount?: number;
 }
+
+export type AdminViewMode = 'desktop' | 'mobile';
+
+
