@@ -19,9 +19,9 @@ export default function HomePage() {
   // 搜尋關鍵字輕量防抖，避免高頻輸入時造成卡頓
   const debouncedSearch = useDebounce(searchQuery, 200);
 
-  // 取得環境變數中的 Git 資訊
-  const commitMsg = process.env.NEXT_PUBLIC_GIT_COMMIT_MSG || 'v1.0.0';
-  const commitHash = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || 'dev';
+  // 取得環境變數中的 Git 資訊（若無則顯示預設字串）
+  const commitMsg = process.env.NEXT_PUBLIC_GIT_COMMIT_MSG || '咩nu 團購點餐平台';
+  const commitHash = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || 'v1.0.0';
 
   useEffect(() => {
     async function fetchData() {
@@ -185,7 +185,7 @@ export default function HomePage() {
       <footer className="w-full py-6 flex items-center justify-center gap-2 text-xs text-gray-400 border-t border-slate-200">
         <span 
           title={commitMsg}
-          className="cursor-help transition-colors hover:text-gray-600"
+          className="cursor-help transition-colors hover:text-gray-600 select-none"
         >
           版本: {commitHash}
         </span>
