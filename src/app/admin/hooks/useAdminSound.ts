@@ -8,6 +8,7 @@ export function useAdminSound() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioObjRef = useRef<HTMLAudioElement | null>(null);
   const lastSoundPlayTimeRef = useRef<number>(0);
+  const hasUserGestureRef = useRef<boolean>(false);
 
   // 初始化讀取音效偏好並預載入 notification.mp3
   useEffect(() => {
@@ -33,8 +34,10 @@ export function useAdminSound() {
     isSoundEnabledRef.current = isSoundEnabled;
   }, [isSoundEnabled]);
 
+  // 僅在使用者實質操作手勢（點擊、觸控、按鍵）發生時才初始化 AudioContext，避免觸發瀏覽器 Autoplay 警告
   const initAudio = useCallback(() => {
     if (typeof window === 'undefined') return;
+    hasUserGestureRef.current = true;
     try {
       if (!audioContextRef.current) {
         const AudioCtx =
@@ -47,23 +50,28 @@ export function useAdminSound() {
       if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
         audioContextRef.current.resume().catch(() => {});
       }
-    } catch (e) {
-      console.error('初始化 AudioContext 失敗：', e);
+    } catch {
+      // 靜默處理
     }
   }, []);
 
-  // 🔔 全域點擊/觸控自動激活瀏覽器音效播放權限 (Autoplay Policy Unlock)
+  // 🔔 全域點擊/觸控自動解鎖瀏覽器音效播放權限 (Autoplay Policy Unlock)
   useEffect(() => {
-    const unlockAudio = () => {
+    const handleGesture = () => {
       initAudio();
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
     };
-    window.addEventListener('click', unlockAudio, { passive: true });
-    window.addEventListener('touchstart', unlockAudio, { passive: true });
-    window.addEventListener('keydown', unlockAudio, { passive: true });
+
+    window.addEventListener('click', handleGesture, { passive: true, once: true });
+    window.addEventListener('touchstart', handleGesture, { passive: true, once: true });
+    window.addEventListener('keydown', handleGesture, { passive: true, once: true });
+
     return () => {
-      window.removeEventListener('click', unlockAudio);
-      window.removeEventListener('touchstart', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
     };
   }, [initAudio]);
 
@@ -94,13 +102,14 @@ export function useAdminSound() {
       gain2.connect(ctx.destination);
       osc2.start(now + 0.12);
       osc2.stop(now + 0.8);
-    } catch (err) {
-      console.error('震盪器發聲失敗:', err);
+    } catch {
+      // 靜默處理
     }
   };
 
   const playSynthesizedChime = useCallback(() => {
     try {
+      if (!hasUserGestureRef.current) return;
       initAudio();
       const ctx = audioContextRef.current;
       if (!ctx) return;
@@ -109,38 +118,41 @@ export function useAdminSound() {
       } else {
         triggerBellOscillators(ctx);
       }
-    } catch (e) {
-      console.error('播放合成鈴聲失敗：', e);
+    } catch {
+      // 靜默處理
     }
   }, [initAudio]);
 
-  const playChimeSound = useCallback((force = false) => {
-    if (!isSoundEnabledRef.current) return;
+  const playChimeSound = useCallback(
+    (force = false) => {
+      if (!isSoundEnabledRef.current) return;
 
-    // 🛡️ 嚴格防重放節流閥：若 2.5 秒內已發聲過且非強制試聽，絕不重複發聲
-    const now = Date.now();
-    if (!force && now - lastSoundPlayTimeRef.current < 2500) {
-      return;
-    }
-    lastSoundPlayTimeRef.current = now;
+      // 🛡️ 嚴格防重放節流閥：若 2.5 秒內已發聲過且非強制試聽，絕不重複發聲
+      const now = Date.now();
+      if (!force && now - lastSoundPlayTimeRef.current < 2500) {
+        return;
+      }
+      lastSoundPlayTimeRef.current = now;
 
-    try {
-      if (audioObjRef.current) {
-        audioObjRef.current.currentTime = 0;
-        const playPromise = audioObjRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // 只有在 MP3 播放受限或錯誤時，才平滑切換至 Web Audio 合成音效
-            playSynthesizedChime();
-          });
+      try {
+        if (audioObjRef.current) {
+          audioObjRef.current.currentTime = 0;
+          const playPromise = audioObjRef.current.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              // 只有在 MP3 播放受限時，才嘗試 Web Audio 合成音效
+              playSynthesizedChime();
+            });
+          }
+        } else {
+          playSynthesizedChime();
         }
-      } else {
+      } catch {
         playSynthesizedChime();
       }
-    } catch {
-      playSynthesizedChime();
-    }
-  }, [playSynthesizedChime]);
+    },
+    [playSynthesizedChime]
+  );
 
   const toggleSound = useCallback(() => {
     const next = !isSoundEnabledRef.current;
