@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { MaintenanceData, MaintenanceScreen } from '@/components/MaintenanceGuard';
 
 const QUICK_REASONS = [
-  '🔧 系統例行升級',
-  '📋 菜單規格重整',
-  '⚡ 效能優化更新',
-  '💳 金流維護升級',
-  '🗄️ 資料庫維護',
+  '系統例行升級',
+  '菜單規格重整',
+  '效能優化更新',
+  '金流維護升級',
+  '資料庫同步維護',
 ];
 
 interface AdminMaintenanceSectionProps {
@@ -18,10 +18,10 @@ interface AdminMaintenanceSectionProps {
 export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionProps) {
   const [config, setConfig] = useState<MaintenanceData>({
     is_maintenance: false,
-    title: '🚧 網站更新維護中，請稍後再下單',
-    message: '為了提供更好的揪團點餐體驗，網站目前正在進行例行升級維護。暫停點餐服務，請稍後再下單，感謝您的耐心等候！',
+    title: '網站更新維護中，請稍後再下單',
+    message: '為了提供更好的揪團點餐體驗，網站目前正在進行例行升級維護。暫停點餐服務，請稍後再下單，感謝您的耐心等候。',
     estimated_end_time: '預計 15-30 分鐘內完成',
-    reason: '🔧 系統例行升級',
+    reason: '系統例行升級',
     updated_at: new Date().toISOString(),
   });
 
@@ -72,10 +72,10 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
         setConfig(json.config);
         showToast(json.message);
       } else {
-        showToast(json.message || '❌ 儲存失敗');
+        showToast(json.message || '儲存失敗');
       }
     } catch (e: any) {
-      showToast('❌ 儲存維護設定發生錯誤：' + e?.message);
+      showToast('儲存維護設定發生錯誤：' + e?.message);
     } finally {
       setSaving(false);
     }
@@ -106,22 +106,23 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
       >
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
-                🚧 前台網站更新與維護控制台
+                前台網站更新與維護控制台
               </h2>
               <span
-                className={`text-xs font-black px-3 py-1 rounded-full border ${
+                className={`text-xs font-black px-3 py-1 rounded-full border flex items-center gap-1.5 ${
                   config.is_maintenance
                     ? 'bg-amber-500 text-white border-amber-600 animate-pulse'
                     : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/60'
                 }`}
               >
-                {config.is_maintenance ? '🔴 維護模式啟動中 (前台暫停)' : '🟢 正常營運中 (前台可點餐)'}
+                <span className={`w-2 h-2 rounded-full ${config.is_maintenance ? 'bg-white animate-ping' : 'bg-emerald-500'}`} />
+                <span>{config.is_maintenance ? '維護模式啟動中 (前台預警倒數與攔截)' : '正常營運中 (前台可自由點餐)'}</span>
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              開啟維護模式後，前台所有訪客頁面（首頁、菜單、購物車、結帳）將即刻顯示更新動畫與公告，避免操作產生錯誤。團長後台不受影響。
+              開啟維護模式時，前台使用中的訪客將即刻收到「30 秒安全緩衝倒數預警廣播」，隨後強制切換至純向量動畫維護畫面，防止中途下單錯誤。
             </p>
           </div>
 
@@ -136,7 +137,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
                 : 'bg-amber-500 hover:bg-amber-600 text-white'
             }`}
           >
-            <span>{config.is_maintenance ? '✅ 關閉維護 (恢復前台點餐)' : '🚧 開啟維護模式 (攔截前台)'}</span>
+            <span>{config.is_maintenance ? '關閉維護 (恢復前台點餐)' : '開啟維護模式 (30秒預警並攔截)'}</span>
           </button>
         </div>
       </div>
@@ -146,13 +147,13 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
         {/* 左側：設定表單 */}
         <div className="lg:col-span-6 bg-white dark:bg-[#131B2B] rounded-3xl p-5 sm:p-6 border border-slate-100 dark:border-slate-800 shadow-xs space-y-5">
           <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <span>⚙️ 維護公告內容設定</span>
+            <span>維護公告內容設定</span>
           </h3>
 
           {/* 維護類型快速標籤 */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-600 dark:text-slate-300 block">
-              維護類型 (快速填寫)
+              維護類型標籤 (快速填寫)
             </label>
             <div className="flex flex-wrap gap-1.5">
               {QUICK_REASONS.map((r) => (
@@ -181,7 +182,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
               type="text"
               value={config.title}
               onChange={(e) => setConfig((prev) => ({ ...prev, title: e.target.value }))}
-              placeholder="例如：🚧 網站更新維護中，請稍後再下單"
+              placeholder="例如：網站更新維護中，請稍後再下單"
               className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-2xl p-3 text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
@@ -222,7 +223,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
               disabled={saving}
               className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-extrabold text-xs py-3.5 rounded-2xl shadow-xs transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              <span>{saving ? '⏳ 正在儲存設定...' : '💾 儲存並即時更新前台維護公告'}</span>
+              <span>{saving ? '正在儲存設定...' : '儲存並即時更新前台維護公告'}</span>
             </button>
           </div>
         </div>
@@ -231,7 +232,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
         <div className="lg:col-span-6 bg-white dark:bg-[#131B2B] rounded-3xl p-5 sm:p-6 border border-slate-100 dark:border-slate-800 shadow-xs space-y-4 flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <span>👁️ 前台維護動畫畫面即時預覽</span>
+              <span>前台純向量齒輪動畫畫面即時預覽</span>
             </h3>
 
             <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -244,7 +245,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
                     : ''
                 }`}
               >
-                📱 手機版
+                手機版
               </button>
               <button
                 type="button"
@@ -255,7 +256,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
                     : ''
                 }`}
               >
-                💻 電腦版
+                電腦版
               </button>
             </div>
           </div>
@@ -272,7 +273,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
           </div>
 
           <div className="text-center pt-2 text-[11px] text-slate-400">
-            預覽畫面將隨著左側表單即時連動，呈現訪客在點餐頁面看到的真實動畫與文字。
+            預覽畫面為 100% 純 SVG 幾何咬合齒輪與雷射脈衝向量動畫（完全無 Emoji）。
           </div>
         </div>
       </div>
