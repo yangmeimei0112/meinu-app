@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -33,11 +33,43 @@ export default function AdminPageContent() {
   const processedNotificationIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef<boolean>(true);
   const lastNotificationTimeRef = useRef<number>(0);
+  // 🛡️ 記錄後台進入/解鎖的絕對時間戳（任何早於此時間點的訂單均為歷史訂單，絕不重複發送通知）
+  const sessionMountTimeRef = useRef<number>(Date.now());
 
-  const notifyNewOrder = (orderId: string, nickname: string) => {
+  // 初始化時讀取 sessionStorage 中已通知過的訂單 ID
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('menu_app_processed_notifications');
+      if (stored) {
+        const list = JSON.parse(stored);
+        if (Array.isArray(list)) {
+          list.forEach((id: string) => processedNotificationIdsRef.current.add(id));
+        }
+      }
+    } catch {}
+  }, []);
+
+  const notifyNewOrder = (orderId: string, nickname: string, orderCreatedAt?: string | number) => {
+    // 🛡️ 防線 1：檢查是否已在通知集合中
     if (processedNotificationIdsRef.current.has(orderId)) return;
+
+    // 🛡️ 防線 2：時間戳過濾（若訂單建立時間早於進入後台的時間，一律視為歷史訂單直接登記，絕不響鈴）
+    if (orderCreatedAt) {
+      const orderTime = typeof orderCreatedAt === 'number' ? orderCreatedAt : new Date(orderCreatedAt).getTime();
+      if (!isNaN(orderTime) && orderTime < sessionMountTimeRef.current - 3000) {
+        processedNotificationIdsRef.current.add(orderId);
+        return;
+      }
+    }
+
     processedNotificationIdsRef.current.add(orderId);
     knownOrderIdsRef.current.add(orderId);
+
+    // 持久化至 sessionStorage，避免同分頁重新整理時重複通知
+    try {
+      const arr = Array.from(processedNotificationIdsRef.current).slice(-200);
+      sessionStorage.setItem('menu_app_processed_notifications', JSON.stringify(arr));
+    } catch {}
 
     const now = Date.now();
     if (now - lastNotificationTimeRef.current > 1800) {
@@ -64,8 +96,16 @@ export default function AdminPageContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [soldOutOptions, setSoldOutOptions] = useState<SoldOutOption[]>([]);
-  const [submissions, setSubmissions] = useState<OrderSubmissionAdmin[]>([]);
+  const [allSubmissions, setAllSubmissions] = useState<OrderSubmissionAdmin[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // ⚡ 根據選中的店家/活動在記憶體中即時過濾訂單，0ms 切換無重整或閃爍
+  const submissions = useMemo(() => {
+    if (!selectedActiveGroupId || selectedActiveGroupId === 'all') {
+      return allSubmissions;
+    }
+    return allSubmissions.filter((s) => s.group_order_id === selectedActiveGroupId);
+  }, [allSubmissions, selectedActiveGroupId]);
 
   // 初始化視圖模式偏好與音效偏好
   useEffect(() => {
@@ -328,6 +368,8 @@ export default function AdminPageContent() {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        sessionMountTimeRef.current = Date.now();
+        isInitialLoadRef.current = true;
         setIsUnlocked(true);
         setFailedAttempts(0);
         setCaptchaInput('');
@@ -371,8 +413,10 @@ export default function AdminPageContent() {
     showToast('🔒 已安全登出團長後台');
   };
 
-  const fetchAdminData = async (targetGroupId?: string) => {
-    setLoading(true);
+  const fetchAdminData = async (targetGroupId?: string, isSilent: boolean = true) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
 
     try {
       // 🚀 並行發送 6 個查詢，消除瀑布流延遲，後台載入速度提升 3 倍
@@ -404,7 +448,7 @@ export default function AdminPageContent() {
 
         setArchivedGroups(completedList as GroupOrderAdmin[]);
 
-        const effectiveGroupId = targetGroupId !== undefined ? targetGroupId : selectedActiveGroupId;
+        const effectiveGroupId = targetGroupId !== undefined ? targetGroupId : selectedActiveGroupIdRef.current;
         const openGroupIds = openGroups.map((g) => g.id);
 
         if (openGroupIds.length > 0) {
@@ -428,16 +472,13 @@ export default function AdminPageContent() {
             order_items: s.order_items || [],
           }));
 
-          // 累計記錄所有已知訂單 ID，絕不清空既有歷史
+          // 累計記錄所有已知訂單 ID，並將現存訂單全部標記為已處理（杜絕任何重複通知）
           (allSubList || []).forEach((s: any) => {
             knownOrderIdsRef.current.add(s.id);
+            processedNotificationIdsRef.current.add(s.id);
           });
 
-          // 首次載入：將目前既有訂單全部標記為已通知，避免後台重開或切換時誤發通知
           if (isInitialLoadRef.current) {
-            (allSubList || []).forEach((s: any) => {
-              processedNotificationIdsRef.current.add(s.id);
-            });
             isInitialLoadRef.current = false;
           }
 
@@ -458,7 +499,6 @@ export default function AdminPageContent() {
           if (effectiveGroupId && effectiveGroupId !== 'all') {
             currentGroup = groupsWithStats.find((g) => g.id === effectiveGroupId) || groupsWithStats[0];
           } else {
-            // 如果選中 'all'，優先取有訂單的最新團購，否則取第一個
             currentGroup = groupsWithStats.find((g) => (g.order_count || 0) > 0) || groupsWithStats[0];
           }
 
@@ -469,22 +509,20 @@ export default function AdminPageContent() {
             setRoundingRule((currentGroup.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
           }
 
-          // 根據選中的店家/活動過濾要渲染的訂單
-          if (!effectiveGroupId || effectiveGroupId === 'all') {
-            setSubmissions(formattedSubs);
-          } else {
-            setSubmissions(formattedSubs.filter((s) => s.group_order_id === effectiveGroupId));
-          }
+          // 儲存全量活動訂單至記憶體狀態（submissions 由 useMemo 自動即時篩選）
+          setAllSubmissions(formattedSubs);
         } else {
           setActiveGroups([]);
           setActiveGroup(null);
-          setSubmissions([]);
+          setAllSubmissions([]);
         }
       }
     } catch (err) {
       console.error('抓取後台資料失敗:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -501,7 +539,7 @@ export default function AdminPageContent() {
   }, [selectedCrudStoreId]);
 
   useEffect(() => {
-    if (isUnlocked) fetchAdminData();
+    if (isUnlocked) fetchAdminData(undefined, false);
   }, [isUnlocked]);
 
   useEffect(() => {
@@ -514,43 +552,63 @@ export default function AdminPageContent() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'order_submissions' },
         (payload) => {
-          const newSub = payload.new as { id?: string; user_nickname?: string };
+          const newSub = payload.new as { id?: string; user_nickname?: string; created_at?: string };
           if (newSub?.id) {
-            notifyNewOrder(newSub.id, newSub.user_nickname || '團員');
+            notifyNewOrder(newSub.id, newSub.user_nickname || '團員', newSub.created_at);
           }
-          fetchAdminData(selectedActiveGroupIdRef.current);
+          fetchAdminData(selectedActiveGroupIdRef.current, true);
           // 雙重延遲更新，確保關聯的 order_items 批次寫入後立即渲染出完整餐點明細
           setTimeout(() => {
-            fetchAdminData(selectedActiveGroupIdRef.current);
+            fetchAdminData(selectedActiveGroupIdRef.current, true);
           }, 500);
         }
       )
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'order_submissions' },
-        () => {
-          fetchAdminData(selectedActiveGroupIdRef.current);
+        (payload) => {
+          const updatedSub = payload.new as any;
+          if (updatedSub?.id) {
+            setAllSubmissions((prev) =>
+              prev.map((s) =>
+                s.id === updatedSub.id
+                  ? {
+                      ...s,
+                      ...updatedSub,
+                      order_items: s.order_items,
+                      store_name: s.store_name,
+                    }
+                  : s
+              )
+            );
+          }
         }
       )
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'order_submissions' },
-        () => {
-          fetchAdminData(selectedActiveGroupIdRef.current);
+        (payload) => {
+          const deletedId = (payload.old as any)?.id;
+          if (deletedId) {
+            setAllSubmissions((prev) => prev.filter((s) => s.id !== deletedId));
+            setSelectedSubmissionIds((prev) => prev.filter((id) => id !== deletedId));
+          } else {
+            fetchAdminData(selectedActiveGroupIdRef.current, true);
+          }
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_items' },
         () => {
-          fetchAdminData(selectedActiveGroupIdRef.current);
+          fetchAdminData(selectedActiveGroupIdRef.current, true);
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'group_orders' },
         () => {
-          fetchAdminData(selectedActiveGroupIdRef.current);
+          fetchAdminData(selectedActiveGroupIdRef.current, true);
         }
       )
       .subscribe();
@@ -568,14 +626,21 @@ export default function AdminPageContent() {
         if (latestSubs && latestSubs.length > 0 && !isInitialLoadRef.current) {
           let hasNew = false;
           for (const sub of latestSubs) {
+            const orderTime = sub.created_at ? new Date(sub.created_at).getTime() : 0;
+            // 🛡️ 建立時間早於進入頁面時間的訂單一律標記為已處理，絕不誤發通知
+            if (orderTime < sessionMountTimeRef.current - 3000) {
+              processedNotificationIdsRef.current.add(sub.id);
+              continue;
+            }
+
             if (!processedNotificationIdsRef.current.has(sub.id)) {
               hasNew = true;
-              notifyNewOrder(sub.id, sub.user_nickname);
+              notifyNewOrder(sub.id, sub.user_nickname, orderTime);
             }
           }
 
           if (hasNew) {
-            fetchAdminData(selectedActiveGroupIdRef.current);
+            fetchAdminData(selectedActiveGroupIdRef.current, true);
           }
         }
       } catch (err) {
@@ -977,11 +1042,28 @@ export default function AdminPageContent() {
 
   const handleSaveSignature = async (signatureData: string) => {
     if (!signatureTarget) return;
-
-    await supabase.from('order_submissions').update({ signature_data: signatureData, is_paid: true }).eq('id', signatureTarget.id);
-    showToast(`✍️ 已存入 ${signatureTarget.user_nickname} 的對帳手繪簽名！`);
+    const targetId = signatureTarget.id;
+    const targetNickname = signatureTarget.user_nickname;
     setSignatureTarget(null);
-    fetchAdminData();
+
+    // ⚡ 樂觀更新 (Optimistic UI)：立即更新該筆訂單簽名與付款狀態，無縫銜接
+    setAllSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === targetId ? { ...s, signature_data: signatureData, is_paid: true } : s
+      )
+    );
+    showToast(`✍️ 已存入 ${targetNickname} 的對帳手繪簽名！`);
+
+    const { error } = await supabase
+      .from('order_submissions')
+      .update({ signature_data: signatureData, is_paid: true })
+      .eq('id', targetId);
+
+    if (error) {
+      console.error('儲存簽名失敗:', error);
+      fetchAdminData(selectedActiveGroupIdRef.current);
+      showToast('❌ 儲存簽名失敗');
+    }
   };
 
   const handleArchiveGroup = async () => {
@@ -1064,17 +1146,106 @@ export default function AdminPageContent() {
   };
 
   const handleTogglePaid = async (subId: string, currentStatus: boolean) => {
-    await supabase.from('order_submissions').update({ is_paid: !currentStatus }).eq('id', subId);
-    showToast(!currentStatus ? '✅ 標記為已付款' : '⏳ 標記為未付款');
-    fetchAdminData();
+    const newStatus = !currentStatus;
+
+    // ⚡ 樂觀更新 (Optimistic UI)：立即直接變更按鈕狀態，絕不重整或閃爍畫面
+    setAllSubmissions((prev) =>
+      prev.map((s) => (s.id === subId ? { ...s, is_paid: newStatus } : s))
+    );
+    showToast(newStatus ? '✅ 標記為已付款' : '⏳ 標記為未付款');
+
+    // 背景非同步同步至資料庫
+    const { error } = await supabase
+      .from('order_submissions')
+      .update({ is_paid: newStatus })
+      .eq('id', subId);
+
+    if (error) {
+      console.error('更新付款狀態失敗:', error);
+      // 若連線或寫入失敗則回滾狀態
+      setAllSubmissions((prev) =>
+        prev.map((s) => (s.id === subId ? { ...s, is_paid: currentStatus } : s))
+      );
+      showToast('❌ 更新付款狀態失敗，已復原狀態');
+    }
   };
 
   const handleBatchMarkPaid = async () => {
     if (!selectedSubmissionIds.length) return;
-    await supabase.from('order_submissions').update({ is_paid: true }).in('id', selectedSubmissionIds);
+    const idsToUpdate = [...selectedSubmissionIds];
     setSelectedSubmissionIds([]);
-    showToast('✅ 已批次標記已付款！');
-    fetchAdminData();
+
+    // ⚡ 樂觀更新 (Optimistic UI)：即時在前端記憶體更新所有勾選項目的按鈕狀態
+    setAllSubmissions((prev) =>
+      prev.map((s) => (idsToUpdate.includes(s.id) ? { ...s, is_paid: true } : s))
+    );
+    showToast(`✅ 已批次標記 ${idsToUpdate.length} 筆訂單為已付款！`);
+
+    // 背景非同步同步至資料庫
+    const { error } = await supabase
+      .from('order_submissions')
+      .update({ is_paid: true })
+      .in('id', idsToUpdate);
+
+    if (error) {
+      console.error('批次標記失敗:', error);
+      fetchAdminData(selectedActiveGroupIdRef.current);
+      showToast('❌ 批次更新付款狀態失敗');
+    }
+  };
+
+  const handleDeleteOrder = async (subId: string, nickname: string, orderNumber: string) => {
+    if (
+      !confirm(
+        `🗑️ 確定要刪除「${nickname}」的訂單 #${orderNumber} 嗎？\n此動作將一併刪除該訂單的所有餐點明細，且無法復原。`
+      )
+    ) {
+      return;
+    }
+
+    // ⚡ 樂觀更新 (Optimistic UI)：立即從前端列表中移除該訂單
+    setAllSubmissions((prev) => prev.filter((s) => s.id !== subId));
+    setSelectedSubmissionIds((prev) => prev.filter((id) => id !== subId));
+    showToast(`🗑️ 已刪除 ${nickname} 的訂單`);
+
+    try {
+      await supabase.from('order_items').delete().eq('submission_id', subId);
+      const { error } = await supabase.from('order_submissions').delete().eq('id', subId);
+      if (error) throw error;
+    } catch (err) {
+      console.error('刪除訂單失敗:', err);
+      showToast('❌ 刪除訂單失敗，正在重新同步...');
+      fetchAdminData(selectedActiveGroupIdRef.current);
+    }
+  };
+
+  const handleBatchDeleteOrders = async () => {
+    if (!selectedSubmissionIds.length) return;
+    const idsToDelete = [...selectedSubmissionIds];
+    const count = idsToDelete.length;
+
+    if (
+      !confirm(
+        `🗑️ 確定要批次刪除選取的 ${count} 筆訂單嗎？\n此動作將一併刪除這些訂單的所有餐點明細，且無法復原。`
+      )
+    ) {
+      return;
+    }
+
+    // ⚡ 樂觀更新 (Optimistic UI)：立即從前端列表中移除選取的訂單
+    setAllSubmissions((prev) => prev.filter((s) => !idsToDelete.includes(s.id)));
+    setSelectedSubmissionIds([]);
+    showToast(`🗑️ 已批次刪除 ${count} 筆訂單`);
+
+    try {
+      await supabase.from('order_items').delete().in('submission_id', idsToDelete);
+      const { error } = await supabase.from('order_submissions').delete().in('id', idsToDelete);
+      if (error) throw error;
+    } catch (err) {
+      console.error('批次刪除訂單失敗:', err);
+      showToast('❌ 批次刪除失敗，正在重新同步...');
+      fetchAdminData(selectedActiveGroupIdRef.current);
+    }
   };
 
   const handleCopyPersonalReceipt = async (sub: OrderSubmissionAdmin) => {
@@ -1469,7 +1640,24 @@ export default function AdminPageContent() {
                 selectedActiveGroupId={selectedActiveGroupId}
                 onSelectActiveGroup={(groupId) => {
                   setSelectedActiveGroupId(groupId);
-                  fetchAdminData(groupId);
+                  selectedActiveGroupIdRef.current = groupId;
+                  if (groupId !== 'all') {
+                    const g = activeGroups.find((item) => item.id === groupId);
+                    if (g) {
+                      setActiveGroup(g);
+                      setInputDeliveryFee(g.delivery_fee || 0);
+                      setInputDiscount(g.discount_amount || 0);
+                      setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
+                    }
+                  } else if (activeGroups.length > 0) {
+                    const g = activeGroups.find((item) => (item.order_count || 0) > 0) || activeGroups[0];
+                    if (g) {
+                      setActiveGroup(g);
+                      setInputDeliveryFee(g.delivery_fee || 0);
+                      setInputDiscount(g.discount_amount || 0);
+                      setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
+                    }
+                  }
                 }}
                 submissions={submissions}
                 itemSummary={itemSummary}
@@ -1498,6 +1686,8 @@ export default function AdminPageContent() {
                 handleOpenGroupSettingsModal={() => setIsGroupSettingsModalOpen(true)}
                 handleArchiveGroup={handleArchiveGroup}
                 handleToggleGroupStatus={handleToggleGroupStatus}
+                handleDeleteOrder={handleDeleteOrder}
+                handleBatchDeleteOrders={handleBatchDeleteOrders}
               />
             )}
 

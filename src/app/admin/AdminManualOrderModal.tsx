@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { GroupOrderAdmin } from './admin-types';
 import { supabase } from '@/lib/supabase';
+import { generateSequentialOrderNumber } from '@/lib/order-utils';
 
 interface AdminManualOrderModalProps {
   isOpen: boolean;
@@ -49,7 +50,8 @@ export default function AdminManualOrderModal({
 
     setIsSubmitting(true);
     try {
-      const orderNumber = `MN-MANUAL-${Date.now().toString().slice(-4)}`;
+      // 🔢 規律化循序單號生成 (MN-001, MN-002, MN-003 ...)
+      const orderNumber = await generateSequentialOrderNumber(supabase, groupOrder.id);
       const { data: submission, error: subErr } = await supabase
         .from('order_submissions')
         .insert({

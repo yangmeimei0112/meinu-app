@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
 import { PaymentMethod, SoldOutOption, GroupOrder } from '@/types/database';
 import { sanitizeInput, checkRateLimit, isHumanInteractionTime } from '@/lib/security';
+import { generateSequentialOrderNumber } from '@/lib/order-utils';
 
 function CheckoutContent() {
   const router = useRouter();
@@ -246,7 +247,8 @@ function CheckoutContent() {
         }
       }
 
-      const orderNumber = `MN-${Date.now().toString().slice(-6)}`;
+      // 🔢 規律化循序單號生成 (MN-001, MN-002, MN-003 ...)
+      const orderNumber = await generateSequentialOrderNumber(supabase, activeGroupId);
       const { data: submission, error: subErr } = await supabase
         .from('order_submissions')
         .insert({

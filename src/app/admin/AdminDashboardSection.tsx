@@ -37,6 +37,8 @@ interface AdminDashboardSectionProps {
   handleOpenGroupSettingsModal?: () => void;
   handleArchiveGroup: () => void;
   handleToggleGroupStatus: (newStatus: 'open' | 'closed') => void;
+  handleDeleteOrder: (subId: string, nickname: string, orderNumber: string) => void;
+  handleBatchDeleteOrders: () => void;
 }
 
 export function AdminDashboardSection({
@@ -72,6 +74,8 @@ export function AdminDashboardSection({
   handleOpenGroupSettingsModal,
   handleArchiveGroup,
   handleToggleGroupStatus,
+  handleDeleteOrder,
+  handleBatchDeleteOrders,
 }: AdminDashboardSectionProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
@@ -130,6 +134,23 @@ export function AdminDashboardSection({
       return true;
     });
   }, [submissions, debouncedSearch, statusFilter]);
+
+  // 🔘 判定目前篩選出的訂單是否已被全部選取
+  const isAllSelected =
+    filteredSubmissions.length > 0 &&
+    filteredSubmissions.every((sub) => selectedSubmissionIds.includes(sub.id));
+
+  // 🔘 切換全選 / 取消全選
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      const filteredIds = new Set(filteredSubmissions.map((s) => s.id));
+      setSelectedSubmissionIds(selectedSubmissionIds.filter((id) => !filteredIds.has(id)));
+    } else {
+      const newSelected = new Set(selectedSubmissionIds);
+      filteredSubmissions.forEach((s) => newSelected.add(s.id));
+      setSelectedSubmissionIds(Array.from(newSelected));
+    }
+  };
 
   const isDesktop = viewMode === 'desktop';
 
@@ -278,23 +299,49 @@ export function AdminDashboardSection({
       {/* 頂部搜尋、篩選與批次勾選列 */}
       <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div>
+          <div className="flex items-center gap-2.5 flex-wrap">
             <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
               <span>👥 團員訂單對帳清單</span>
               <span className="text-xs text-slate-400 font-bold">
                 ({filteredSubmissions.length} / {submissions.length} 筆)
               </span>
             </h3>
+
+            {/* 🔘 全選 / 取消全選按鈕 */}
+            {filteredSubmissions.length > 0 && (
+              <button
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+              >
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={handleToggleSelectAll}
+                  aria-label="全選訂單"
+                  className="w-3.5 h-3.5 rounded text-sky-500 pointer-events-none cursor-pointer"
+                />
+                <span>{isAllSelected ? '取消全選' : '全選'}</span>
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               disabled={selectedSubmissionIds.length === 0}
               onClick={handleBatchMarkPaid}
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-200 transition active:scale-95 disabled:opacity-40"
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-200 transition active:scale-95 disabled:opacity-40 cursor-pointer"
             >
               ☑️ 批次標記已付款 ({selectedSubmissionIds.length})
+            </button>
+            <button
+              type="button"
+              disabled={selectedSubmissionIds.length === 0}
+              onClick={handleBatchDeleteOrders}
+              className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-rose-200 transition active:scale-95 disabled:opacity-40 cursor-pointer"
+            >
+              🗑️ 批次刪除 ({selectedSubmissionIds.length})
             </button>
           </div>
         </div>
@@ -486,6 +533,13 @@ export function AdminDashboardSection({
                       className="bg-sky-50 hover:bg-sky-100 text-sky-700 text-[10px] font-bold px-2.5 py-1 rounded-xl transition active:scale-95"
                     >
                       📋 私訊催款
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteOrder(sub.id, sub.user_nickname, sub.order_number)}
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold px-2.5 py-1 rounded-xl border border-rose-100 transition active:scale-95 cursor-pointer"
+                    >
+                      🗑️ 刪除
                     </button>
                   </div>
 
