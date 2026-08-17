@@ -32,12 +32,24 @@ export default function CustomModal({
     return [];
   }, [item]);
 
+  const [prevItemId, setPrevItemId] = useState<string | null>(item?.id || null);
   const [customGroups, setCustomGroups] = useState<CustomGroup[]>(initialGroups);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
   const [quantity, setQuantity] = useState<number>(existingCartItem?.quantity || 1);
   const [customNotes, setCustomNotes] = useState<string>(existingCartItem?.customNotes || '');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hasDraft, setHasDraft] = useState<boolean>(false);
+
+  // 🛡️ 若 item.id 改變，於渲染期同步重置為新商品的規格與狀態，徹底防止任何一幀的殘影
+  if (item && prevItemId !== item.id) {
+    setPrevItemId(item.id);
+    setCustomGroups(initialGroups);
+    setSelectedOptions({});
+    setQuantity(existingCartItem?.quantity || 1);
+    setCustomNotes(existingCartItem?.customNotes || '');
+    setErrorMsg(null);
+    setHasDraft(false);
+  }
 
   // 初始化或更新選項狀態
   useEffect(() => {

@@ -432,14 +432,17 @@ export default function StoreClient({ storeId }: { storeId: string }) {
         )}
       </main>
 
-      {/* 彈出客製化規格選擇跳窗 */}
-      <CustomModal
-        item={selectedMenuItem}
-        storeId={store?.id || ''}
-        storeName={store?.name || ''}
-        onClose={() => setSelectedMenuItem(null)}
-        onAddToCart={handleAddToCart}
-      />
+      {/* 彈出客製化規格選擇跳窗 (依商品 ID 獨立 key 掛載，徹底杜絕上個商品的狀態殘影) */}
+      {selectedMenuItem && (
+        <CustomModal
+          key={selectedMenuItem.id}
+          item={selectedMenuItem}
+          storeId={store?.id || ''}
+          storeName={store?.name || ''}
+          onClose={() => setSelectedMenuItem(null)}
+          onAddToCart={handleAddToCart}
+        />
+      )}
 
       {/* 底部懸浮購物車條 */}
       <CartBar
