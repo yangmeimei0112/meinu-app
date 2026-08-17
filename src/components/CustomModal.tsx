@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MenuItem, CustomGroup } from '@/types/database';
 import { CartItem, SelectedOption } from '@/types/cart';
@@ -43,7 +43,7 @@ export default function CustomModal({
   useEffect(() => {
     if (!item) return;
 
-    let groups = (item.custom_groups && Array.isArray(item.custom_groups)) ? item.custom_groups : [];
+    let groups = item.custom_groups && Array.isArray(item.custom_groups) ? item.custom_groups : [];
 
     // 若商品未帶 custom_groups，才在背景發送向下相容查詢
     if (groups.length === 0) {
@@ -99,13 +99,10 @@ export default function CustomModal({
       if (existingCartItem && existingCartItem.rawCustomSelections) {
         setSelectedOptions(existingCartItem.rawCustomSelections);
       } else {
+        // ✨ 不預設選擇任何選項，全數留空供使用者自由點選
         const initialSelections: Record<string, string[]> = {};
         currentGroups.forEach((g) => {
-          if (g.type === 'single' && g.options.length > 0) {
-            initialSelections[g.id] = [g.options[0].id];
-          } else {
-            initialSelections[g.id] = [];
-          }
+          initialSelections[g.id] = [];
         });
         setSelectedOptions(initialSelections);
 
@@ -114,17 +111,26 @@ export default function CustomModal({
           localStorage.removeItem(draftKey);
           setHasDraft(false);
         } else {
+          // 🛡️ 精準檢查草稿：必須確實有非空選擇、特製備註或變更數量，才視為有效草稿
           const savedDraft = localStorage.getItem(draftKey);
           if (savedDraft) {
             try {
               const parsed = JSON.parse(savedDraft);
-              if (parsed && parsed.selectedOptions && Object.keys(parsed.selectedOptions).length > 0) {
+              const hasSelectedOptions =
+                parsed.selectedOptions &&
+                Object.values(parsed.selectedOptions).some((arr: any) => Array.isArray(arr) && arr.length > 0);
+              const hasCustomNotes = typeof parsed.customNotes === 'string' && parsed.customNotes.trim().length > 0;
+              const hasCustomQuantity = typeof parsed.quantity === 'number' && parsed.quantity > 1;
+
+              if (hasSelectedOptions || hasCustomNotes || hasCustomQuantity) {
                 setHasDraft(true);
               } else {
+                localStorage.removeItem(draftKey);
                 setHasDraft(false);
               }
             } catch (e) {
               console.error('讀取草稿失敗', e);
+              localStorage.removeItem(draftKey);
               setHasDraft(false);
             }
           } else {
@@ -135,17 +141,26 @@ export default function CustomModal({
     }
   }, [item, existingCartItem]);
 
-  // 自動暫存草稿至 LocalStorage（僅在有客製化選項且為新增模式時）
+  // 🛡️ 自動暫存草稿至 LocalStorage（僅在有客製化選項、為新增模式且使用者有實質輸入時儲存；若為空白則自動清除）
   useEffect(() => {
     if (!item || existingCartItem || customGroups.length === 0) return;
     const draftKey = `menu_app_draft_${item.id}`;
-    const draftData = {
-      selectedOptions,
-      quantity,
-      customNotes,
-      savedAt: Date.now(),
-    };
-    localStorage.setItem(draftKey, JSON.stringify(draftData));
+
+    const hasSelections = Object.values(selectedOptions).some((arr) => Array.isArray(arr) && arr.length > 0);
+    const hasNotes = customNotes.trim().length > 0;
+    const hasChangedQty = quantity > 1;
+
+    if (hasSelections || hasNotes || hasChangedQty) {
+      const draftData = {
+        selectedOptions,
+        quantity,
+        customNotes,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draftData));
+    } else {
+      localStorage.removeItem(draftKey);
+    }
   }, [selectedOptions, quantity, customNotes, item, existingCartItem, customGroups.length]);
 
   const handleRestoreDraft = () => {
@@ -167,8 +182,18 @@ export default function CustomModal({
 
   const handleDiscardDraft = () => {
     if (!item) return;
-    localStorage.removeItem(`menu_app_draft_${item.id}`);
+    const draftKey = `menu_app_draft_${item.id}`;
+    localStorage.removeItem(draftKey);
     setHasDraft(false);
+
+    // 重置所有選項為空
+    const resetSelections: Record<string, string[]> = {};
+    customGroups.forEach((g) => {
+      resetSelections[g.id] = [];
+    });
+    setSelectedOptions(resetSelections);
+    setQuantity(1);
+    setCustomNotes('');
   };
 
   if (!item) return null;
@@ -179,13 +204,16 @@ export default function CustomModal({
     const currentList = selectedOptions[group.id] || [];
 
     if (group.type === 'single') {
+      // 單選：點擊已選中的維持選中或切換，點擊新選項直接替換
       setSelectedOptions((prev) => ({ ...prev, [group.id]: [optionId] }));
     } else if (group.type === 'any') {
+      // 不限數量多選
       const updated = currentList.includes(optionId)
         ? currentList.filter((id) => id !== optionId)
         : [...currentList, optionId];
       setSelectedOptions((prev) => ({ ...prev, [group.id]: updated }));
     } else if (group.type === 'limit') {
+      // 限制數量多選
       const limitMax = group.limit_number || 1;
       if (currentList.includes(optionId)) {
         setSelectedOptions((prev) => ({
@@ -228,7 +256,7 @@ export default function CustomModal({
 
   // 確認加入購物車或更新購物車
   const handleConfirm = () => {
-    // 驗證規則
+    // 驗證必選規則
     for (const group of customGroups) {
       const selected = selectedOptions[group.id] || [];
       if (group.type === 'single' && selected.length === 0) {
@@ -259,7 +287,7 @@ export default function CustomModal({
       onUpdateCartItem(cartItemPayload);
     } else {
       onAddToCart(cartItemPayload);
-      // 清除草稿
+      // 送入購物車後清除此商品草稿
       localStorage.removeItem(`menu_app_draft_${item.id}`);
     }
 
@@ -295,7 +323,7 @@ export default function CustomModal({
 
         {/* 草稿恢復提示條 */}
         {hasDraft && (
-          <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/60 px-4 py-2 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+          <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/60 px-4 py-2 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300 animate-in fade-in duration-150">
             <span className="font-bold">📋 偵測到上次選到一半的草稿</span>
             <div className="flex items-center gap-2">
               <button
