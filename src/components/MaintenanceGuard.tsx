@@ -69,10 +69,27 @@ function IconMoon({ className = 'w-4 h-4' }: { className?: string }) {
   );
 }
 
-function IconCheck({ className = 'w-4 h-4' }: { className?: string }) {
+function IconChevronUp({ className = 'w-4 h-4' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
+      <polyline points="18 15 12 9 6 15" />
+    </svg>
+  );
+}
+
+function IconChevronDown({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function IconX({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
@@ -101,7 +118,6 @@ function VectorPrecisionGears() {
       {/* 4. 主齒輪 (大)：順時針精密咬合齒輪 */}
       <div className="absolute w-24 h-24 text-sky-600 dark:text-sky-400 animate-spin-slow">
         <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
-          {/* 齒輪主體 */}
           <path
             fill="currentColor"
             fillOpacity="0.15"
@@ -111,7 +127,6 @@ function VectorPrecisionGears() {
             d="M50 15 
                L53 15 L55 22 L62 25 L68 20 L73 24 L70 31 L76 36 L83 34 L85 41 L80 47 L82 53 L89 57 L87 64 L80 66 L78 73 L83 79 L78 84 L72 80 L66 84 L65 91 L58 91 L55 84 L48 84 L45 91 L38 91 L37 84 L31 80 L25 84 L20 79 L25 73 L23 66 L16 64 L14 57 L21 53 L23 47 L18 41 L20 34 L27 36 L33 31 L30 24 L35 20 L41 25 L48 22 Z"
           />
-          {/* 內同心圓與幾何刻度 */}
           <circle cx="50" cy="50" r="18" fill="none" stroke="currentColor" strokeWidth="3" />
           <circle cx="50" cy="50" r="6" fill="currentColor" />
         </svg>
@@ -266,7 +281,7 @@ export function MaintenanceScreen({
 }
 
 // ----------------------------------------------------
-// 🛡️ 前台主防護攔截器 (含 30 秒預警廣播與平滑倒數機制)
+// 🛡️ 前台主防護攔截器 (30 秒倒數 + 3秒置中動畫後頂部吸附 + 收合隱藏)
 // ----------------------------------------------------
 export default function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -274,33 +289,87 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
   const [checking, setChecking] = useState<boolean>(false);
   const [checkMessage, setCheckMessage] = useState<string | null>(null);
 
-  // 🔔 30 秒倒數狀態管理
+  // 🔔 30 秒倒數與狀態控制
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCountDownFinished, setIsCountDownFinished] = useState<boolean>(false);
-  const initialCheckDoneRef = useRef<boolean>(false);
+  const [isCenterPopup, setIsCenterPopup] = useState<boolean>(false);
+  const [isMinimized, setIsMinimized] = useState<boolean>(false);
 
+  const initialCheckDoneRef = useRef<boolean>(false);
+  const deadlineRef = useRef<number | null>(null);
+
+  // 1. 初始化讀取 SessionStorage 狀態（防止重整或跳轉頁面時繞過）
+  useEffect(() => {
+    try {
+      const savedLocked = sessionStorage.getItem('meinu_maintenance_locked');
+      if (savedLocked === 'true') {
+        setIsCountDownFinished(true);
+      }
+      const savedDeadline = sessionStorage.getItem('meinu_maintenance_deadline');
+      if (savedDeadline) {
+        const dl = Number(savedDeadline);
+        if (Date.now() >= dl) {
+          setIsCountDownFinished(true);
+          sessionStorage.setItem('meinu_maintenance_locked', 'true');
+        } else {
+          deadlineRef.current = dl;
+          setCountdown(Math.max(1, Math.ceil((dl - Date.now()) / 1000)));
+        }
+      }
+    } catch {}
+  }, []);
+
+  // 2. 輪詢查詢伺服端維護狀態
   const fetchMaintenanceStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
       if (res.ok) {
         const json: MaintenanceData = await res.json();
         setMaintenanceData((prev) => {
-          // 偵測是否由「非維護」剛轉為「維護中」，且使用者當前正在瀏覽前台
           if (json.is_maintenance) {
+            // 若為維護中
             if (!initialCheckDoneRef.current) {
-              // 首次剛開啟網站時若已處於維護中，直接進入維護頁
-              setIsCountDownFinished(true);
-            } else if (!prev?.is_maintenance && countdown === null) {
-              // 若使用者在使用中，後台剛開啟維護模式，觸發 30 秒預警倒數
+              // 首次載入若伺服端本就處於維護中，檢查是否有現存倒數
+              const savedDeadline = sessionStorage.getItem('meinu_maintenance_deadline');
+              if (savedDeadline && Number(savedDeadline) > Date.now()) {
+                const dl = Number(savedDeadline);
+                deadlineRef.current = dl;
+                setCountdown(Math.max(1, Math.ceil((dl - Date.now()) / 1000)));
+              } else {
+                setIsCountDownFinished(true);
+                sessionStorage.setItem('meinu_maintenance_locked', 'true');
+              }
+            } else if (!prev?.is_maintenance && !deadlineRef.current) {
+              // 🔴 使用者在使用中，後台剛開啟維護模式：觸發 30 秒倒數 + 3秒置中動畫
+              const targetDeadline = Date.now() + 30000;
+              deadlineRef.current = targetDeadline;
+              try {
+                sessionStorage.setItem('meinu_maintenance_deadline', String(targetDeadline));
+              } catch {}
+
               setCountdown(30);
+              setIsCenterPopup(true);
+
+              // 3 秒後平滑自動移動至畫面頂部
+              setTimeout(() => {
+                setIsCenterPopup(false);
+              }, 3000);
             }
           } else {
-            // 若後台關閉維護，重置倒數與鎖定
+            // 🟢 若後台關閉維護：徹底重置倒數與所有鎖定狀態
+            deadlineRef.current = null;
             setCountdown(null);
             setIsCountDownFinished(false);
+            setIsCenterPopup(false);
+            setIsMinimized(false);
+            try {
+              sessionStorage.removeItem('meinu_maintenance_deadline');
+              sessionStorage.removeItem('meinu_maintenance_locked');
+            } catch {}
           }
           return json;
         });
+
         initialCheckDoneRef.current = true;
         return json;
       }
@@ -308,32 +377,42 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
       console.error('查詢維護狀態失敗', e);
     }
     return null;
-  }, [countdown]);
+  }, []);
 
-  // 1. 每 5 秒於背景定時輪詢檢查最新維護狀態
+  // 3. 每 4 秒於背景定時輪詢檢查最新維護狀態
   useEffect(() => {
     fetchMaintenanceStatus();
     const timer = setInterval(() => {
       fetchMaintenanceStatus();
-    }, 5000);
+    }, 4000);
     return () => clearInterval(timer);
   }, [fetchMaintenanceStatus]);
 
-  // 2. 30 秒倒數計時器計數邏輯
+  // 4. 精密倒數時鐘計數器（以絕對時間戳記計算，防頁面卡頓或背景 Tab 延遲）
   useEffect(() => {
-    if (countdown === null) return;
+    if (!deadlineRef.current) return;
 
-    if (countdown <= 0) {
-      setIsCountDownFinished(true);
-      setCountdown(null);
-      return;
-    }
+    const tick = () => {
+      if (!deadlineRef.current) return;
+      const remaining = Math.ceil((deadlineRef.current - Date.now()) / 1000);
 
-    const timer = setTimeout(() => {
-      setCountdown((prev) => (prev !== null ? prev - 1 : null));
-    }, 1000);
+      if (remaining <= 0) {
+        // 🔒 倒數結束：100% 絕對鎖定並切換至全螢幕維護頁面
+        setIsCountDownFinished(true);
+        setCountdown(null);
+        deadlineRef.current = null;
+        try {
+          sessionStorage.setItem('meinu_maintenance_locked', 'true');
+          sessionStorage.removeItem('meinu_maintenance_deadline');
+        } catch {}
+      } else {
+        setCountdown(remaining);
+      }
+    };
 
-    return () => clearTimeout(timer);
+    tick();
+    const interval = setInterval(tick, 500);
+    return () => clearInterval(interval);
   }, [countdown]);
 
   const handleManualCheck = async () => {
@@ -358,12 +437,17 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
   const handleImmediateSwitch = () => {
     setIsCountDownFinished(true);
     setCountdown(null);
+    deadlineRef.current = null;
+    try {
+      sessionStorage.setItem('meinu_maintenance_locked', 'true');
+      sessionStorage.removeItem('meinu_maintenance_deadline');
+    } catch {}
   };
 
   // 🛡️ 後台管理者路由 (`/admin` 或 `/api`) 永遠不受維護模式阻擋
   const isAdminRoute = pathname?.startsWith('/admin') || pathname?.startsWith('/api');
 
-  // 若處於維護中，且倒數已結束或初始就處於維護中：全螢幕呈現維護頁面
+  // 🚨 終極防線：若處於維護模式且倒數已結束，強制全螢幕阻斷，不渲染任何前台互動內容
   if (maintenanceData?.is_maintenance && isCountDownFinished && !isAdminRoute) {
     return (
       <MaintenanceScreen
@@ -377,50 +461,134 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
 
   return (
     <>
-      {/* ⚠️ 30 秒即將維護前台預警橫幅 (使用者操作中偵測到維護時觸發) */}
+      {/* ⚠️ 30 秒預警通知：前 3 秒置中彈窗，3 秒後平滑轉移至頂部橫幅 */}
       {maintenanceData?.is_maintenance && countdown !== null && countdown > 0 && !isAdminRoute && (
-        <div className="fixed inset-x-0 top-0 z-[9999] p-3 sm:p-4 animate-in slide-in-from-top-4 duration-300">
-          <div className="max-w-2xl mx-auto bg-slate-900/95 text-white backdrop-blur-md rounded-2xl p-4 sm:p-4.5 border border-amber-500/60 shadow-2xl space-y-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5">
-                  <IconAlertTriangle className="w-4 h-4 animate-pulse" />
+        <>
+          {/* 1. 前 3 秒：畫面正中央彈出式動畫 */}
+          {isCenterPopup && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-300">
+              <div className="max-w-md w-full bg-slate-900 text-white rounded-3xl p-6 border-2 border-amber-500 shadow-2xl space-y-4 text-center">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-amber-400">
+                  <IconAlertTriangle className="w-7 h-7 animate-pulse" />
                 </div>
-                <div className="min-w-0 space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs sm:text-sm font-black text-amber-400">
-                      系統維護預警廣播
-                    </h4>
-                    <span className="text-[10px] bg-amber-400/20 text-amber-300 font-extrabold px-2 py-0.5 rounded-full border border-amber-400/30">
-                      {countdown} 秒後切換
-                    </span>
-                  </div>
-                  <p className="text-[11px] sm:text-xs text-slate-300 font-medium leading-relaxed">
+
+                <div className="space-y-1.5">
+                  <span className="text-[11px] bg-amber-500/20 text-amber-300 font-extrabold px-3 py-1 rounded-full border border-amber-500/40">
+                    系統即將進行維護升級
+                  </span>
+                  <h3 className="text-lg font-black text-amber-400 pt-1">
+                    {countdown} 秒後切換至維護模式
+                  </h3>
+                  <p className="text-xs text-slate-300 leading-relaxed font-medium">
                     {maintenanceData.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim() || '網站即將進入例行維護'}
-                    ：請儘速完成目前之動作，系統將於倒數完畢後切換至維護畫面。
+                    ：請儘速完成目前的點餐或送單動作。
                   </p>
                 </div>
+
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500 ease-linear rounded-full"
+                    style={{ width: `${(countdown / 30) * 100}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsCenterPopup(false)}
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-2.5 rounded-xl border border-slate-700 transition cursor-pointer"
+                  >
+                    移動至頂部繼續操作
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleImmediateSwitch}
+                    className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black py-2.5 rounded-xl transition shadow-xs cursor-pointer"
+                  >
+                    立即進入維護
+                  </button>
+                </div>
               </div>
-
-              {/* 立即切換按鈕 */}
-              <button
-                type="button"
-                onClick={handleImmediateSwitch}
-                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs px-3.5 py-1.5 rounded-xl transition shadow-xs active:scale-95 shrink-0 cursor-pointer"
-              >
-                立即進入維護
-              </button>
             </div>
+          )}
 
-            {/* 30 秒流動倒數進度條 */}
-            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-1000 ease-linear rounded-full"
-                style={{ width: `${(countdown / 30) * 100}%` }}
-              />
+          {/* 2. 3 秒後：移至畫面頂部 (支援縮小膠囊與收合/展開) */}
+          {!isCenterPopup && (
+            <div className="fixed inset-x-0 top-0 z-[9998] p-3 sm:p-4 pointer-events-none">
+              {isMinimized ? (
+                /* 縮小版懸浮膠囊按鈕 */
+                <div className="max-w-max mx-auto pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsMinimized(false)}
+                    className="bg-slate-900/95 text-amber-400 border border-amber-500/70 shadow-xl backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-black flex items-center gap-2 transition hover:scale-105 active:scale-95 cursor-pointer animate-in slide-in-from-top-2"
+                  >
+                    <IconAlertTriangle className="w-3.5 h-3.5 animate-pulse" />
+                    <span>維護倒數 {countdown}s</span>
+                    <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded-md">
+                      展開
+                    </span>
+                  </button>
+                </div>
+              ) : (
+                /* 頂部展開警示橫幅 */
+                <div className="max-w-2xl mx-auto bg-slate-900/95 text-white backdrop-blur-md rounded-2xl p-3.5 sm:p-4 border border-amber-500/60 shadow-2xl space-y-2.5 pointer-events-auto animate-in slide-in-from-top-4 duration-300">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5">
+                        <IconAlertTriangle className="w-4 h-4 animate-pulse" />
+                      </div>
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs sm:text-sm font-black text-amber-400">
+                            系統維護預警廣播
+                          </h4>
+                          <span className="text-[10px] bg-amber-400/20 text-amber-300 font-extrabold px-2 py-0.5 rounded-full border border-amber-400/30">
+                            {countdown} 秒後切換
+                          </span>
+                        </div>
+                        <p className="text-[11px] sm:text-xs text-slate-300 font-medium leading-relaxed truncate sm:whitespace-normal">
+                          {maintenanceData.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim() || '網站即將進入例行維護'}
+                          ：請儘速送單。
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* 立即切換 */}
+                      <button
+                        type="button"
+                        onClick={handleImmediateSwitch}
+                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl transition shadow-xs active:scale-95 cursor-pointer"
+                      >
+                        立即切換
+                      </button>
+
+                      {/* 隱藏/縮小通知按鈕 */}
+                      <button
+                        type="button"
+                        onClick={() => setIsMinimized(true)}
+                        aria-label="縮小隱藏通知"
+                        className="w-7 h-7 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-slate-700 flex items-center justify-center transition cursor-pointer"
+                        title="隱藏此橫幅（縮小為膠囊）"
+                      >
+                        <IconChevronUp className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 30 秒流動倒數進度條 */}
+                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500 ease-linear rounded-full"
+                      style={{ width: `${(countdown / 30) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       {children}
