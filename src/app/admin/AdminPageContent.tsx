@@ -198,11 +198,11 @@ export default function AdminPageContent() {
     try {
       const [gRes, sRes, cRes, pRes, soRes, mRes] = await Promise.all([
         supabase.from('group_orders').select(`*, stores (*)`).order('created_at', { ascending: false }),
-        supabase.from('stores').select('*').order('created_at', { ascending: true }),
+        supabase.from('stores').select('*').order('name', { ascending: true }),
         supabase.from('categories').select('*').order('sort_order', { ascending: true }),
-        supabase.from('payment_methods').select('*').order('created_at', { ascending: true }),
+        supabase.from('payment_methods').select('*').order('name', { ascending: true }),
         supabase.from('sold_out_options').select('*').order('sort_order', { ascending: true }),
-        supabase.from('menu_items').select('*').order('created_at', { ascending: true }),
+        supabase.from('menu_items').select('*').order('name', { ascending: true }),
       ]);
 
       setStores((sRes.data as Store[]) || []);

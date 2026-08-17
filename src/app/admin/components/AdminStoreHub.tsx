@@ -148,44 +148,50 @@ export default function AdminStoreHub({
                     ＋ 新增分類
                   </button>
                 </div>
-                <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
-                  {categories.map((cat) => (
-                    <div
-                      key={cat.id}
-                      className="bg-white dark:bg-[#131B2B] p-2 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2"
-                    >
-                      <input
-                        id={`cat-item-${cat.id}`}
-                        name={`category_${cat.id}_name`}
-                        aria-label={`分類名稱 ${cat.name}`}
-                        value={cat.name}
-                        onChange={(e) => onUpdateCategory(cat.id, 'name', e.target.value)}
-                        className="flex-1 text-xs font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => onMoveCategory(cat.id, 'up')}
-                        className="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-5 h-5 cursor-pointer"
+                {categories.length === 0 ? (
+                  <div className="text-center py-6 text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                    尚無商品分類，請點擊上方按鈕新增
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
+                    {categories.map((cat) => (
+                      <div
+                        key={cat.id}
+                        className="bg-white dark:bg-[#131B2B] p-2 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2"
                       >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onMoveCategory(cat.id, 'down')}
-                        className="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-5 h-5 cursor-pointer"
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteCategory(cat.id)}
-                        className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 font-bold px-1 cursor-pointer"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                        <input
+                          id={`cat-item-${cat.id}`}
+                          name={`category_${cat.id}_name`}
+                          aria-label={`分類名稱 ${cat.name}`}
+                          value={cat.name}
+                          onChange={(e) => onUpdateCategory(cat.id, 'name', e.target.value)}
+                          className="flex-1 text-xs font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => onMoveCategory(cat.id, 'up')}
+                          className="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-5 h-5 cursor-pointer"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onMoveCategory(cat.id, 'down')}
+                          className="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-5 h-5 cursor-pointer"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteCategory(cat.id)}
+                          className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 font-bold px-1 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -202,66 +208,72 @@ export default function AdminStoreHub({
                     ＋ 新增付款方式
                   </button>
                 </div>
-                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                  {paymentMethods.map((method) => (
-                    <div
-                      key={method.id}
-                      className="bg-white dark:bg-[#131B2B] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <input
-                          id={`pm-name-${method.id}`}
-                          name={`payment_method_${method.id}_name`}
-                          aria-label={`付款方式名稱 ${method.name}`}
-                          value={method.name}
-                          onChange={(e) => onUpdatePaymentMethod(method.id, 'name', e.target.value)}
-                          className="font-bold text-xs text-slate-800 dark:text-slate-100 bg-transparent flex-1 focus:outline-none"
-                        />
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => onTogglePaymentMethodActive(method.id, method.is_active)}
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md cursor-pointer ${
-                              method.is_active
-                                ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
-                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                            }`}
-                          >
-                            {method.is_active ? '啟用' : '停用'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onSavePaymentMethod(method.id, {
-                                name: method.name,
-                                account_info: method.account_info,
-                              })
-                            }
-                            className="text-[10px] bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold px-2 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60 cursor-pointer"
-                          >
-                            儲存
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onDeletePaymentMethod(method.id)}
-                            className="text-xs text-rose-500 font-bold px-1 cursor-pointer"
-                          >
-                            ✕
-                          </button>
+                {paymentMethods.length === 0 ? (
+                  <div className="text-center py-6 text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                    尚無付款方式，請點擊上方按鈕新增
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                    {paymentMethods.map((method) => (
+                      <div
+                        key={method.id}
+                        className="bg-white dark:bg-[#131B2B] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <input
+                            id={`pm-name-${method.id}`}
+                            name={`payment_method_${method.id}_name`}
+                            aria-label={`付款方式名稱 ${method.name}`}
+                            value={method.name}
+                            onChange={(e) => onUpdatePaymentMethod(method.id, 'name', e.target.value)}
+                            className="font-bold text-xs text-slate-800 dark:text-slate-100 bg-transparent flex-1 focus:outline-none"
+                          />
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => onTogglePaymentMethodActive(method.id, method.is_active)}
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-md cursor-pointer ${
+                                method.is_active
+                                  ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                  : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                              }`}
+                            >
+                              {method.is_active ? '啟用' : '停用'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onSavePaymentMethod(method.id, {
+                                  name: method.name,
+                                  account_info: method.account_info,
+                                })
+                              }
+                              className="text-[10px] bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold px-2 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60 cursor-pointer"
+                            >
+                              儲存
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeletePaymentMethod(method.id)}
+                              className="text-xs text-rose-500 font-bold px-1 cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
+                        <input
+                          id={`pm-account-${method.id}`}
+                          name={`payment_method_${method.id}_account`}
+                          aria-label={`收款帳號或說明 ${method.name}`}
+                          value={method.account_info ?? ''}
+                          onChange={(e) => onUpdatePaymentMethod(method.id, 'account_info', e.target.value || null)}
+                          placeholder="收款帳號或說明 (例如：(013) 123-456789)"
+                          className="w-full text-xs bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                        />
                       </div>
-                      <input
-                        id={`pm-account-${method.id}`}
-                        name={`payment_method_${method.id}_account`}
-                        aria-label={`收款帳號或說明 ${method.name}`}
-                        value={method.account_info ?? ''}
-                        onChange={(e) => onUpdatePaymentMethod(method.id, 'account_info', e.target.value || null)}
-                        placeholder="收款帳號或說明 (例如：(013) 123-456789)"
-                        className="w-full text-xs bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                      />
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -278,65 +290,69 @@ export default function AdminStoreHub({
                     ＋ 新增備案
                   </button>
                 </div>
-                <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
-                  {soldOutOptions.map((opt) => (
-                    <div
-                      key={opt.id}
-                      className="bg-white dark:bg-[#131B2B] p-2 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2"
-                    >
-                      <input
-                        id={`soldout-title-${opt.id}`}
-                        name={`soldout_option_${opt.id}_title`}
-                        aria-label={`缺貨備案名稱 ${opt.title}`}
-                        value={opt.title}
-                        onChange={(e) => onUpdateSoldOutOption(opt.id, e.target.value)}
-                        className="flex-1 text-xs font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:outline-none"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => onSaveSoldOutOption(opt.id, opt.title)}
-                        className="text-[10px] bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold px-2 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60 cursor-pointer"
+                {soldOutOptions.length === 0 ? (
+                  <div className="text-center py-6 text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                    尚無缺貨備案，請點擊上方按鈕新增
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
+                    {soldOutOptions.map((opt) => (
+                      <div
+                        key={opt.id}
+                        className="bg-white dark:bg-[#131B2B] p-2 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2"
                       >
-                        儲存
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onMoveSoldOutOption(opt.id, 'up')}
-                        className="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-5 h-5 cursor-pointer"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onMoveSoldOutOption(opt.id, 'down')}
-                        className="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-5 h-5 cursor-pointer"
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDeleteSoldOutOption(opt.id)}
-                        className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 font-bold px-1 cursor-pointer"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                        <input
+                          id={`soldout-title-${opt.id}`}
+                          name={`soldout_option_${opt.id}_title`}
+                          aria-label={`缺貨備案名稱 ${opt.title}`}
+                          value={opt.title}
+                          onChange={(e) => onUpdateSoldOutOption(opt.id, e.target.value)}
+                          className="flex-1 text-xs font-bold text-slate-800 dark:text-slate-100 bg-transparent focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => onSaveSoldOutOption(opt.id, opt.title)}
+                          className="text-[10px] bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-bold px-2 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60 cursor-pointer"
+                        >
+                          儲存
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onMoveSoldOutOption(opt.id, 'up')}
+                          className="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-5 h-5 cursor-pointer"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onMoveSoldOutOption(opt.id, 'down')}
+                          className="text-xs text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-5 h-5 cursor-pointer"
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteSoldOutOption(opt.id)}
+                          className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 font-bold px-1 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* 店家網格卡片清單 */}
+      {/* 店家列表清單 */}
       {stores.length === 0 ? (
-        <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-12 text-center text-slate-400 dark:text-slate-500 text-xs border border-dashed border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+        <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131B2B] p-12 text-center text-xs text-slate-400 dark:text-slate-500 space-y-3">
           <div className="text-4xl">🏪</div>
-          <h4 className="text-sm font-extrabold text-slate-700 dark:text-slate-200">目前尚無合作店家</h4>
-          <p className="text-slate-400 dark:text-slate-400 max-w-xs mx-auto">
-            點擊上方「＋ 新增合作門市」建立第一家合作店家，隨後即可進入設計菜單！
-          </p>
+          <p className="font-extrabold text-sm text-slate-700 dark:text-slate-200">目前尚無任何合作店家</p>
+          <p>請點擊下方按鈕新增第一家合作店家，開始建立菜單！</p>
           <div className="pt-2 flex justify-center">
             <button
               type="button"
