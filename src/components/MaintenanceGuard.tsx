@@ -175,11 +175,11 @@ export function MaintenanceScreen({
       <div className="max-w-md mx-auto w-full flex items-center justify-between pt-2">
         <div className="flex items-center gap-2">
           <span className="text-base sm:text-lg font-black tracking-tight bg-gradient-to-r from-sky-500 to-blue-600 bg-clip-text text-transparent">
-            MEINU SYSTEM
+            咩nu 團購點餐
           </span>
-          <span className="text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-200/80 dark:border-amber-900/60 flex items-center gap-1">
+          <span className="text-[10px] bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-200/80 dark:border-amber-900/60 flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
-            <span>MAINTENANCE</span>
+            <span>系統升級維護中</span>
           </span>
         </div>
 
