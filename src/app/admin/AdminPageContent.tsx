@@ -21,6 +21,7 @@ import AdminStoreModal from './components/AdminStoreModal';
 import AdminCategoryModal from './components/AdminCategoryModal';
 import AdminProductModal from './components/AdminProductModal';
 import AdminChangeModal from './components/AdminChangeModal';
+import { AdminMaintenanceSection } from './components/AdminMaintenanceSection';
 
 // 🚀 隨選動態加載重型彈窗，顯著降低初始頁面 JS 傳輸大小 (Code Splitting)
 const AdminPrintModal = dynamic(() => import('./AdminPrintModal'), { ssr: false });
@@ -34,7 +35,7 @@ export default function AdminPageContent() {
   const { isSoundEnabled, playChimeSound, initAudio, toggleSound } = useAdminSound();
 
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive' | 'maintenance'>('active');
   const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
 
   const selectedActiveGroupIdRef = useRef<string>('all');
@@ -1323,11 +1324,11 @@ export default function AdminPageContent() {
 
       {/* 主頁籤切換 */}
       <div className="max-w-7xl mx-auto px-4 pt-4">
-        <div className="flex bg-slate-200/80 dark:bg-[#131B2B] p-1.5 rounded-2xl max-w-md mx-auto sm:mx-0 shadow-inner border border-transparent dark:border-slate-800">
+        <div className="flex flex-wrap bg-slate-200/80 dark:bg-[#131B2B] p-1.5 rounded-2xl max-w-xl mx-auto sm:mx-0 shadow-inner border border-transparent dark:border-slate-800 gap-1 sm:gap-0">
           <button
             type="button"
             onClick={() => setActiveTab('active')}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 min-w-[100px] py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'active'
                 ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-sm'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1344,7 +1345,7 @@ export default function AdminPageContent() {
           <button
             type="button"
             onClick={() => setActiveTab('crud')}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 min-w-[120px] py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'crud'
                 ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-sm'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1356,7 +1357,7 @@ export default function AdminPageContent() {
           <button
             type="button"
             onClick={() => setActiveTab('archive')}
-            className={`flex-1 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 min-w-[90px] py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'archive'
                 ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-sm'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -1368,6 +1369,18 @@ export default function AdminPageContent() {
                 {archivedGroups.length}
               </span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('maintenance')}
+            className={`flex-1 min-w-[110px] py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === 'maintenance'
+                ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-300 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <span>🚧 系統更新控制</span>
           </button>
         </div>
       </div>
@@ -1510,6 +1523,10 @@ export default function AdminPageContent() {
                 handleDeleteArchivedGroup={handleDeleteArchivedGroup}
                 handleBatchDeleteArchivedGroups={handleBatchDeleteArchivedGroups}
               />
+            )}
+
+            {activeTab === 'maintenance' && (
+              <AdminMaintenanceSection showToast={showToast} />
             )}
           </>
         )}
