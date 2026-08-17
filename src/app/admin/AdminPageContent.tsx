@@ -1,54 +1,50 @@
 'use client';
 
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
-import SignatureModal from '@/components/SignatureModal';
 import { supabase } from '@/lib/supabase';
 import { Store, MenuItem, Category, CustomGroup, PaymentMethod, SoldOutOption } from '@/types/database';
 import { AdminArchiveSection } from './AdminArchiveSection';
-import { AdminCrudSection } from '@/app/admin/AdminCrudSection';
+import { AdminCrudSection } from './AdminCrudSection';
 import { AdminDashboardSection } from './AdminDashboardSection';
 import { GroupOrderAdmin, OrderSubmissionAdmin, AdminViewMode } from './admin-types';
-import AdminPrintModal from './AdminPrintModal';
-import AdminManualOrderModal from './AdminManualOrderModal';
-import AdminBatchImportModal from './AdminBatchImportModal';
-import AdminGroupSettingsModal from './AdminGroupSettingsModal';
 import { compressImageToWebP } from '@/lib/image-compress';
-import { generateMathChallenge, getLockoutDurationSec, securityDelay } from '@/lib/security';
 import { useTheme } from '@/lib/theme';
+import { useAdminSound } from './hooks/useAdminSound';
+
+// 子元件與彈窗
+import AdminAuthLock from './components/AdminAuthLock';
+import AdminStoreModal from './components/AdminStoreModal';
+import AdminCategoryModal from './components/AdminCategoryModal';
+import AdminProductModal from './components/AdminProductModal';
+import AdminChangeModal from './components/AdminChangeModal';
+
+// 🚀 隨選動態加載重型彈窗，顯著降低初始頁面 JS 傳輸大小 (Code Splitting)
+const AdminPrintModal = dynamic(() => import('./AdminPrintModal'), { ssr: false });
+const AdminManualOrderModal = dynamic(() => import('./AdminManualOrderModal'), { ssr: false });
+const AdminBatchImportModal = dynamic(() => import('./AdminBatchImportModal'), { ssr: false });
+const AdminGroupSettingsModal = dynamic(() => import('./AdminGroupSettingsModal'), { ssr: false });
+const SignatureModal = dynamic(() => import('@/components/SignatureModal'), { ssr: false });
 
 export default function AdminPageContent() {
   const { theme, toggleTheme } = useTheme();
-  const [passcode, setPasscode] = useState<string>('');
+  const { isSoundEnabled, playChimeSound, initAudio, toggleSound } = useAdminSound();
+
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive'>('active');
   const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
-  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(true);
 
-  // 🔔 即時音效狀態 Ref 保持最新值，防止閉包陷阱
-  const isSoundEnabledRef = useRef<boolean>(true);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const audioObjRef = useRef<HTMLAudioElement | null>(null);
   const selectedActiveGroupIdRef = useRef<string>('all');
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const processedNotificationIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef<boolean>(true);
-  const lastNotificationTimeRef = useRef<number>(0);
-  // 🛡️ 記錄後台進入/解鎖的絕對時間戳（任何早於此時間點的訂單均為歷史訂單，絕不重複發送通知）
   const sessionMountTimeRef = useRef<number>(Date.now());
 
-  // 初始化時預先載入音效檔案並讀取 sessionStorage 中已通知過的訂單 ID
+  // 初始化時讀取 sessionStorage 中已通知過的訂單 ID
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const audio = new Audio('/notification.mp3');
-        audio.preload = 'auto';
-        audioObjRef.current = audio;
-      } catch {}
-    }
-
     try {
       const stored = sessionStorage.getItem('menu_app_processed_notifications');
       if (stored) {
@@ -60,36 +56,39 @@ export default function AdminPageContent() {
     } catch {}
   }, []);
 
-  const notifyNewOrder = (orderId: string, nickname: string, orderCreatedAt?: string | number) => {
-    // 🛡️ 防線 1：檢查是否已在通知集合中（一筆訂單終身僅響鈴一次）
-    if (processedNotificationIdsRef.current.has(orderId)) return;
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2500);
+  }, []);
 
-    // 🛡️ 防線 2：時間戳過濾（若訂單建立時間早於進入後台的時間，一律視為歷史訂單直接登記，絕不響鈴）
-    if (orderCreatedAt) {
-      const orderTime = typeof orderCreatedAt === 'number' ? orderCreatedAt : new Date(orderCreatedAt).getTime();
-      if (!isNaN(orderTime) && orderTime < sessionMountTimeRef.current - 3000) {
-        processedNotificationIdsRef.current.add(orderId);
-        return;
+  const notifyNewOrder = useCallback(
+    (orderId: string, nickname: string, orderCreatedAt?: string | number) => {
+      // 🛡️ 防線 1：檢查是否已在通知集合中（一筆訂單終身僅響鈴一次）
+      if (processedNotificationIdsRef.current.has(orderId)) return;
+
+      // 🛡️ 防線 2：時間戳過濾（若訂單建立時間早於進入後台的時間，一律視為歷史訂單直接登記，絕不響鈴）
+      if (orderCreatedAt) {
+        const orderTime = typeof orderCreatedAt === 'number' ? orderCreatedAt : new Date(orderCreatedAt).getTime();
+        if (!isNaN(orderTime) && orderTime < sessionMountTimeRef.current - 3000) {
+          processedNotificationIdsRef.current.add(orderId);
+          return;
+        }
       }
-    }
 
-    // 立即將此單號鎖定至已通知清單（不可撤回）
-    processedNotificationIdsRef.current.add(orderId);
-    knownOrderIdsRef.current.add(orderId);
+      processedNotificationIdsRef.current.add(orderId);
+      knownOrderIdsRef.current.add(orderId);
 
-    // 持久化至 sessionStorage，避免同分頁重新整理時重複通知
-    try {
-      const arr = Array.from(processedNotificationIdsRef.current).slice(-300);
-      sessionStorage.setItem('menu_app_processed_notifications', JSON.stringify(arr));
-    } catch {}
+      try {
+        const arr = Array.from(processedNotificationIdsRef.current).slice(-300);
+        sessionStorage.setItem('menu_app_processed_notifications', JSON.stringify(arr));
+      } catch {}
 
-    playChimeSound();
-    showToast(`🔔 叮咚！收到 ${nickname || '團員'} 的新訂單！`);
-  };
-
-  useEffect(() => {
-    isSoundEnabledRef.current = isSoundEnabled;
-  }, [isSoundEnabled]);
+      playChimeSound();
+      showToast(`🔔 叮咚！收到 ${nickname || '團員'} 的新訂單！`);
+    },
+    [playChimeSound, showToast]
+  );
 
   const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
   const [activeGroups, setActiveGroups] = useState<GroupOrderAdmin[]>([]);
@@ -115,7 +114,7 @@ export default function AdminPageContent() {
     return allSubmissions.filter((s) => s.group_order_id === selectedActiveGroupId);
   }, [allSubmissions, selectedActiveGroupId]);
 
-  // 初始化視圖模式偏好與音效偏好
+  // 初始化視圖模式偏好
   useEffect(() => {
     try {
       const savedMode = localStorage.getItem('menu_app_admin_view_mode') as AdminViewMode;
@@ -123,11 +122,6 @@ export default function AdminPageContent() {
         setViewMode(savedMode);
       } else if (typeof window !== 'undefined' && window.innerWidth < 768) {
         setViewMode('mobile');
-      }
-
-      const savedSound = localStorage.getItem('menu_app_admin_sound_enabled');
-      if (savedSound !== null) {
-        setIsSoundEnabled(savedSound === 'true');
       }
     } catch (e) {
       console.error(e);
@@ -144,21 +138,11 @@ export default function AdminPageContent() {
   };
 
   const handleToggleSound = () => {
-    const nextSound = !isSoundEnabled;
-    setIsSoundEnabled(nextSound);
-    isSoundEnabledRef.current = nextSound;
-    try {
-      localStorage.setItem('menu_app_admin_sound_enabled', String(nextSound));
-    } catch (e) {
-      console.error(e);
-    }
-    if (nextSound) {
-      initAudio();
-      playChimeSound();
-    }
-    showToast(nextSound ? '🔔 已開啟新訂單叮咚提醒（試聽播放）' : '🔕 已靜音新訂單提示音效');
+    const next = toggleSound();
+    showToast(next ? '🔔 已開啟新訂單叮咚提醒（試聽播放）' : '🔕 已靜音新訂單提示音效');
   };
 
+  // 彈窗狀態管理
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [storeForm, setStoreForm] = useState({ name: '', category_id: '' });
@@ -183,7 +167,7 @@ export default function AdminPageContent() {
   });
   const [productCustomGroups, setProductCustomGroups] = useState<CustomGroup[]>([]);
 
-  // 額外彈窗控制：列印、人工代點、CSV 批次匯入、團購設定
+  // 額外彈窗控制
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState<boolean>(false);
   const [isBatchImportModalOpen, setIsBatchImportModalOpen] = useState<boolean>(false);
@@ -198,238 +182,6 @@ export default function AdminPageContent() {
   const [inputDeliveryFee, setInputDeliveryFee] = useState<number>(0);
   const [inputDiscount, setInputDiscount] = useState<number>(0);
   const [roundingRule, setRoundingRule] = useState<'floor' | 'ceil' | 'round'>('floor');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
-  };
-
-  const initAudio = () => {
-    if (typeof window === 'undefined') return;
-    try {
-      if (!audioContextRef.current) {
-        const AudioCtx =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (AudioCtx) {
-          audioContextRef.current = new AudioCtx();
-        }
-      }
-      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
-        audioContextRef.current.resume().catch(() => {});
-      }
-    } catch (e) {
-      console.error('初始化 AudioContext 失敗：', e);
-    }
-  };
-
-  // 🔔 全域點擊/觸控自動激活瀏覽器音效播放權限 (Autoplay Policy Unlock)
-  useEffect(() => {
-    const unlockAudio = () => {
-      initAudio();
-    };
-    window.addEventListener('click', unlockAudio, { passive: true });
-    window.addEventListener('touchstart', unlockAudio, { passive: true });
-    window.addEventListener('keydown', unlockAudio, { passive: true });
-    return () => {
-      window.removeEventListener('click', unlockAudio);
-      window.removeEventListener('touchstart', unlockAudio);
-      window.removeEventListener('keydown', unlockAudio);
-    };
-  }, []);
-
-  const triggerBellOscillators = (ctx: AudioContext) => {
-    try {
-      const now = ctx.currentTime;
-
-      // 叮 (Ding: 587.33Hz / D5 - 亮麗圓潤三角波)
-      const osc1 = ctx.createOscillator();
-      const gain1 = ctx.createGain();
-      osc1.type = 'triangle';
-      osc1.frequency.setValueAtTime(587.33, now);
-      gain1.gain.setValueAtTime(0.5, now);
-      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-      osc1.connect(gain1);
-      gain1.connect(ctx.destination);
-      osc1.start(now);
-      osc1.stop(now + 0.45);
-
-      // 咚 (Dong: 880.00Hz / A5 - 清脆正弦波)
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(880, now + 0.12);
-      gain2.gain.setValueAtTime(0.6, now + 0.12);
-      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(now + 0.12);
-      osc2.stop(now + 0.8);
-    } catch (err) {
-      console.error('震盪器發聲失敗:', err);
-    }
-  };
-
-  const playSynthesizedChime = () => {
-    try {
-      initAudio();
-      const ctx = audioContextRef.current;
-      if (!ctx) return;
-      if (ctx.state === 'suspended') {
-        ctx.resume().then(() => triggerBellOscillators(ctx)).catch(() => {});
-      } else {
-        triggerBellOscillators(ctx);
-      }
-    } catch (e) {
-      console.error('播放合成鈴聲失敗：', e);
-    }
-  };
-
-  const playChimeSound = () => {
-    if (!isSoundEnabledRef.current) return;
-
-    // 🛡️ 嚴格防重放節流閥：若 2.5 秒內已發聲過，絕不重複發聲
-    const now = Date.now();
-    if (now - lastNotificationTimeRef.current < 2500) {
-      return;
-    }
-    lastNotificationTimeRef.current = now;
-
-    try {
-      // 優先使用標準 HTML5 Audio 播放真實 MP3 鈴聲
-      if (audioObjRef.current) {
-        audioObjRef.current.currentTime = 0;
-        const playPromise = audioObjRef.current.play();
-        if (playPromise !== undefined) {
-          playPromise.catch((err) => {
-            console.warn('Audio play error, falling back to Web Audio:', err);
-            // 只有當 MP3 播放失敗時，才以 Web Audio API 作為備用發聲
-            playSynthesizedChime();
-          });
-        }
-      } else {
-        playSynthesizedChime();
-      }
-    } catch (e) {
-      console.warn('playChimeSound fallback:', e);
-      playSynthesizedChime();
-    }
-  };
-
-  // 🛡️ 資安防護：防撞庫與防暴力破解密碼機制
-  const [failedAttempts, setFailedAttempts] = useState<number>(0);
-  const [lockoutRemaining, setLockoutRemaining] = useState<number>(0);
-  const [captchaChallenge, setCaptchaChallenge] = useState<{ question: string; answer: number }>(() => generateMathChallenge());
-  const [captchaInput, setCaptchaInput] = useState<string>('');
-  const [isVerifying, setIsVerifying] = useState<boolean>(false);
-
-  useEffect(() => {
-    const rawLockout = typeof window !== 'undefined' ? (sessionStorage.getItem('menu_app_admin_lockout') || localStorage.getItem('menu_app_admin_lockout')) : null;
-    if (rawLockout) {
-      const lockUntil = Number(rawLockout);
-      const diff = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
-      if (diff > 0) setLockoutRemaining(diff);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (lockoutRemaining <= 0) return;
-    const timer = setInterval(() => {
-      setLockoutRemaining((prev) => {
-        if (prev <= 1) {
-          try {
-            sessionStorage.removeItem('menu_app_admin_lockout');
-            localStorage.removeItem('menu_app_admin_lockout');
-          } catch {}
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [lockoutRemaining]);
-
-  // 🛡️ 伺服端 Session 自動恢復檢驗
-  useEffect(() => {
-    fetch('/api/admin/verify')
-      .then((res) => {
-        if (res.ok) {
-          setIsUnlocked(true);
-          initAudio();
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isVerifying) return;
-
-    if (lockoutRemaining > 0) {
-      alert(`🔒 系統處於防撞庫安全鎖定中，請於 ${lockoutRemaining} 秒後再試！`);
-      return;
-    }
-
-    // 當錯誤次數 >= 2 時強制驗證動態人機挑戰
-    if (failedAttempts >= 2) {
-      if (!captchaInput.trim() || Number(captchaInput.trim()) !== captchaChallenge.answer) {
-        alert('⚠️ 人機驗證算術答案錯誤！請重新計算輸入。');
-        setCaptchaChallenge(generateMathChallenge());
-        setCaptchaInput('');
-        return;
-      }
-    }
-
-    setIsVerifying(true);
-
-    try {
-      // 🛡️ 透過伺服端 API 進行時序安全與環境變數密碼驗證
-      const res = await fetch('/api/admin/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ passcode: passcode.trim() }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        sessionMountTimeRef.current = Date.now();
-        isInitialLoadRef.current = true;
-        setIsUnlocked(true);
-        setFailedAttempts(0);
-        setCaptchaInput('');
-        initAudio();
-        try {
-          sessionStorage.removeItem('menu_app_admin_failed');
-          sessionStorage.removeItem('menu_app_admin_lockout');
-          localStorage.removeItem('menu_app_admin_lockout');
-        } catch {}
-      } else {
-        const nextFail = failedAttempts + 1;
-        setFailedAttempts(nextFail);
-        setCaptchaChallenge(generateMathChallenge());
-        setCaptchaInput('');
-
-        const lockSec = data.lockedUntilSec || getLockoutDurationSec(nextFail);
-        if (lockSec > 0) {
-          const lockUntil = Date.now() + lockSec * 1000;
-          try {
-            sessionStorage.setItem('menu_app_admin_lockout', String(lockUntil));
-            localStorage.setItem('menu_app_admin_lockout', String(lockUntil));
-          } catch {}
-          setLockoutRemaining(lockSec);
-        }
-
-        alert(data.message || '❌ 密碼錯誤！');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('連線伺服器驗證失敗，請檢查網路連線');
-    } finally {
-      setIsVerifying(false);
-    }
-  };
 
   const handleLogout = async () => {
     try {
@@ -439,38 +191,28 @@ export default function AdminPageContent() {
     showToast('🔒 已安全登出團長後台');
   };
 
-  const fetchAdminData = async (targetGroupId?: string, isSilent: boolean = true) => {
+  const fetchAdminData = useCallback(async (targetGroupId?: string, isSilent: boolean = true) => {
     if (!isSilent) {
       setLoading(true);
     }
-
     try {
-      // 🚀 並行發送 6 個查詢，消除瀑布流延遲，後台載入速度提升 3 倍
-      const [catRes, storeRes, paymentRes, soldOutRes, menuRes, groupRes] = await Promise.all([
+      const [gRes, sRes, cRes, pRes, soRes] = await Promise.all([
+        supabase.from('group_orders').select(`*, stores (*)`).order('created_at', { ascending: false }),
+        supabase.from('stores').select('*').order('created_at', { ascending: true }),
         supabase.from('categories').select('*').order('sort_order', { ascending: true }),
-        supabase.from('stores').select('*'),
-        supabase.from('payment_methods').select('*').order('name', { ascending: true }),
+        supabase.from('payment_methods').select('*').order('created_at', { ascending: true }),
         supabase.from('sold_out_options').select('*').order('sort_order', { ascending: true }),
-        supabase.from('menu_items').select('*'),
-        supabase.from('group_orders').select('*').order('created_at', { ascending: false }),
       ]);
 
-      if (catRes.data) setCategories(catRes.data as Category[]);
+      setStores((sRes.data as Store[]) || []);
+      setCategories((cRes.data as Category[]) || []);
+      setPaymentMethods((pRes.data as PaymentMethod[]) || []);
+      setSoldOutOptions((soRes.data as SoldOutOption[]) || []);
 
-      if (storeRes.data) {
-        setStores(storeRes.data as Store[]);
-        if (storeRes.data.length > 0 && !selectedCrudStoreId) {
-          setSelectedCrudStoreId(storeRes.data[0].id);
-        }
-      }
-
-      if (paymentRes.data) setPaymentMethods(paymentRes.data as PaymentMethod[]);
-      if (soldOutRes.data) setSoldOutOptions(soldOutRes.data as SoldOutOption[]);
-      if (menuRes.data) setCrudMenuItems(menuRes.data as MenuItem[]);
-
-      if (groupRes.data) {
-        const openGroups = groupRes.data.filter((g) => g.status !== 'completed');
-        const completedList = groupRes.data.filter((g) => g.status === 'completed');
+      if (gRes.data) {
+        const allG = gRes.data;
+        const openGroups = allG.filter((g) => g.status === 'open');
+        const completedList = allG.filter((g) => g.status === 'completed');
 
         setArchivedGroups(completedList as GroupOrderAdmin[]);
 
@@ -478,7 +220,6 @@ export default function AdminPageContent() {
         const openGroupIds = openGroups.map((g) => g.id);
 
         if (openGroupIds.length > 0) {
-          // 抓取所有進行中活動的訂單（關聯 group_orders 與 stores 名稱）
           const { data: allSubList, error: subErr } = await supabase
             .from('order_submissions')
             .select(`
@@ -498,7 +239,6 @@ export default function AdminPageContent() {
             order_items: s.order_items || [],
           }));
 
-          // 累計記錄所有已知訂單 ID，並將現存訂單全部標記為已處理（杜絕任何重複通知）
           (allSubList || []).forEach((s: any) => {
             knownOrderIdsRef.current.add(s.id);
             processedNotificationIdsRef.current.add(s.id);
@@ -508,7 +248,6 @@ export default function AdminPageContent() {
             isInitialLoadRef.current = false;
           }
 
-          // 計算各團購活動的訂單數與總營業額
           const groupsWithStats: GroupOrderAdmin[] = openGroups.map((g: any) => {
             const gSubs = formattedSubs.filter((s) => s.group_order_id === g.id);
             return {
@@ -520,7 +259,6 @@ export default function AdminPageContent() {
 
           setActiveGroups(groupsWithStats);
 
-          // 決定平攤設定與活動狀態的主參考 group
           let currentGroup: GroupOrderAdmin | null = null;
           if (effectiveGroupId && effectiveGroupId !== 'all') {
             currentGroup = groupsWithStats.find((g) => g.id === effectiveGroupId) || groupsWithStats[0];
@@ -535,7 +273,6 @@ export default function AdminPageContent() {
             setRoundingRule((currentGroup.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
           }
 
-          // 儲存全量活動訂單至記憶體狀態（submissions 由 useMemo 自動即時篩選）
           setAllSubmissions(formattedSubs);
         } else {
           setActiveGroups([]);
@@ -544,13 +281,13 @@ export default function AdminPageContent() {
         }
       }
     } catch (err) {
-      console.error('抓取後台資料失敗:', err);
+      console.error('抓取資料失敗:', err);
     } finally {
       if (!isSilent) {
         setLoading(false);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (selectedCrudStoreId) {
@@ -566,12 +303,12 @@ export default function AdminPageContent() {
 
   useEffect(() => {
     if (isUnlocked) fetchAdminData(undefined, false);
-  }, [isUnlocked]);
+  }, [isUnlocked, fetchAdminData]);
 
+  // Realtime 與 3 秒智慧雙保險輪詢
   useEffect(() => {
     if (!isUnlocked) return;
 
-    // 1. 即時訂單、明細與活動變更監聽頻道 (WebSocket 即時廣播，使用隨機唯一頻道名防止連線殘留)
     const channelName = `admin-rt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
       .channel(channelName)
@@ -584,7 +321,6 @@ export default function AdminPageContent() {
             notifyNewOrder(newSub.id, newSub.user_nickname || '團員', newSub.created_at);
           }
           fetchAdminData(selectedActiveGroupIdRef.current, true);
-          // 雙重延遲更新，確保關聯的 order_items 批次寫入後立即渲染出完整餐點明細
           setTimeout(() => {
             fetchAdminData(selectedActiveGroupIdRef.current, true);
           }, 500);
@@ -618,12 +354,10 @@ export default function AdminPageContent() {
         (payload) => {
           const deletedId = (payload.old as any)?.id;
           if (deletedId) {
-            // ⚡ 0ms 立即樂觀移除該筆訂單與選取狀態
             setAllSubmissions((prev) => prev.filter((s) => s.id !== deletedId));
             setSelectedSubmissionIds((prev) => prev.filter((id) => id !== deletedId));
             knownOrderIdsRef.current.delete(deletedId);
           }
-          // ⚡ 即時同步重新抓取與計算各進行中團購的即時訂單數與總營業額
           fetchAdminData(selectedActiveGroupIdRef.current, true);
         }
       )
@@ -643,8 +377,6 @@ export default function AdminPageContent() {
       )
       .subscribe();
 
-    // 2. 智慧雙保險輪詢 (Smart High-Frequency Polling - 3 秒)
-    // 即使背景分頁降頻或 WebSocket 休眠，也能在 3 秒內自動捕獲「新訂單送達」或「前台使用者取消訂單」
     const pollingTimer = setInterval(async () => {
       try {
         const { data: latestSubs } = await supabase
@@ -657,10 +389,8 @@ export default function AdminPageContent() {
           let hasNew = false;
           let hasDeleted = false;
 
-          // 檢查是否有新送達的訂單
           for (const sub of latestSubs) {
             const orderTime = sub.created_at ? new Date(sub.created_at).getTime() : 0;
-            // 建立時間早於進入頁面時間的訂單標記為已處理
             if (orderTime < sessionMountTimeRef.current - 3000) {
               processedNotificationIdsRef.current.add(sub.id);
               continue;
@@ -672,16 +402,13 @@ export default function AdminPageContent() {
             }
           }
 
-          // 檢查是否有前台使用者取消 / 刪除的訂單（已存在於 knownOrderIdsRef 但不在目前 DB 中）
           for (const knownId of Array.from(knownOrderIdsRef.current)) {
             if (!currentIdSet.has(knownId)) {
               hasDeleted = true;
               knownOrderIdsRef.current.delete(knownId);
-              // 注意：processedNotificationIdsRef 終身保留，防止歷史訂單重複響鈴
             }
           }
 
-          // 若有新訂單或有訂單被取消，立即同步更新後台資料與營業統計
           if (hasNew || hasDeleted) {
             fetchAdminData(selectedActiveGroupIdRef.current, true);
           }
@@ -695,7 +422,7 @@ export default function AdminPageContent() {
       supabase.removeChannel(channel);
       clearInterval(pollingTimer);
     };
-  }, [isUnlocked]);
+  }, [isUnlocked, fetchAdminData, notifyNewOrder]);
 
   const handleStoreImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -705,11 +432,9 @@ export default function AdminPageContent() {
         setStoreImagePreview(compressedWebPDataUrl);
         const res = await fetch(compressedWebPDataUrl);
         const blob = await res.blob();
-        const compressedFile = new File(
-          [blob],
-          `${file.name.replace(/\.[^/.]+$/, '')}.webp`,
-          { type: 'image/webp' }
-        );
+        const compressedFile = new File([blob], `${file.name.replace(/\.[^/.]+$/, '')}.webp`, {
+          type: 'image/webp',
+        });
         setStoreImageFile(compressedFile);
       } catch (err) {
         console.error('WebP 壓縮失敗，使用原始檔案', err);
@@ -1017,7 +742,7 @@ export default function AdminPageContent() {
       if (data) setCrudMenuItems(data as MenuItem[]);
     } catch (err: any) {
       console.error('儲存餐點失敗:', err);
-      alert(`儲存餐點失敗：${err?.message || err?.details || '請確認 Supabase menu_items 包含 custom_groups 欄位與 RLS 權限'}`);
+      alert(`儲存餐點失敗：${err?.message || err?.details || '請確認 Supabase menu_items 包含 custom_groups 欄位'}`);
     }
   };
 
@@ -1089,11 +814,8 @@ export default function AdminPageContent() {
     const targetNickname = signatureTarget.user_nickname;
     setSignatureTarget(null);
 
-    // ⚡ 樂觀更新 (Optimistic UI)：立即更新該筆訂單簽名與付款狀態，無縫銜接
     setAllSubmissions((prev) =>
-      prev.map((s) =>
-        s.id === targetId ? { ...s, signature_data: signatureData, is_paid: true } : s
-      )
+      prev.map((s) => (s.id === targetId ? { ...s, signature_data: signatureData, is_paid: true } : s))
     );
     showToast(`✍️ 已存入 ${targetNickname} 的對帳手繪簽名！`);
 
@@ -1159,16 +881,11 @@ export default function AdminPageContent() {
     budget_limit_amount: number;
   }) => {
     if (activeGroup) {
-      const { error } = await supabase
-        .from('group_orders')
-        .update(updatedData)
-        .eq('id', activeGroup.id);
+      const { error } = await supabase.from('group_orders').update(updatedData).eq('id', activeGroup.id);
       if (error) throw error;
       showToast('✅ 團購活動設定與公告已更新！');
     } else {
-      const { error } = await supabase
-        .from('group_orders')
-        .insert([{ ...updatedData, status: 'open' }]);
+      const { error } = await supabase.from('group_orders').insert([{ ...updatedData, status: 'open' }]);
       if (error) throw error;
       showToast('🎉 新團購活動已成功發起！');
     }
@@ -1177,10 +894,7 @@ export default function AdminPageContent() {
 
   const handleToggleGroupStatus = async (newStatus: 'open' | 'closed') => {
     if (!activeGroup) return;
-    const { error } = await supabase
-      .from('group_orders')
-      .update({ status: newStatus })
-      .eq('id', activeGroup.id);
+    const { error } = await supabase.from('group_orders').update({ status: newStatus }).eq('id', activeGroup.id);
 
     if (!error) {
       setActiveGroup({ ...activeGroup, status: newStatus });
@@ -1191,24 +905,14 @@ export default function AdminPageContent() {
   const handleTogglePaid = async (subId: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
 
-    // ⚡ 樂觀更新 (Optimistic UI)：立即直接變更按鈕狀態，絕不重整或閃爍畫面
-    setAllSubmissions((prev) =>
-      prev.map((s) => (s.id === subId ? { ...s, is_paid: newStatus } : s))
-    );
+    setAllSubmissions((prev) => prev.map((s) => (s.id === subId ? { ...s, is_paid: newStatus } : s)));
     showToast(newStatus ? '✅ 標記為已付款' : '⏳ 標記為未付款');
 
-    // 背景非同步同步至資料庫
-    const { error } = await supabase
-      .from('order_submissions')
-      .update({ is_paid: newStatus })
-      .eq('id', subId);
+    const { error } = await supabase.from('order_submissions').update({ is_paid: newStatus }).eq('id', subId);
 
     if (error) {
       console.error('更新付款狀態失敗:', error);
-      // 若連線或寫入失敗則回滾狀態
-      setAllSubmissions((prev) =>
-        prev.map((s) => (s.id === subId ? { ...s, is_paid: currentStatus } : s))
-      );
+      setAllSubmissions((prev) => prev.map((s) => (s.id === subId ? { ...s, is_paid: currentStatus } : s)));
       showToast('❌ 更新付款狀態失敗，已復原狀態');
     }
   };
@@ -1218,17 +922,10 @@ export default function AdminPageContent() {
     const idsToUpdate = [...selectedSubmissionIds];
     setSelectedSubmissionIds([]);
 
-    // ⚡ 樂觀更新 (Optimistic UI)：即時在前端記憶體更新所有勾選項目的按鈕狀態
-    setAllSubmissions((prev) =>
-      prev.map((s) => (idsToUpdate.includes(s.id) ? { ...s, is_paid: true } : s))
-    );
+    setAllSubmissions((prev) => prev.map((s) => (idsToUpdate.includes(s.id) ? { ...s, is_paid: true } : s)));
     showToast(`✅ 已批次標記 ${idsToUpdate.length} 筆訂單為已付款！`);
 
-    // 背景非同步同步至資料庫
-    const { error } = await supabase
-      .from('order_submissions')
-      .update({ is_paid: true })
-      .in('id', idsToUpdate);
+    const { error } = await supabase.from('order_submissions').update({ is_paid: true }).in('id', idsToUpdate);
 
     if (error) {
       console.error('批次標記失敗:', error);
@@ -1246,7 +943,6 @@ export default function AdminPageContent() {
       return;
     }
 
-    // ⚡ 樂觀更新 (Optimistic UI)：立即從前端列表中移除該訂單
     setAllSubmissions((prev) => prev.filter((s) => s.id !== subId));
     setSelectedSubmissionIds((prev) => prev.filter((id) => id !== subId));
     showToast(`🗑️ 已刪除 ${nickname} 的訂單`);
@@ -1276,7 +972,6 @@ export default function AdminPageContent() {
       return;
     }
 
-    // ⚡ 樂觀更新 (Optimistic UI)：立即從前端列表中移除選取的訂單
     setAllSubmissions((prev) => prev.filter((s) => !idsToDelete.includes(s.id)));
     setSelectedSubmissionIds([]);
     showToast(`🗑️ 已批次刪除 ${count} 筆訂單`);
@@ -1437,126 +1132,44 @@ export default function AdminPageContent() {
     }
   }
 
+  // 🔒 密碼鎖定畫面
   if (!isUnlocked) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col justify-between pb-12 transition-colors duration-200">
-        <Header />
-        <main className="max-w-md mx-auto w-full px-4 py-8">
-          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 text-center">
-            <div className="w-16 h-16 rounded-full bg-sky-50 dark:bg-sky-950/40 text-sky-500 text-3xl mx-auto flex items-center justify-center font-bold border border-sky-100 dark:border-sky-900/60">
-              👑
-            </div>
-            <div>
-              <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">「咩nu」團長管理後台</h2>
-              <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">請輸入團長密碼解鎖權限</p>
-            </div>
-
-            {lockoutRemaining > 0 ? (
-              <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl p-4 text-center space-y-1">
-                <p className="text-xs font-bold text-rose-700 dark:text-rose-300">🔒 密碼錯誤次數過多</p>
-                <p className="text-[11px] text-rose-600 dark:text-rose-400">系統防撞庫鎖定中，請於 <span className="font-bold font-mono">{lockoutRemaining}</span> 秒後再試</p>
-              </div>
-            ) : (
-              <form onSubmit={handleUnlock} className="space-y-3 pt-2">
-                <label htmlFor="admin-passcode-input" className="sr-only">團長後台解鎖密碼</label>
-                <input
-                  id="admin-passcode-input"
-                  name="adminPasscode"
-                  type="password"
-                  aria-label="團長後台密碼"
-                  placeholder="輸入密碼 (預設：8888)"
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  disabled={isVerifying}
-                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-center text-sm font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-50"
-                />
-
-                {/* 🛡️ 撞庫防護：連續錯誤 2 次以上啟動動態人機挑戰 */}
-                {failedAttempts >= 2 && (
-                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 rounded-2xl p-3 text-left space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-amber-800 dark:text-amber-300">
-                      <span>🤖 人機驗證安全挑戰：</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCaptchaChallenge(generateMathChallenge());
-                          setCaptchaInput('');
-                        }}
-                        className="text-sky-600 dark:text-sky-400 hover:text-sky-700 underline text-[10px] cursor-pointer"
-                      >
-                        🔄 換一題
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-900/60 font-mono font-extrabold text-amber-900 dark:text-amber-300 text-sm tracking-wider shadow-xs">
-                        {captchaChallenge.question}
-                      </span>
-                      <label htmlFor="admin-captcha-input" className="sr-only">人機驗證答案</label>
-                      <input
-                        id="admin-captcha-input"
-                        name="captchaAnswer"
-                        type="number"
-                        aria-label="人機驗證答案"
-                        placeholder="請填答案"
-                        value={captchaInput}
-                        onChange={(e) => setCaptchaInput(e.target.value)}
-                        disabled={isVerifying}
-                        className="flex-1 bg-white dark:bg-[#182234] border border-amber-200 dark:border-amber-900/60 rounded-xl py-1.5 px-3 text-center text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={isVerifying}
-                  className="w-full bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-bold py-3 rounded-2xl text-sm transition shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {isVerifying ? (
-                    <>
-                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      安全校驗中...
-                    </>
-                  ) : (
-                    '解鎖進入後台 ➔'
-                  )}
-                </button>
-              </form>
-            )}
-          </div>
-        </main>
-        <div />
-      </div>
+      <AdminAuthLock
+        onUnlockSuccess={() => {
+          sessionMountTimeRef.current = Date.now();
+          isInitialLoadRef.current = true;
+          setIsUnlocked(true);
+        }}
+        onInitAudio={initAudio}
+      />
     );
   }
 
   const isDesktop = viewMode === 'desktop';
 
   return (
-    <div className={`min-h-screen pb-20 transition-colors duration-200 ${isDesktop ? 'bg-slate-100/70 dark:bg-[#0B0F17]' : 'bg-slate-200/60 dark:bg-[#06090E]'}`}>
+    <div
+      className={`min-h-screen pb-20 transition-colors duration-200 ${
+        isDesktop ? 'bg-slate-100/70 dark:bg-[#0B0F17]' : 'bg-slate-200/60 dark:bg-[#06090E]'
+      }`}
+    >
       <OfflineBanner />
       <Header />
 
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg border border-slate-700 animate-in fade-in zoom-in duration-200">
-          {toastMessage}
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/90 dark:bg-slate-800/95 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl border border-slate-700/50 backdrop-blur-xs flex items-center gap-2 animate-in slide-in-from-bottom-3 duration-200">
+          <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* 根據視圖模式套用容器寬度：Desktop (max-w-7xl) vs Mobile (max-w-md 居中手機外框) */}
-      <main
-        className={`mx-auto pt-4 space-y-4 transition-all duration-300 ${
-          isDesktop
-            ? 'max-w-7xl px-4 sm:px-6 lg:px-8'
-            : 'max-w-md px-4 min-h-screen bg-slate-50 dark:bg-[#0B0F17] border-x border-slate-200/80 dark:border-slate-800 shadow-2xl rounded-3xl my-2'
-        }`}
-      >
-        {/* 頂部操作與模式切換 Bar */}
-        <div className="bg-white dark:bg-[#131B2B] text-slate-800 dark:text-slate-100 rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 flex-wrap">
+      {/* 頂部管理工具列 */}
+      <div className="bg-white/80 dark:bg-[#131B2B]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-40 px-4 py-2.5 transition-colors">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             <Link
               href="/"
-              className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition py-1"
+              className="text-xs font-black text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition"
             >
               ‹ 返回點餐大廳
             </Link>
@@ -1577,7 +1190,7 @@ export default function AdminPageContent() {
                     ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-900/80'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
-                title={isSoundEnabled ? '新訂單音效提醒：已開啟（點擊靜音）' : '新訂單音效提醒：已靜音（點擊開啟）'}
+                title={isSoundEnabled ? '新訂單音效提醒：已開啟（點擊靜意）' : '新訂單音效提醒：已靜音（點擊開啟）'}
               >
                 <span>{isSoundEnabled ? '🔔 叮咚提醒: 開' : '🔕 叮咚提醒: 關'}</span>
               </button>
@@ -1587,8 +1200,7 @@ export default function AdminPageContent() {
                   type="button"
                   onClick={() => {
                     initAudio();
-                    lastNotificationTimeRef.current = 0;
-                    playChimeSound();
+                    playChimeSound(true);
                     showToast('🔔 正在試聽新訂單提示音效...');
                   }}
                   className="text-xs px-2.5 py-1.5 rounded-xl font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 border border-slate-200 dark:border-slate-700 hover:border-amber-300 transition cursor-pointer"
@@ -1599,93 +1211,109 @@ export default function AdminPageContent() {
               )}
             </div>
 
-            {/* 螢幕模式切換器 (手機比例 / 電腦比例) */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl text-xs font-bold border border-transparent dark:border-slate-700">
+            {/* 視圖切換 (手機比例 / 電腦比例) */}
+            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center gap-1 border border-slate-200 dark:border-slate-700 text-xs font-bold">
               <button
                 type="button"
                 onClick={() => handleToggleViewMode('desktop')}
-                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
-                  viewMode === 'desktop'
-                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs font-extrabold'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                  isDesktop
+                    ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-2xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
-                title="切換為電腦寬螢幕多欄排版"
               >
-                <span>💻</span>
-                <span>電腦比例</span>
+                💻 電腦比例
               </button>
               <button
                 type="button"
                 onClick={() => handleToggleViewMode('mobile')}
-                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
-                  viewMode === 'mobile'
-                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs font-extrabold'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                  !isDesktop
+                    ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-2xs'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
-                title="切換為手機單手聚焦排版"
               >
-                <span>📱</span>
-                <span>手機比例</span>
+                📱 手機比例
               </button>
             </div>
 
-            {/* 🌓 主題模式切換器 (位於手機比例/電腦比例同欄相鄰位置) */}
+            {/* 暗色/亮色主題切換按鈕 */}
             <button
               type="button"
               onClick={toggleTheme}
-              className="text-xs px-3 py-1.5 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-              title={theme === 'dark' ? '切換為亮色主題' : '切換為暗色主題'}
+              className="text-xs px-3 py-1.5 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-300 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+              title={theme === 'dark' ? '點擊切換為亮色主題' : '點擊切換為暗色主題'}
             >
               <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
               <span>{theme === 'dark' ? '暗色主題' : '亮色主題'}</span>
             </button>
 
             <button
+              type="button"
               onClick={handleLogout}
-              className="text-xs bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 font-bold px-3 py-1.5 rounded-xl border border-transparent dark:border-slate-700 transition cursor-pointer"
+              className="text-xs px-3 py-1.5 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
             >
-              🔒 上鎖登出
+              🔒 登出
             </button>
           </div>
         </div>
+      </div>
 
-        {/* 核心分頁 Tab 切換 */}
-        <div className={`flex bg-white dark:bg-[#131B2B] p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs text-xs font-bold text-slate-600 dark:text-slate-300 ${isDesktop ? 'max-w-md' : 'w-full'}`}>
+      {/* 主頁籤切換 */}
+      <div className="max-w-7xl mx-auto px-4 pt-4">
+        <div className="flex bg-slate-200/80 dark:bg-[#131B2B] p-1.5 rounded-2xl max-w-md mx-auto sm:mx-0 shadow-inner border border-transparent dark:border-slate-800">
           <button
+            type="button"
             onClick={() => setActiveTab('active')}
-            className={`flex-1 py-2 rounded-xl transition ${
+            className={`flex-1 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'active'
-                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100'
+                ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            即時對帳
+            <span>👑 進行中團購</span>
+            {submissions.length > 0 && (
+              <span className="bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                {submissions.length}
+              </span>
+            )}
           </button>
+
           <button
+            type="button"
             onClick={() => setActiveTab('crud')}
-            className={`flex-1 py-2 rounded-xl transition ${
+            className={`flex-1 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'crud'
-                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100'
+                ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            菜單/店家CRUD
+            <span>🏪 店家與菜單管理</span>
           </button>
+
           <button
+            type="button"
             onClick={() => setActiveTab('archive')}
-            className={`flex-1 py-2 rounded-xl transition ${
+            className={`flex-1 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'archive'
-                ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100'
+                ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-sm'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            歷史歸檔 ({archivedGroups.length})
+            <span>📦 歷史歸檔</span>
+            {archivedGroups.length > 0 && (
+              <span className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+                {archivedGroups.length}
+              </span>
+            )}
           </button>
         </div>
+      </div>
 
+      <main className={`mx-auto p-4 transition-all duration-200 ${isDesktop ? 'max-w-7xl' : 'max-w-md'}`}>
         {loading ? (
-          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-10 text-center text-slate-400 dark:text-slate-500 text-xs animate-pulse border border-slate-100 dark:border-slate-800">
-            正在載入後台數據與團購活動資料...
+          <div className="text-center py-20 text-slate-400 dark:text-slate-500 text-xs animate-pulse">
+            正在同步最新團購資料...
           </div>
         ) : (
           <>
@@ -1821,400 +1449,93 @@ export default function AdminPageContent() {
         )}
       </main>
 
-      {/* 友善列印檢視 Modal */}
-      <AdminPrintModal
-        isOpen={isPrintModalOpen}
-        onClose={() => setIsPrintModalOpen(false)}
-        groupOrder={activeGroup}
-        submissions={submissions}
-        itemSummary={itemSummary}
-        grandTotal={grandTotal}
-      />
-
-      {/* 團長代點餐 Modal */}
-      <AdminManualOrderModal
-        isOpen={isManualOrderModalOpen}
-        onClose={() => setIsManualOrderModalOpen(false)}
-        groupOrder={activeGroup}
-        menuItems={crudMenuItems}
-        paymentMethods={paymentMethods}
-        soldOutOptions={soldOutOptions}
-        onOrderAdded={fetchAdminData}
-      />
-
-      {/* 菜單 CSV 批量匯入 Modal */}
-      <AdminBatchImportModal
-        isOpen={isBatchImportModalOpen}
-        onClose={() => setIsBatchImportModalOpen(false)}
-        storeId={selectedCrudStoreId}
-        storeName={stores.find((s) => s.id === selectedCrudStoreId)?.name || '當前店家'}
-        onImportSuccess={fetchAdminData}
-      />
-
-      {/* 團購活動與公告進階設定 Modal */}
-      <AdminGroupSettingsModal
-        isOpen={isGroupSettingsModalOpen}
-        onClose={() => setIsGroupSettingsModalOpen(false)}
-        groupOrder={activeGroup}
-        stores={stores}
-        onSaveGroupSettings={handleSaveGroupSettings}
-      />
-
-      {isStoreModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#131B2B] w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
-            <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
-              {editingStore ? '✏️ 編輯店家資訊' : '🏪 新增合作店家'}
-            </h3>
-
-            <form onSubmit={handleSaveStore} className="space-y-3">
-              <div>
-                <label htmlFor="store-form-name" className="text-xs font-bold text-slate-600 dark:text-slate-300">店家名稱</label>
-                <input
-                  id="store-form-name"
-                  name="storeName"
-                  type="text"
-                  required
-                  placeholder="例如：50嵐"
-                  value={storeForm.name}
-                  onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label htmlFor="store-form-image" className="text-xs font-bold text-slate-600 dark:text-slate-300">店家封面照片</label>
-                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">💡 建議像素：800 x 600 px (自動轉 WebP)</span>
-                </div>
-
-                <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl p-3">
-                  {storeImagePreview ? (
-                    <img src={storeImagePreview} alt="預覽" className="w-14 h-14 rounded-lg object-cover border border-slate-300 dark:border-slate-600" />
-                  ) : (
-                    <div className="w-14 h-14 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs text-slate-400 dark:text-slate-300 font-bold">無照片</div>
-                  )}
-
-                  <div className="flex-1">
-                    <input
-                      id="store-form-image"
-                      name="storeImage"
-                      type="file"
-                      aria-label="上傳店家封面照片"
-                      accept="image/*"
-                      onChange={handleStoreImageChange}
-                      className="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-sky-50 dark:file:bg-slate-800 file:text-sky-600 dark:file:text-sky-400 hover:file:bg-sky-100 dark:hover:file:bg-slate-700 cursor-pointer"
-                    />
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">前端自動壓縮為輕量 WebP 格式</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsStoreModalOpen(false)}
-                  className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs transition"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  disabled={uploadingImage}
-                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs disabled:opacity-50 transition"
-                >
-                  {uploadingImage ? '上傳中...' : '儲存'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* 友善列印檢視 Modal (動態加載) */}
+      {isPrintModalOpen && (
+        <AdminPrintModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          groupOrder={activeGroup}
+          submissions={submissions}
+          itemSummary={itemSummary}
+          grandTotal={grandTotal}
+        />
       )}
 
-      {isCatModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#131B2B] w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
-            <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
-              {editingCat ? '✏️ 編輯類別名稱' : '🏷️ 新增類別'}
-            </h3>
-
-            <form onSubmit={handleSaveCategory} className="space-y-3">
-              <div>
-                <label htmlFor="cat-form-name" className="text-xs font-bold text-slate-600 dark:text-slate-300">類別名稱</label>
-                <input
-                  id="cat-form-name"
-                  name="categoryName"
-                  type="text"
-                  required
-                  placeholder="例如：手搖飲料"
-                  value={catNameInput}
-                  onChange={(e) => setCatNameInput(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsCatModalOpen(false)}
-                  className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs transition"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition"
-                >
-                  儲存
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* 團長代點餐 Modal (動態加載) */}
+      {isManualOrderModalOpen && (
+        <AdminManualOrderModal
+          isOpen={isManualOrderModalOpen}
+          onClose={() => setIsManualOrderModalOpen(false)}
+          groupOrder={activeGroup}
+          menuItems={crudMenuItems}
+          paymentMethods={paymentMethods}
+          soldOutOptions={soldOutOptions}
+          onOrderAdded={fetchAdminData}
+        />
       )}
 
-      {isProductModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#131B2B] w-full max-w-lg rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
-              {editingProduct ? '✏️ 編輯餐點與客製化選項' : '➕ 新增餐點'}
-            </h3>
-
-            <form onSubmit={handleSaveProduct} className="space-y-3">
-              <div>
-                <label htmlFor="prod-form-name" className="text-xs font-bold text-slate-600 dark:text-slate-300">餐點名稱 *</label>
-                <input
-                  id="prod-form-name"
-                  name="productName"
-                  type="text"
-                  required
-                  placeholder="例如：珍珠奶茶"
-                  value={productForm.name}
-                  onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="prod-form-price" className="text-xs font-bold text-slate-600 dark:text-slate-300">基本價格 ($) *</label>
-                  <input
-                    id="prod-form-price"
-                    name="productPrice"
-                    type="number"
-                    required
-                    min="0"
-                    placeholder="例如：50"
-                    value={productForm.price}
-                    onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="prod-form-soldout" className="text-xs font-bold text-slate-600 dark:text-slate-300">是否售完/停售</label>
-                  <select
-                    id="prod-form-soldout"
-                    name="productIsSoldOut"
-                    value={productForm.is_sold_out ? 'true' : 'false'}
-                    onChange={(e) => setProductForm({ ...productForm, is_sold_out: e.target.value === 'true' })}
-                    className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                  >
-                    <option value="false">🟢 正常供應中</option>
-                    <option value="true">⚪ 暫時已售完 / 下架</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="prod-form-desc" className="text-xs font-bold text-slate-600 dark:text-slate-300">餐點簡介描述 (選填)</label>
-                <textarea
-                  id="prod-form-desc"
-                  name="productDescription"
-                  rows={2}
-                  placeholder="簡短介紹這道餐點的特色或美味之處..."
-                  value={productForm.description}
-                  onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-medium mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                />
-              </div>
-
-              {/* 客製化規格選項管理 */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">客製化規格選項 (例如：甜度、冰塊、加料)</span>
-                  <button
-                    type="button"
-                    onClick={handleAddCustomGroup}
-                    className="bg-sky-50 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 text-xs font-bold px-2.5 py-1 rounded-lg border border-sky-100 dark:border-slate-700 transition active:scale-95"
-                  >
-                    ＋ 新增規格組
-                  </button>
-                </div>
-
-                {productCustomGroups.length === 0 ? (
-                  <div className="bg-slate-50 dark:bg-[#182234] p-4 rounded-xl text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700">
-                    此餐點為基本款（無客製化規格選項）
-                  </div>
-                ) : (
-                  productCustomGroups.map((group) => (
-                    <div key={group.id} className="bg-slate-50 dark:bg-[#182234] p-3 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5">
-                      <div className="flex gap-2 items-center">
-                        <input
-                          id={`group-title-${group.id}`}
-                          name={`group_title_${group.id}`}
-                          aria-label="規格組名稱"
-                          type="text"
-                          required
-                          placeholder="規格組名稱 (例：甜度)"
-                          value={group.title}
-                          onChange={(e) =>
-                            setProductCustomGroups(
-                              productCustomGroups.map((g) => (g.id === group.id ? { ...g, title: e.target.value } : g))
-                            )
-                          }
-                          className="flex-1 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-2 rounded-xl text-xs font-bold"
-                        />
-                        <select
-                          id={`group-type-${group.id}`}
-                          name={`group_type_${group.id}`}
-                          aria-label="規格選擇類型"
-                          value={group.type}
-                          onChange={(e) =>
-                            setProductCustomGroups(
-                              productCustomGroups.map((g) =>
-                                g.id === group.id ? { ...g, type: e.target.value as 'single' | 'limit' | 'any' } : g
-                              )
-                            )
-                          }
-                          className="bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-2 rounded-xl text-xs font-bold"
-                        >
-                          <option value="single">單選 (必選 1)</option>
-                          <option value="limit">限量選 (最多 N)</option>
-                          <option value="any">自由選 (多選)</option>
-                        </select>
-
-                        {group.type === 'limit' && (
-                          <input
-                            id={`group-limit-${group.id}`}
-                            name={`group_limit_${group.id}`}
-                            aria-label="最多可選數量"
-                            type="number"
-                            min="1"
-                            placeholder="上限"
-                            value={group.limit_number || 1}
-                            onChange={(e) =>
-                              setProductCustomGroups(
-                                productCustomGroups.map((g) =>
-                                  g.id === group.id ? { ...g, limit_number: Number(e.target.value) } : g
-                                )
-                              )
-                            }
-                            className="w-14 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-2 rounded-xl text-xs font-bold text-center"
-                          />
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveCustomGroup(group.id)}
-                          className="text-xs text-red-500 hover:bg-red-50 dark:hover:bg-rose-950/40 p-1.5 rounded-lg font-bold"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-
-                      <div className="space-y-2 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
-                        {group.options.map((opt) => (
-                          <div key={opt.id} className="flex gap-2 items-center">
-                            <input
-                              id={`opt-name-${opt.id}`}
-                              name={`opt_name_${opt.id}`}
-                              aria-label="選項名稱"
-                              type="text"
-                              required
-                              placeholder="選項名稱 (例：半糖)"
-                              value={opt.name}
-                              onChange={(e) =>
-                                setProductCustomGroups(
-                                  productCustomGroups.map((g) =>
-                                    g.id === group.id
-                                      ? {
-                                          ...g,
-                                          options: g.options.map((o) =>
-                                            o.id === opt.id ? { ...o, name: e.target.value } : o
-                                          ),
-                                        }
-                                      : g
-                                  )
-                                )
-                              }
-                              className="flex-1 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-1.5 rounded-lg text-xs font-bold"
-                            />
-                            <input
-                              id={`opt-price-${opt.id}`}
-                              name={`opt_price_${opt.id}`}
-                              aria-label="加價金額"
-                              type="number"
-                              placeholder="加價 ($)"
-                              value={opt.price_adjustment}
-                              onChange={(e) =>
-                                setProductCustomGroups(
-                                  productCustomGroups.map((g) =>
-                                    g.id === group.id
-                                      ? {
-                                          ...g,
-                                          options: g.options.map((o) =>
-                                            o.id === opt.id ? { ...o, price_adjustment: Number(e.target.value) } : o
-                                          ),
-                                        }
-                                      : g
-                                  )
-                                )
-                              }
-                              className="w-20 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-1.5 rounded-lg text-xs font-bold"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveOptionFromGroup(group.id, opt.id)}
-                              className="text-xs text-red-400 hover:text-red-600 font-bold px-1"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => handleAddOptionToGroup(group.id)}
-                          className="text-[10px] text-sky-600 dark:text-sky-400 font-bold hover:underline"
-                        >
-                          ＋ 新增子選項
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="flex gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setIsProductModalOpen(false)}
-                  className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs transition"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition"
-                >
-                  儲存餐點
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* 菜單 CSV 批量匯入 Modal (動態加載) */}
+      {isBatchImportModalOpen && (
+        <AdminBatchImportModal
+          isOpen={isBatchImportModalOpen}
+          onClose={() => setIsBatchImportModalOpen(false)}
+          storeId={selectedCrudStoreId}
+          storeName={stores.find((s) => s.id === selectedCrudStoreId)?.name || '當前店家'}
+          onImportSuccess={fetchAdminData}
+        />
       )}
 
+      {/* 團購活動與公告進階設定 Modal (動態加載) */}
+      {isGroupSettingsModalOpen && (
+        <AdminGroupSettingsModal
+          isOpen={isGroupSettingsModalOpen}
+          onClose={() => setIsGroupSettingsModalOpen(false)}
+          groupOrder={activeGroup}
+          stores={stores}
+          onSaveGroupSettings={handleSaveGroupSettings}
+        />
+      )}
+
+      {/* 店家增修 Modal */}
+      <AdminStoreModal
+        isOpen={isStoreModalOpen}
+        editingStore={editingStore}
+        storeForm={storeForm}
+        setStoreForm={setStoreForm}
+        storeImagePreview={storeImagePreview}
+        uploadingImage={uploadingImage}
+        onClose={() => setIsStoreModalOpen(false)}
+        onSaveStore={handleSaveStore}
+        onImageChange={handleStoreImageChange}
+      />
+
+      {/* 分類增修 Modal */}
+      <AdminCategoryModal
+        isOpen={isCatModalOpen}
+        editingCat={editingCat}
+        catNameInput={catNameInput}
+        setCatNameInput={setCatNameInput}
+        onClose={() => setIsCatModalOpen(false)}
+        onSaveCategory={handleSaveCategory}
+      />
+
+      {/* 餐點品項與規格 Modal */}
+      <AdminProductModal
+        isOpen={isProductModalOpen}
+        editingProduct={editingProduct}
+        productForm={productForm}
+        setProductForm={setProductForm}
+        productCustomGroups={productCustomGroups}
+        setProductCustomGroups={setProductCustomGroups}
+        onClose={() => setIsProductModalOpen(false)}
+        onSaveProduct={handleSaveProduct}
+        onAddCustomGroup={handleAddCustomGroup}
+        onRemoveCustomGroup={handleRemoveCustomGroup}
+        onAddOptionToGroup={handleAddOptionToGroup}
+        onRemoveOptionFromGroup={handleRemoveOptionFromGroup}
+      />
+
+      {/* 簽名預覽 Modal (動態加載) */}
       {signatureTarget && (
         <SignatureModal
           nickname={signatureTarget.user_nickname}
@@ -2223,49 +1544,16 @@ export default function AdminPageContent() {
         />
       )}
 
-      {changeModalTarget && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#131B2B] w-full max-w-xs rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 text-center shadow-2xl">
-            <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">💵 現金找零試算器</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {changeModalTarget.nickname} 應付金額：
-              <span className="font-extrabold text-sky-600 dark:text-sky-400 text-sm">${changeModalTarget.amount} 元</span>
-            </p>
-
-            <label htmlFor="change-received-cash" className="sr-only">實收現金金額</label>
-            <input
-              id="change-received-cash"
-              name="receivedCash"
-              type="number"
-              aria-label="實收現金金額"
-              placeholder="例如：1000"
-              value={receivedCash}
-              onChange={(e) => setReceivedCash(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-sky-400"
-            />
-
-            {Number(receivedCash) > 0 && (
-              <div className="bg-sky-50 dark:bg-sky-950/40 p-3 rounded-2xl border border-sky-100 dark:border-sky-900/60">
-                <p className="text-xs text-sky-700 dark:text-sky-300 font-bold">💰 應找零金額</p>
-                <p className="text-xl font-extrabold text-sky-600 dark:text-sky-400 mt-0.5">
-                  ${Math.max(0, Number(receivedCash) - changeModalTarget.amount)} 元
-                </p>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setChangeModalTarget(null);
-                setReceivedCash('');
-              }}
-              className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-xl text-xs transition"
-            >
-              關閉
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 現金找零試算 Modal */}
+      <AdminChangeModal
+        changeModalTarget={changeModalTarget}
+        receivedCash={receivedCash}
+        setReceivedCash={setReceivedCash}
+        onClose={() => {
+          setChangeModalTarget(null);
+          setReceivedCash('');
+        }}
+      />
     </div>
   );
 }

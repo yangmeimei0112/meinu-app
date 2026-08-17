@@ -8,6 +8,8 @@ import OfflineBanner from '@/components/OfflineBanner';
 import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
+import OrderStatusActions from './components/OrderStatusActions';
+import OrderStatusReceipt from './components/OrderStatusReceipt';
 
 interface OrderItemDetail {
   id: string;
@@ -325,116 +327,19 @@ export default function OrderStatusPage({
             </div>
 
             {/* 1 分鐘限時自主修改/取消卡片 */}
-            <div className="bg-slate-900 text-white rounded-3xl p-5 shadow-lg space-y-3.5 border border-slate-800">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">⏳</span>
-                  <div>
-                    <h3 className="text-xs font-extrabold text-slate-200">
-                      1分鐘限時自主改單/取消
-                    </h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      {isClosed
-                        ? '團長已截單，停止改單'
-                        : isTimeUp
-                        ? '已逾 60 秒，如需修改請聯繫團長'
-                        : '送單後 60 秒內可自行修改或取消'}
-                    </p>
-                  </div>
-                </div>
-
-                <span
-                  className={`font-mono text-sm font-extrabold px-3 py-1 rounded-xl border transition-colors ${
-                    isTimeUp || isClosed
-                      ? 'bg-slate-800 text-slate-500 border-slate-700'
-                      : 'bg-sky-950 text-sky-400 border-sky-800'
-                  }`}
-                >
-                  00:{timeLeft < 10 ? `0${timeLeft}` : timeLeft}
-                </span>
-              </div>
-
-              {/* 操作按鈕群：修改訂單 & 取消訂單 */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  type="button"
-                  disabled={isActionDisabled}
-                  onClick={handleOpenModifyModal}
-                  className={`py-2.5 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1 active:scale-95 ${
-                    isActionDisabled
-                      ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-50'
-                      : 'bg-sky-500 hover:bg-sky-600 text-white shadow-xs'
-                  }`}
-                >
-                  <span>✏️ 修改訂單</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={isActionDisabled}
-                  onClick={handleOpenCancelModal}
-                  className={`py-2.5 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1 active:scale-95 ${
-                    isActionDisabled
-                      ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-50'
-                      : 'bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/40'
-                  }`}
-                >
-                  <span>🗑️ 取消訂單</span>
-                </button>
-              </div>
-            </div>
+            <OrderStatusActions
+              timeLeft={timeLeft}
+              isClosed={isClosed}
+              isActionDisabled={isActionDisabled}
+              onOpenModify={handleOpenModifyModal}
+              onOpenCancel={handleOpenCancelModal}
+            />
 
             {/* 明細卡片 */}
-            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
-                點餐內容與明細
-              </h3>
-
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {orderItems.map((item) => (
-                  <div key={item.id} className="py-2.5 space-y-1">
-                    <div className="flex items-center justify-between text-sm font-bold text-slate-800 dark:text-slate-100">
-                      <span>
-                        {item.item_name} x {item.quantity}
-                      </span>
-                      <span className="text-sky-600 dark:text-sky-400">${item.unit_price * item.quantity} 元</span>
-                    </div>
-                    {item.custom_notes && (
-                      <p className="text-xs text-slate-400 dark:text-slate-400">
-                        {item.custom_notes}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
-                <div className="flex justify-between">
-                  <span>訂購人暱稱：</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">
-                    {order.user_nickname}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>付款方式：</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-100">
-                    {order.payment_method_name}
-                  </span>
-                </div>
-                {order.sold_out_option && (
-                  <div className="flex justify-between">
-                    <span>缺貨備案：</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-100">
-                      {order.sold_out_option}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm font-extrabold text-sky-600 dark:text-sky-400 pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <span>應付總金額：</span>
-                  <span className="text-base">${order.final_amount} 元</span>
-                </div>
-              </div>
-            </div>
+            <OrderStatusReceipt
+              order={order}
+              orderItems={orderItems}
+            />
           </>
         )}
       </main>
