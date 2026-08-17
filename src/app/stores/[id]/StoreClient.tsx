@@ -77,7 +77,60 @@ export default function StoreClient({ storeId }: { storeId: string }) {
       ]);
 
       if (storeRes.data) setStore(storeRes.data as Store);
-      if (menuRes.data) setMenuItems(menuRes.data as MenuItem[]);
+      
+      if (menuRes.data) {
+        let items = menuRes.data as MenuItem[];
+        // 🚀 在背景預先載入並合併所有品項的客製化規格選項，確保使用者點擊餐點時 0ms 瞬間開啟，無需等待
+        const itemsNeedingFallback = items.filter((i) => !i.custom_groups || i.custom_groups.length === 0);
+        if (itemsNeedingFallback.length > 0) {
+          const itemIds = itemsNeedingFallback.map((i) => i.id);
+          const { data: ogData } = await supabase
+            .from('option_groups')
+            .select(`
+              id,
+              menu_item_id,
+              title,
+              min_select,
+              max_select,
+              option_items (
+                id,
+                name,
+                extra_price
+              )
+            `)
+            .in('menu_item_id', itemIds)
+            .order('sort_order', { ascending: true });
+
+          if (ogData && ogData.length > 0) {
+            const groupMap: Record<string, any[]> = {};
+            ogData.forEach((g: any) => {
+              if (!groupMap[g.menu_item_id]) groupMap[g.menu_item_id] = [];
+              groupMap[g.menu_item_id].push({
+                id: g.id,
+                title: g.title,
+                type: g.max_select === 1 ? 'single' : g.max_select > 1 ? 'limit' : 'any',
+                limit_number: g.max_select,
+                options: (g.option_items || []).map((opt: any) => ({
+                  id: opt.id,
+                  name: opt.name,
+                  price_adjustment: opt.extra_price || 0,
+                })),
+              });
+            });
+
+            items = items.map((item) => {
+              if ((!item.custom_groups || item.custom_groups.length === 0) && groupMap[item.id]) {
+                return {
+                  ...item,
+                  custom_groups: groupMap[item.id],
+                };
+              }
+              return item;
+            });
+          }
+        }
+        setMenuItems(items);
+      }
 
       if (groupRes.data && groupRes.data.length > 0) {
         const meta = groupRes.data[0] as GroupOrderMeta;

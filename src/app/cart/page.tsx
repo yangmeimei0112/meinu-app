@@ -120,7 +120,6 @@ export default function MultiCartPage() {
 
   // ✏️ 快速在購物車中修改餐點規格 (Edit in Cart)
   const handleStartEditItem = async (item: CartItem) => {
-    setEditingCartItem(item);
     // 取得原始餐點資料以獲取 custom_groups
     const { data: menuData } = await supabase
       .from('menu_items')
@@ -142,6 +141,7 @@ export default function MultiCartPage() {
         stock_quantity: null,
       });
     }
+    setEditingCartItem(item);
   };
 
   const handleSaveEditedItem = (updatedItem: CartItem) => {

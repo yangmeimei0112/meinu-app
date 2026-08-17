@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MenuItem, CustomGroup } from '@/types/database';
 import { CartItem, SelectedOption } from '@/types/cart';
@@ -24,78 +24,83 @@ export default function CustomModal({
   onAddToCart,
   onUpdateCartItem,
 }: CustomModalProps) {
-  const [customGroups, setCustomGroups] = useState<CustomGroup[]>([]);
+  // ⚡ 優先直接讀取 item 內已預載的 custom_groups（進入商店時已在背景載入完畢，0ms 瞬開）
+  const initialGroups = useMemo<CustomGroup[]>(() => {
+    if (item?.custom_groups && Array.isArray(item.custom_groups)) {
+      return item.custom_groups;
+    }
+    return [];
+  }, [item]);
+
+  const [customGroups, setCustomGroups] = useState<CustomGroup[]>(initialGroups);
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string[]>>({});
   const [quantity, setQuantity] = useState<number>(existingCartItem?.quantity || 1);
   const [customNotes, setCustomNotes] = useState<string>(existingCartItem?.customNotes || '');
-  const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hasDraft, setHasDraft] = useState<boolean>(false);
 
-  // 1. 載入客製化分組（優先讀取 item.custom_groups JSONB）
+  // 初始化或更新選項狀態
   useEffect(() => {
     if (!item) return;
 
-    async function loadGroups() {
-      setLoading(true);
-      setErrorMsg(null);
+    let groups = (item.custom_groups && Array.isArray(item.custom_groups)) ? item.custom_groups : [];
 
-      let groups: CustomGroup[] = [];
-
-      if (item?.custom_groups && Array.isArray(item.custom_groups) && item.custom_groups.length > 0) {
-        groups = item.custom_groups;
-      } else {
-        // 向下相容 option_groups 資料表
-        const { data } = await supabase
-          .from('option_groups')
-          .select(`
+    // 若商品未帶 custom_groups，才在背景發送向下相容查詢
+    if (groups.length === 0) {
+      supabase
+        .from('option_groups')
+        .select(`
+          id,
+          title,
+          min_select,
+          max_select,
+          option_items (
             id,
-            title,
-            min_select,
-            max_select,
-            option_items (
-              id,
-              name,
-              extra_price
-            )
-          `)
-          .eq('menu_item_id', item?.id)
-          .order('sort_order', { ascending: true });
-
-        if (data && data.length > 0) {
-          interface OptionGroupRow {
-            id: string;
-            title: string;
-            min_select: number;
-            max_select: number;
-            option_items: Array<{
+            name,
+            extra_price
+          )
+        `)
+        .eq('menu_item_id', item.id)
+        .order('sort_order', { ascending: true })
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            interface OptionGroupRow {
               id: string;
-              name: string;
-              extra_price: number;
-            }>;
+              title: string;
+              min_select: number;
+              max_select: number;
+              option_items: Array<{
+                id: string;
+                name: string;
+                extra_price: number;
+              }>;
+            }
+            const mappedGroups: CustomGroup[] = (data as unknown as OptionGroupRow[]).map((g) => ({
+              id: g.id,
+              title: g.title,
+              type: g.max_select === 1 ? 'single' : g.max_select > 1 ? 'limit' : 'any',
+              limit_number: g.max_select,
+              options: (g.option_items || []).map((opt) => ({
+                id: opt.id,
+                name: opt.name,
+                price_adjustment: opt.extra_price || 0,
+              })),
+            }));
+            setCustomGroups(mappedGroups);
+            initializeSelections(mappedGroups);
           }
-          groups = (data as unknown as OptionGroupRow[]).map((g) => ({
-            id: g.id,
-            title: g.title,
-            type: g.max_select === 1 ? 'single' : g.max_select > 1 ? 'limit' : 'any',
-            limit_number: g.max_select,
-            options: (g.option_items || []).map((opt) => ({
-              id: opt.id,
-              name: opt.name,
-              price_adjustment: opt.extra_price || 0,
-            })),
-          }));
-        }
-      }
+        });
+    }
 
-      setCustomGroups(groups);
+    setCustomGroups(groups);
+    initializeSelections(groups);
 
-      // 初始化選擇
+    function initializeSelections(currentGroups: CustomGroup[]) {
       if (existingCartItem && existingCartItem.rawCustomSelections) {
         setSelectedOptions(existingCartItem.rawCustomSelections);
       } else {
         const initialSelections: Record<string, string[]> = {};
-        groups.forEach((g) => {
+        currentGroups.forEach((g) => {
           if (g.type === 'single' && g.options.length > 0) {
             initialSelections[g.id] = [g.options[0].id];
           } else {
@@ -105,12 +110,10 @@ export default function CustomModal({
         setSelectedOptions(initialSelections);
 
         const draftKey = `menu_app_draft_${item?.id}`;
-        if (groups.length === 0) {
-          // 🛡️ 無客製化選項之商品：徹底清除舊草稿並確保不顯示草稿提示
+        if (currentGroups.length === 0) {
           localStorage.removeItem(draftKey);
           setHasDraft(false);
         } else {
-          // 檢查是否有未完成草稿（僅限有客製化選項之商品）
           const savedDraft = localStorage.getItem(draftKey);
           if (savedDraft) {
             try {
@@ -129,16 +132,12 @@ export default function CustomModal({
           }
         }
       }
-
-      setLoading(false);
     }
-
-    loadGroups();
   }, [item, existingCartItem]);
 
-  // 2. 自動暫存草稿至 LocalStorage（僅在有客製化選項且為新增模式時）
+  // 自動暫存草稿至 LocalStorage（僅在有客製化選項且為新增模式時）
   useEffect(() => {
-    if (!item || existingCartItem || loading || customGroups.length === 0) return;
+    if (!item || existingCartItem || customGroups.length === 0) return;
     const draftKey = `menu_app_draft_${item.id}`;
     const draftData = {
       selectedOptions,
@@ -147,7 +146,7 @@ export default function CustomModal({
       savedAt: Date.now(),
     };
     localStorage.setItem(draftKey, JSON.stringify(draftData));
-  }, [selectedOptions, quantity, customNotes, item, existingCartItem, loading, customGroups.length]);
+  }, [selectedOptions, quantity, customNotes, item, existingCartItem, customGroups.length]);
 
   const handleRestoreDraft = () => {
     if (!item) return;
@@ -288,7 +287,7 @@ export default function CustomModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center text-sm font-bold active:scale-95"
+            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center text-sm font-bold active:scale-95 cursor-pointer"
           >
             ✕
           </button>
@@ -302,14 +301,14 @@ export default function CustomModal({
               <button
                 type="button"
                 onClick={handleRestoreDraft}
-                className="bg-amber-500 text-white px-2.5 py-1 rounded-lg font-bold text-[11px] hover:bg-amber-600 transition"
+                className="bg-amber-500 text-white px-2.5 py-1 rounded-lg font-bold text-[11px] hover:bg-amber-600 transition cursor-pointer"
               >
                 恢復選擇
               </button>
               <button
                 type="button"
                 onClick={handleDiscardDraft}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[11px]"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[11px] cursor-pointer"
               >
                 捨棄
               </button>
@@ -325,13 +324,9 @@ export default function CustomModal({
           </div>
         )}
 
-        {/* 客製選項主體 */}
+        {/* 客製選項主體 (即時呈現，零延遲) */}
         <div className="p-4 overflow-y-auto space-y-4 flex-1 text-slate-700 dark:text-slate-200 divide-y divide-slate-100 dark:divide-slate-800">
-          {loading ? (
-            <div className="text-center py-10 text-slate-400 dark:text-slate-500 text-xs animate-pulse">
-              正在載入餐點規格選項...
-            </div>
-          ) : customGroups.length === 0 ? null : (
+          {customGroups.length > 0 &&
             customGroups.map((group) => {
               const currentSelected = selectedOptions[group.id] || [];
               return (
@@ -356,7 +351,7 @@ export default function CustomModal({
                           key={opt.id}
                           type="button"
                           onClick={() => handleSelectOption(group, opt.id)}
-                          className={`p-2.5 rounded-2xl text-xs font-bold border text-left transition flex items-center justify-between active:scale-[0.98] ${
+                          className={`p-2.5 rounded-2xl text-xs font-bold border text-left transition flex items-center justify-between active:scale-[0.98] cursor-pointer ${
                             isChecked
                               ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
                               : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100/80 dark:hover:bg-slate-700'
@@ -386,12 +381,13 @@ export default function CustomModal({
                   </div>
                 </div>
               );
-            })
-          )}
+            })}
 
           {/* 特製備註輸入框 */}
           <div className="pt-3 space-y-1.5">
-            <label htmlFor="custom-notes-input" className="text-xs font-bold text-slate-700 dark:text-slate-200">特製備註 (選填)</label>
+            <label htmlFor="custom-notes-input" className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              特製備註 (選填)
+            </label>
             <input
               id="custom-notes-input"
               name="customNotes"
@@ -410,7 +406,7 @@ export default function CustomModal({
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center cursor-pointer"
               >
                 -
               </button>
@@ -418,7 +414,7 @@ export default function CustomModal({
               <button
                 type="button"
                 onClick={() => setQuantity((q) => q + 1)}
-                className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center cursor-pointer"
               >
                 +
               </button>
@@ -435,7 +431,7 @@ export default function CustomModal({
           <button
             type="button"
             onClick={handleConfirm}
-            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-3 rounded-2xl text-xs shadow-md transition active:scale-[0.99] flex items-center justify-center gap-1"
+            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-3 rounded-2xl text-xs shadow-md transition active:scale-[0.99] flex items-center justify-center gap-1 cursor-pointer"
           >
             <span>{existingCartItem ? '儲存修改' : '加入購物車'}</span>
             <span>(${itemTotalPrice} 元)</span>
