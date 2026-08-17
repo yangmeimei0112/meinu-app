@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Store } from '@/types/database';
+import { Category, Store } from '@/types/database';
 
 interface AdminStoreModalProps {
   isOpen: boolean;
   editingStore: Store | null;
+  categories: Category[];
   storeForm: { name: string; category_id: string };
   setStoreForm: React.Dispatch<React.SetStateAction<{ name: string; category_id: string }>>;
   storeImagePreview: string;
@@ -18,6 +19,7 @@ interface AdminStoreModalProps {
 export default function AdminStoreModal({
   isOpen,
   editingStore,
+  categories,
   storeForm,
   setStoreForm,
   storeImagePreview,
@@ -50,6 +52,25 @@ export default function AdminStoreModal({
               onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
               className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
+          </div>
+
+          <div>
+            <label htmlFor="store-form-category" className="text-xs font-bold text-slate-600 dark:text-slate-300">
+              店家分類
+            </label>
+            <select
+              id="store-form-category"
+              name="storeCategory"
+              value={storeForm.category_id}
+              onChange={(e) => setStoreForm({ ...storeForm, category_id: e.target.value })}
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400 cursor-pointer"
+            >
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1.5">
@@ -94,14 +115,14 @@ export default function AdminStoreModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs transition"
+              className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={uploadingImage}
-              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs disabled:opacity-50 transition"
+              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs disabled:opacity-50 transition cursor-pointer"
             >
               {uploadingImage ? '上傳中...' : '儲存'}
             </button>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { Category, MenuItem, PaymentMethod, SoldOutOption, Store } from '@/types/database';
 import { AdminViewMode } from './admin-types';
 import AdminMenuStudio from './components/AdminMenuStudio';
@@ -13,15 +13,17 @@ interface AdminCrudSectionProps {
   menuItems: MenuItem[];
   paymentMethods: PaymentMethod[];
   soldOutOptions: SoldOutOption[];
+  selectedStudioStoreId: string | null;
+  onSelectStudioStore: (id: string | null) => void;
   onCreateStore: () => void;
   onEditStore: (store: Store) => void;
   onDeleteStore: (id: string) => void;
   onCreateCategory: () => void;
   onMoveCategory: (id: string, direction: 'up' | 'down') => void;
   onDeleteCategory: (id: string) => void;
-  onCreateMenuItem: () => void;
+  onCreateMenuItem: (storeId?: string) => void;
   onEditMenuItem: (item: MenuItem) => void;
-  onOpenBatchImportModal?: () => void;
+  onOpenBatchImportModal?: (storeId?: string) => void;
   onDeleteMenuItem: (id: string) => void;
   onToggleMenuItemActive: (id: string) => void;
   onCreatePaymentMethod: () => void;
@@ -44,6 +46,8 @@ export function AdminCrudSection({
   menuItems,
   paymentMethods,
   soldOutOptions,
+  selectedStudioStoreId,
+  onSelectStudioStore,
   onCreateStore,
   onEditStore,
   onDeleteStore,
@@ -67,12 +71,10 @@ export function AdminCrudSection({
   onSaveSoldOutOption,
   onUpdateCategory,
 }: AdminCrudSectionProps) {
-  // 控制是否進入特定店家的「專屬菜單工作室」
-  const [activeStudioStoreId, setActiveStudioStoreId] = useState<string | null>(null);
   const isDesktop = viewMode === 'desktop';
   const activeStudioStore = useMemo(
-    () => stores.find((s) => s.id === activeStudioStoreId),
-    [stores, activeStudioStoreId]
+    () => stores.find((s) => s.id === selectedStudioStoreId),
+    [stores, selectedStudioStoreId]
   );
 
   // 第二層：🥤 專屬菜單設計工作室
@@ -83,11 +85,13 @@ export function AdminCrudSection({
         activeStudioStore={activeStudioStore}
         categories={categories}
         menuItems={menuItems}
-        onBackToHub={() => setActiveStudioStoreId(null)}
+        onBackToHub={() => onSelectStudioStore(null)}
         onEditStore={onEditStore}
-        onCreateMenuItem={onCreateMenuItem}
+        onCreateMenuItem={() => onCreateMenuItem(activeStudioStore.id)}
         onEditMenuItem={onEditMenuItem}
-        onOpenBatchImportModal={onOpenBatchImportModal}
+        onOpenBatchImportModal={
+          onOpenBatchImportModal ? () => onOpenBatchImportModal(activeStudioStore.id) : undefined
+        }
         onDeleteMenuItem={onDeleteMenuItem}
         onToggleMenuItemActive={onToggleMenuItemActive}
       />
@@ -103,7 +107,7 @@ export function AdminCrudSection({
       menuItems={menuItems}
       paymentMethods={paymentMethods}
       soldOutOptions={soldOutOptions}
-      onSelectStudioStore={(storeId) => setActiveStudioStoreId(storeId)}
+      onSelectStudioStore={(storeId) => onSelectStudioStore(storeId)}
       onCreateStore={onCreateStore}
       onEditStore={onEditStore}
       onDeleteStore={onDeleteStore}

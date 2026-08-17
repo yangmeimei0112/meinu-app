@@ -155,7 +155,7 @@ export default function AdminPageContent() {
   const [catNameInput, setCatNameInput] = useState<string>('');
 
   const [selectedCrudStoreId, setSelectedCrudStoreId] = useState<string | null>(null);
-  const [crudMenuItems, setCrudMenuItems] = useState<MenuItem[]>([]);
+  const [allMenuItems, setAllMenuItems] = useState<MenuItem[]>([]);
   const [isProductModalOpen, setIsProductModalOpen] = useState<boolean>(false);
   const [editingProduct, setEditingProduct] = useState<MenuItem | null>(null);
   const [productForm, setProductForm] = useState({
@@ -196,18 +196,20 @@ export default function AdminPageContent() {
       setLoading(true);
     }
     try {
-      const [gRes, sRes, cRes, pRes, soRes] = await Promise.all([
+      const [gRes, sRes, cRes, pRes, soRes, mRes] = await Promise.all([
         supabase.from('group_orders').select(`*, stores (*)`).order('created_at', { ascending: false }),
         supabase.from('stores').select('*').order('created_at', { ascending: true }),
         supabase.from('categories').select('*').order('sort_order', { ascending: true }),
         supabase.from('payment_methods').select('*').order('created_at', { ascending: true }),
         supabase.from('sold_out_options').select('*').order('sort_order', { ascending: true }),
+        supabase.from('menu_items').select('*').order('created_at', { ascending: true }),
       ]);
 
       setStores((sRes.data as Store[]) || []);
       setCategories((cRes.data as Category[]) || []);
       setPaymentMethods((pRes.data as PaymentMethod[]) || []);
       setSoldOutOptions((soRes.data as SoldOutOption[]) || []);
+      setAllMenuItems((mRes.data as MenuItem[]) || []);
 
       if (gRes.data) {
         const allG = gRes.data;
@@ -288,18 +290,6 @@ export default function AdminPageContent() {
       }
     }
   }, []);
-
-  useEffect(() => {
-    if (selectedCrudStoreId) {
-      supabase
-        .from('menu_items')
-        .select('*')
-        .eq('store_id', selectedCrudStoreId)
-        .then(({ data }) => {
-          if (data) setCrudMenuItems(data as MenuItem[]);
-        });
-    }
-  }, [selectedCrudStoreId]);
 
   useEffect(() => {
     if (isUnlocked) fetchAdminData(undefined, false);
@@ -663,8 +653,12 @@ export default function AdminPageContent() {
     fetchAdminData();
   };
 
-  const handleOpenItemModal = (item?: MenuItem) => {
+  const handleOpenItemModal = (item?: MenuItem, storeId?: string) => {
+    if (storeId) {
+      setSelectedCrudStoreId(storeId);
+    }
     if (item) {
+      setSelectedCrudStoreId(item.store_id);
       setEditingProduct(item);
       setProductForm({
         name: item.name,
@@ -716,10 +710,14 @@ export default function AdminPageContent() {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCrudStoreId || !productForm.name.trim()) return;
+    const targetStoreId = selectedCrudStoreId || editingProduct?.store_id;
+    if (!targetStoreId || !productForm.name.trim()) {
+      alert('請確認已選擇店家並填寫餐點名稱！');
+      return;
+    }
     try {
       const payload = {
-        store_id: selectedCrudStoreId,
+        store_id: targetStoreId,
         name: productForm.name.trim(),
         price: parseFloat(productForm.price) || 0,
         description: productForm.description.trim() || null,
@@ -738,11 +736,10 @@ export default function AdminPageContent() {
         showToast('🎉 新增餐點成功！');
       }
       setIsProductModalOpen(false);
-      const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
-      if (data) setCrudMenuItems(data as MenuItem[]);
+      fetchAdminData();
     } catch (err: any) {
       console.error('儲存餐點失敗:', err);
-      alert(`儲存餐點失敗：${err?.message || err?.details || '請確認 Supabase menu_items 包含 custom_groups 欄位'}`);
+      alert(`儲存餐點失敗：${err?.message || err?.details || '請確認 Supabase menu_items 欄位'}`);
     }
   };
 
@@ -752,23 +749,19 @@ export default function AdminPageContent() {
       const { error } = await supabase.from('menu_items').delete().eq('id', productId);
       if (error) throw error;
       showToast('🗑️ 品項已刪除');
-      if (selectedCrudStoreId) {
-        const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
-        if (data) setCrudMenuItems(data as MenuItem[]);
-      }
+      fetchAdminData();
     } catch (err) {
       console.error('刪除品項失敗:', err);
     }
   };
 
-  const handleToggleProductStatus = async (prod: MenuItem) => {
+  const handleToggleProductStatus = async (productId: string) => {
     try {
-      const { error } = await supabase.from('menu_items').update({ is_sold_out: !prod.is_sold_out }).eq('id', prod.id);
+      const item = allMenuItems.find((m) => m.id === productId);
+      if (!item) return;
+      const { error } = await supabase.from('menu_items').update({ is_sold_out: !item.is_sold_out }).eq('id', productId);
       if (error) throw error;
-      if (selectedCrudStoreId) {
-        const { data } = await supabase.from('menu_items').select('*').eq('store_id', selectedCrudStoreId);
-        if (data) setCrudMenuItems(data as MenuItem[]);
-      }
+      fetchAdminData();
     } catch (err) {
       console.error('切換狀態失敗:', err);
     }
@@ -1381,9 +1374,11 @@ export default function AdminPageContent() {
                 viewMode={viewMode}
                 stores={stores}
                 categories={categories}
-                menuItems={crudMenuItems}
+                menuItems={allMenuItems}
                 paymentMethods={paymentMethods}
                 soldOutOptions={soldOutOptions}
+                selectedStudioStoreId={selectedCrudStoreId}
+                onSelectStudioStore={(storeId) => setSelectedCrudStoreId(storeId)}
                 onCreateStore={() => handleOpenStoreModal()}
                 onEditStore={(store: Store) => handleOpenStoreModal(store)}
                 onDeleteStore={handleDeleteStore}
@@ -1397,14 +1392,14 @@ export default function AdminPageContent() {
                   if (category) handleMoveCategory(category, direction);
                 }}
                 onDeleteCategory={handleDeleteCategory}
-                onCreateMenuItem={() => handleOpenItemModal()}
+                onCreateMenuItem={(storeId) => handleOpenItemModal(undefined, storeId)}
                 onEditMenuItem={(item: MenuItem) => handleOpenItemModal(item)}
-                onOpenBatchImportModal={() => setIsBatchImportModalOpen(true)}
-                onDeleteMenuItem={handleDeleteProduct}
-                onToggleMenuItemActive={(id: string) => {
-                  const item = crudMenuItems.find((m) => m.id === id);
-                  if (item) handleToggleProductStatus(item);
+                onOpenBatchImportModal={(storeId) => {
+                  if (storeId) setSelectedCrudStoreId(storeId);
+                  setIsBatchImportModalOpen(true);
                 }}
+                onDeleteMenuItem={handleDeleteProduct}
+                onToggleMenuItemActive={(id: string) => handleToggleProductStatus(id)}
                 onCreatePaymentMethod={handleCreatePaymentMethod}
                 onDeletePaymentMethod={handleDeletePaymentMethod}
                 onTogglePaymentMethodActive={handleTogglePaymentMethodActive}
@@ -1467,7 +1462,7 @@ export default function AdminPageContent() {
           isOpen={isManualOrderModalOpen}
           onClose={() => setIsManualOrderModalOpen(false)}
           groupOrder={activeGroup}
-          menuItems={crudMenuItems}
+          menuItems={allMenuItems}
           paymentMethods={paymentMethods}
           soldOutOptions={soldOutOptions}
           onOrderAdded={fetchAdminData}
@@ -1500,6 +1495,7 @@ export default function AdminPageContent() {
       <AdminStoreModal
         isOpen={isStoreModalOpen}
         editingStore={editingStore}
+        categories={categories}
         storeForm={storeForm}
         setStoreForm={setStoreForm}
         storeImagePreview={storeImagePreview}
