@@ -862,6 +862,75 @@ export default function AdminPageContent() {
     }
   };
 
+  const handleDeleteArchivedGroup = async (groupId: string, title: string) => {
+    if (
+      !confirm(
+        `🗑️ 確定要刪除歷史活動「${title}」嗎？\n此動作將一併清除該活動底下的所有歷史訂單紀錄，且無法復原。`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      // 1. 取得該活動所有訂單 ID
+      const { data: subs } = await supabase
+        .from('order_submissions')
+        .select('id')
+        .eq('group_order_id', groupId);
+
+      if (subs && subs.length > 0) {
+        const subIds = subs.map((s) => s.id);
+        await supabase.from('order_items').delete().in('submission_id', subIds);
+        await supabase.from('order_submissions').delete().in('id', subIds);
+      }
+
+      const { error } = await supabase.from('group_orders').delete().eq('id', groupId);
+      if (error) throw error;
+
+      showToast(`🗑️ 已刪除歷史活動「${title}」`);
+      fetchAdminData();
+    } catch (err: any) {
+      console.error('刪除歷史活動失敗:', err);
+      showToast(`❌ 刪除失敗：${err?.message || err}`);
+    }
+  };
+
+  const handleBatchDeleteArchivedGroups = async (groupIds: string[]) => {
+    if (!groupIds.length) return;
+    const count = groupIds.length;
+
+    if (
+      !confirm(
+        `🗑️ 確定要批次刪除選取的 ${count} 個歷史活動嗎？\n此動作將一併清除這些活動底下的所有歷史訂單紀錄，且無法復原。`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      // 1. 取得所有選取活動的訂單 ID
+      const { data: subs } = await supabase
+        .from('order_submissions')
+        .select('id')
+        .in('group_order_id', groupIds);
+
+      if (subs && subs.length > 0) {
+        const subIds = subs.map((s) => s.id);
+        await supabase.from('order_items').delete().in('submission_id', subIds);
+        await supabase.from('order_submissions').delete().in('id', subIds);
+      }
+
+      const { error } = await supabase.from('group_orders').delete().in('id', groupIds);
+      if (error) throw error;
+
+      showToast(`🗑️ 已批次刪除 ${count} 個歷史活動`);
+      fetchAdminData();
+    } catch (err: any) {
+      console.error('批次刪除歷史活動失敗:', err);
+      showToast(`❌ 批次刪除失敗：${err?.message || err}`);
+    }
+  };
+
   const handleSaveGroupSettings = async (updatedData: {
     title: string;
     store_id: string;
@@ -1438,6 +1507,8 @@ export default function AdminPageContent() {
                 selectedArchivedGroupId={selectedArchivedGroupId}
                 setSelectedArchivedGroupId={setSelectedArchivedGroupId}
                 handleReopenGroup={handleReopenGroup}
+                handleDeleteArchivedGroup={handleDeleteArchivedGroup}
+                handleBatchDeleteArchivedGroups={handleBatchDeleteArchivedGroups}
               />
             )}
           </>
