@@ -18,13 +18,31 @@ const BLOCKED_BOT_PATTERNS = [
 export function proxy(request: NextRequest) {
   const userAgent = request.headers.get('user-agent') || '';
 
-  // 阻擋已知惡意滲透與掃描工具
+  // 1. 阻擋已知惡意滲透與掃描工具 User-Agent
   const isMaliciousBot = BLOCKED_BOT_PATTERNS.some((pattern) => pattern.test(userAgent));
   if (isMaliciousBot) {
     return new NextResponse('Access Denied - Security Rule Triggered', { status: 403 });
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // 2. 注入全域 HTTP 安全防禦標頭 (Security Headers)
+  // 防範點擊劫持 (Clickjacking)
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+
+  // 防範 MIME 類型混淆攻擊 (MIME Sniffing)
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+
+  // 跨來源參照隱私保護
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // 嚴格限定瀏覽器設備硬體權限
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
+  // 跨站 XSS 防護
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+
+  return response;
 }
 
 export const config = {

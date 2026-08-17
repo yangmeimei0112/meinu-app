@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { verifyAdminToken } from '@/lib/auth-util';
 
 const configFilePath = path.join(process.cwd(), 'src', 'data', 'maintenance.json');
 
@@ -59,19 +60,36 @@ export async function GET() {
   });
 }
 
-// 供團長後台控制開關與修改維護公告
+// 🛡️ 供團長後台控制開關與修改維護公告 (具備嚴格安全鑑權與長度防禦)
 export async function POST(req: NextRequest) {
+  // 1. 驗證團長認證 Token (防範未授權訪客或機器人惡意開關/竄改維護設定)
+  const token = req.cookies.get('meinu_admin_token')?.value;
+  if (!verifyAdminToken(token)) {
+    return NextResponse.json(
+      { success: false, message: '🔒 存取被拒：未經授權的操作，請先解鎖團長後台！' },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await req.json();
     const current = readConfig();
 
+    // 2. 嚴格 Payload 字串長度限制防禦 (防範惡意大型緩衝區灌水注入)
+    const rawTitle = typeof body.title === 'string' ? body.title.trim().slice(0, 100) : current.title;
+    const rawMessage = typeof body.message === 'string' ? body.message.trim().slice(0, 500) : current.message;
+    const rawEstimated =
+      typeof body.estimated_end_time === 'string'
+        ? body.estimated_end_time.trim().slice(0, 60)
+        : current.estimated_end_time;
+    const rawReason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 50) : current.reason;
+
     const updatedConfig: MaintenanceConfig = {
       is_maintenance: typeof body.is_maintenance === 'boolean' ? body.is_maintenance : current.is_maintenance,
-      title: body.title && typeof body.title === 'string' ? body.title.trim() : current.title,
-      message: body.message && typeof body.message === 'string' ? body.message.trim() : current.message,
-      estimated_end_time:
-        typeof body.estimated_end_time === 'string' ? body.estimated_end_time.trim() : current.estimated_end_time,
-      reason: typeof body.reason === 'string' ? body.reason.trim() : current.reason,
+      title: rawTitle,
+      message: rawMessage,
+      estimated_end_time: rawEstimated,
+      reason: rawReason,
       updated_at: new Date().toISOString(),
     };
 

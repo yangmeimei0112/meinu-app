@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import crypto from 'crypto';
+import { generateAdminToken } from '@/lib/auth-util';
 
 // 伺服端專用密鑰（優先讀取伺服端環境變數 ADMIN_PASSCODE，不外洩給前端）
 const SERVER_ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || process.env.NEXT_PUBLIC_ADMIN_PASSCODE || '8888';
-const AUTH_SECRET_KEY = process.env.AUTH_SECRET_KEY || 'meinu-super-secret-auth-key-2026';
 
 // 伺服端記憶體速率限制記錄 (IP-based Rate Limiter)
 const loginAttempts = new Map<string, { count: number; lockedUntil: number }>();
@@ -14,11 +14,6 @@ function getClientIp(req: NextRequest): string {
   return forwarded ? forwarded.split(',')[0].trim() : '127.0.0.1';
 }
 
-function generateSecureToken(): string {
-  const timestamp = Date.now().toString();
-  const signature = crypto.createHmac('sha256', AUTH_SECRET_KEY).update(`admin_${timestamp}`).digest('hex');
-  return `${timestamp}.${signature}`;
-}
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
@@ -72,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     // 3. 驗證成功：重設嘗試次數，簽發安全 Session Token
     loginAttempts.delete(ip);
-    const token = generateSecureToken();
+    const token = generateAdminToken();
 
     const response = NextResponse.json({
       success: true,
