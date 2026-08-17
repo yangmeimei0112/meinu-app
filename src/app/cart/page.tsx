@@ -165,32 +165,32 @@ export default function MultiCartPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-20 transition-colors duration-200">
       <OfflineBanner />
       <Header />
 
       <main className="max-w-md mx-auto px-4 pt-3 space-y-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-sky-500 transition py-1"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 transition py-1"
         >
           ‹ 返回「咩nu」大廳
         </Link>
 
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
+          <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <span>🛒 我的獨立購物車</span>
           </h2>
-          <span className="text-xs text-slate-400 font-bold">
+          <span className="text-xs text-slate-400 dark:text-slate-500 font-bold">
             共 {storeIds.length} 間店家
           </span>
         </div>
 
         {storeIds.length === 0 ? (
-          <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 space-y-3 shadow-xs">
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center border border-slate-100 dark:border-slate-800 space-y-3 shadow-xs">
             <div className="text-4xl">🛍️</div>
-            <p className="text-sm font-bold text-slate-700">目前所有店家的購物車都是空的喔！</p>
-            <p className="text-xs text-slate-400">快前往大廳挑選喜歡的店家吧！</p>
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">目前所有店家的購物車都是空的喔！</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">快前往大廳挑選喜歡的店家吧！</p>
             <Link
               href="/"
               className="inline-block bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold px-5 py-2.5 rounded-2xl shadow-xs transition active:scale-95"
@@ -214,7 +214,7 @@ export default function MultiCartPage() {
                     className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 shrink-0 border ${
                       isActive
                         ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                        : 'bg-white dark:bg-[#131B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-[#182338]'
                     }`}
                   >
                     <span>🥤 {group.storeName}</span>
@@ -222,7 +222,7 @@ export default function MultiCartPage() {
                       className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
                         isActive
                           ? 'bg-white text-sky-600'
-                          : 'bg-slate-100 text-slate-600'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
                       }`}
                     >
                       ${storeTotal}
@@ -234,13 +234,13 @@ export default function MultiCartPage() {
 
             {/* 當前選定店家購物車細節 */}
             {currentGroup && (
-              <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div>
-                    <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-1.5">
+                    <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                       <span>🥤 {currentGroup.storeName}</span>
                     </h3>
-                    <p className="text-[11px] text-slate-400">一店一車，獨立選購與結帳送單</p>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-400">一店一車，獨立選購與結帳送單</p>
                   </div>
                   <button
                     type="button"
@@ -261,26 +261,26 @@ export default function MultiCartPage() {
                   )}
 
                 {/* 品項清單 */}
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
                   {currentGroup.items.map((item) => (
                     <div key={item.cartItemId} className="py-3.5 space-y-1.5">
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h4 className="text-sm font-bold text-slate-800">{item.name}</h4>
+                          <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.name}</h4>
                           {item.selectedOptions.length > 0 && (
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
                               {item.selectedOptions
                                 .map((opt) => `${opt.groupTitle}: ${opt.itemName}`)
                                 .join(' / ')}
                             </p>
                           )}
                           {item.customNotes && (
-                            <p className="text-xs text-sky-600 mt-0.5">
+                            <p className="text-xs text-sky-600 dark:text-sky-400 mt-0.5">
                               備註：{item.customNotes}
                             </p>
                           )}
                         </div>
-                        <span className="text-sm font-extrabold text-sky-600 shrink-0">
+                        <span className="text-sm font-extrabold text-sky-600 dark:text-sky-400 shrink-0">
                           ${item.totalPrice} 元
                         </span>
                       </div>
@@ -290,7 +290,7 @@ export default function MultiCartPage() {
                         <button
                           type="button"
                           onClick={() => handleStartEditItem(item)}
-                          className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 border border-sky-100 px-2.5 py-1 rounded-xl transition flex items-center gap-1 active:scale-95"
+                          className="text-[11px] font-bold text-sky-600 dark:text-sky-300 bg-sky-50 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 border border-sky-100 dark:border-slate-700 px-2.5 py-1 rounded-xl transition flex items-center gap-1 active:scale-95"
                         >
                           <span>✏️ 修改規格</span>
                         </button>
@@ -307,17 +307,17 @@ export default function MultiCartPage() {
                             🗑️
                           </button>
 
-                          <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1">
+                          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200/60 dark:border-slate-700">
                             <button
                               type="button"
                               onClick={() =>
                                 handleUpdateQuantity(activeStoreId, item.cartItemId, -1)
                               }
-                              className="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center"
+                              className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center"
                             >
                               -
                             </button>
-                            <span className="text-xs font-bold w-4 text-center">
+                            <span className="text-xs font-bold w-4 text-center text-slate-800 dark:text-slate-100">
                               {item.quantity}
                             </span>
                             <button
@@ -325,7 +325,7 @@ export default function MultiCartPage() {
                               onClick={() =>
                                 handleUpdateQuantity(activeStoreId, item.cartItemId, 1)
                               }
-                              className="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center"
+                              className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center"
                             >
                               +
                             </button>
@@ -337,17 +337,17 @@ export default function MultiCartPage() {
                 </div>
 
                 {/* 底部結算與跳轉按鈕 */}
-                <div className="pt-3 border-t border-slate-100 space-y-3">
-                  <div className="flex items-center justify-between font-extrabold text-base text-slate-800">
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between font-extrabold text-base text-slate-800 dark:text-slate-100">
                     <span>店家小計金額</span>
-                    <span className="text-sky-600 text-lg">${currentStoreTotal} 元</span>
+                    <span className="text-sky-600 dark:text-sky-400 text-lg">${currentStoreTotal} 元</span>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     {/* ‹ 繼續點餐按鈕：直達該店家菜單頁面 */}
                     <Link
                       href={`/stores/${activeStoreId}`}
-                      className="bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-xs py-3 rounded-2xl border border-sky-100 text-center transition active:scale-95 flex items-center justify-center gap-1"
+                      className="bg-sky-50 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 font-bold text-xs py-3 rounded-2xl border border-sky-100 dark:border-slate-700 text-center transition active:scale-95 flex items-center justify-center gap-1"
                     >
                       <span>‹ 繼續點餐 (回菜單)</span>
                     </Link>

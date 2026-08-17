@@ -44,12 +44,30 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-TW">
+    <html lang="zh-TW" suppressHydrationWarning>
       <head>
         <meta name="theme-color" content="#0284c7" />
+        <meta name="color-scheme" content="light dark" />
         <link rel="apple-touch-icon" href="/logo.png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('menu_app_theme');
+                  var isDark = theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                  if (isDark) {
+                    document.documentElement.classList.add('dark');
+                  } else {
+                    document.documentElement.classList.remove('dark');
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
       </head>
-      <body className="bg-slate-50 antialiased selection:bg-sky-100 selection:text-sky-600">
+      <body className="bg-slate-50 text-slate-900 dark:bg-[#0B0F17] dark:text-slate-100 antialiased selection:bg-sky-100 dark:selection:bg-sky-900/60 selection:text-sky-600 dark:selection:text-sky-300">
         {children}
       </body>
     </html>

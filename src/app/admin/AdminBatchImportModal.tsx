@@ -154,21 +154,21 @@ export default function AdminBatchImportModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-lg rounded-3xl p-5 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div className="bg-white dark:bg-[#131B2B] w-full max-w-lg rounded-3xl p-5 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-100">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <span className="text-xl">📥</span>
             <div>
-              <h3 className="text-base font-extrabold text-slate-800">
+              <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
                 菜單 CSV 批量匯入 ({storeName})
               </h3>
-              <p className="text-xs text-slate-400">快速上傳整間店家的餐點、價格與客製選項</p>
+              <p className="text-xs text-slate-400 dark:text-slate-400">快速上傳整間店家的餐點、價格與客製選項</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center font-bold text-xs"
+            className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer"
           >
             ✕
           </button>
@@ -176,26 +176,26 @@ export default function AdminBatchImportModal({
 
         {/* 範本下載按鈕群 */}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-700">下載連鎖店菜單範本</label>
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">下載連鎖店菜單範本</label>
           <div className="flex gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => handleDownloadTemplate('50lan')}
-              className="bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[11px] px-3 py-1.5 rounded-xl border border-sky-100 transition active:scale-95 flex items-center gap-1"
+              className="bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 font-bold text-[11px] px-3 py-1.5 rounded-xl border border-sky-100 dark:border-sky-800/60 transition active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <span>🥤 50嵐飲料範本</span>
             </button>
             <button
               type="button"
               onClick={() => handleDownloadTemplate('mcdonalds')}
-              className="bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px] px-3 py-1.5 rounded-xl border border-amber-100 transition active:scale-95 flex items-center gap-1"
+              className="bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-bold text-[11px] px-3 py-1.5 rounded-xl border border-amber-100 dark:border-amber-800/60 transition active:scale-95 flex items-center gap-1 cursor-pointer"
             >
               <span>🍔 麥當勞套餐範本</span>
             </button>
             <button
               type="button"
               onClick={() => handleDownloadTemplate('blank')}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] px-3 py-1.5 rounded-xl transition active:scale-95"
+              className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[11px] px-3 py-1.5 rounded-xl border border-transparent dark:border-slate-700 transition active:scale-95 cursor-pointer"
             >
               📄 空白 CSV 範本
             </button>
@@ -205,8 +205,8 @@ export default function AdminBatchImportModal({
         {/* 上傳檔案與文字輸入 */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label htmlFor="csv-batch-textarea" className="text-xs font-bold text-slate-700">上傳 CSV 檔案或貼上內容</label>
-            <label htmlFor="csv-file-upload-input" className="cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold px-2.5 py-1 rounded-lg transition">
+            <label htmlFor="csv-batch-textarea" className="text-xs font-bold text-slate-700 dark:text-slate-300">上傳 CSV 檔案或貼上內容</label>
+            <label htmlFor="csv-file-upload-input" className="cursor-pointer bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-[11px] font-bold px-2.5 py-1 rounded-lg border border-transparent dark:border-slate-700 transition">
               <span>📂 選擇檔案</span>
               <input
                 id="csv-file-upload-input"
@@ -228,15 +228,15 @@ export default function AdminBatchImportModal({
             placeholder={`餐點名稱,價格,簡介,是否售完,客製選項設定\n珍珠奶茶,50,波霸奶茶,false,甜度[半糖:0|微糖:0];加料[波霸:10]`}
             value={csvContent}
             onChange={(e) => setCsvContent(e.target.value)}
-            className="w-full bg-slate-50 font-mono text-[11px] border border-slate-200 rounded-xl p-3 text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            className="w-full bg-slate-50 dark:bg-[#182234] font-mono text-[11px] border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
           />
         </div>
 
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-xl text-xs transition"
+            className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 px-4 rounded-xl text-xs transition cursor-pointer"
           >
             取消
           </button>
@@ -245,7 +245,7 @@ export default function AdminBatchImportModal({
             type="button"
             disabled={isImporting || !csvContent.trim()}
             onClick={handleExecuteImport}
-            className="bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-2 px-5 rounded-xl text-xs shadow-md transition active:scale-95 disabled:opacity-50"
+            className="bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-2 px-5 rounded-xl text-xs shadow-md transition active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             {isImporting ? '正在批量匯入...' : '🚀 開始批量匯入'}
           </button>

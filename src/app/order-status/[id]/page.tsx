@@ -228,14 +228,18 @@ export default function OrderStatusPage({
         };
         localStorage.setItem('menu_app_multi_cart', JSON.stringify(parsed));
 
-        // 刪除後台此筆訂單
-        await supabase.from('order_submissions').delete().eq('id', submissionId);
+        // 刪除後台此筆訂單明細與訂單主檔
+        await supabase.from('order_items').delete().eq('submission_id', submissionId);
+        const { error: delSubErr } = await supabase.from('order_submissions').delete().eq('id', submissionId);
+        if (delSubErr) throw delSubErr;
+
         cleanLocalHistory();
 
         alert('🔄 已成功將品項還原回購物車！請在購物車進行修改。');
         router.push('/cart');
       } else {
-        // 取消訂單
+        // 取消訂單：刪除後台此筆訂單明細與訂單主檔
+        await supabase.from('order_items').delete().eq('submission_id', submissionId);
         const { error } = await supabase
           .from('order_submissions')
           .delete()
@@ -260,27 +264,27 @@ export default function OrderStatusPage({
   const isActionDisabled = isTimeUp || isClosed || isActionLoading;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-20 transition-colors duration-200">
       <OfflineBanner />
       <Header />
 
       <main className="max-w-md mx-auto px-4 pt-3 space-y-4">
         <Link
           href="/"
-          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-sky-500 transition py-1"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 transition py-1"
         >
           ‹ 返回「咩nu」大廳
         </Link>
 
         {loading ? (
-          <div className="bg-white rounded-3xl p-8 text-center text-slate-400 text-sm animate-pulse">
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center text-slate-400 dark:text-slate-500 text-sm animate-pulse border border-slate-100 dark:border-slate-800">
             正在載入訂單狀態與明細...
           </div>
         ) : !order ? (
-          <div className="bg-white rounded-3xl p-8 text-center text-slate-500 space-y-3">
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center text-slate-500 dark:text-slate-400 space-y-3 border border-slate-100 dark:border-slate-800">
             <div className="text-3xl">❓</div>
-            <p className="font-extrabold text-slate-700">找不到該筆訂單資訊</p>
-            <p className="text-xs text-slate-400">訂單可能已被取消或連結單號不正確。</p>
+            <p className="font-extrabold text-slate-700 dark:text-slate-200">找不到該筆訂單資訊</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">訂單可能已被取消或連結單號不正確。</p>
             <Link
               href="/"
               className="inline-block bg-sky-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs"
@@ -291,15 +295,15 @@ export default function OrderStatusPage({
         ) : (
           <>
             {/* 訂單成功與對帳標籤卡片 */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 text-2xl mx-auto flex items-center justify-center font-bold border border-emerald-100 shadow-2xs">
+            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 dark:text-emerald-400 text-2xl mx-auto flex items-center justify-center font-bold border border-emerald-100 dark:border-emerald-900/60 shadow-2xs">
                 ✓
               </div>
               <div>
-                <h2 className="text-xl font-extrabold text-slate-800">
+                <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">
                   訂單已成功送出！
                 </h2>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">
+                <p className="text-xs text-slate-400 dark:text-slate-400 font-mono mt-0.5">
                   訂單編號：#{order.order_number}
                 </p>
               </div>
@@ -307,12 +311,12 @@ export default function OrderStatusPage({
               {/* ⚡ Realtime 對帳狀態動態更新標籤 */}
               <div className="pt-1">
                 {order.is_paid ? (
-                  <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-extrabold px-4 py-1.5 rounded-full shadow-xs animate-in zoom-in duration-300">
+                  <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-extrabold px-4 py-1.5 rounded-full shadow-xs animate-in zoom-in duration-300">
                     <span>✅</span>
                     <span>團長已核實收到款項</span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 border border-amber-200 text-xs font-extrabold px-4 py-1.5 rounded-full animate-pulse">
+                  <span className="inline-flex items-center gap-1 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-xs font-extrabold px-4 py-1.5 rounded-full animate-pulse">
                     <span>⏳</span>
                     <span>待團長對帳與確認</span>
                   </span>
@@ -381,22 +385,22 @@ export default function OrderStatusPage({
             </div>
 
             {/* 明細卡片 */}
-            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs space-y-3">
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
                 點餐內容與明細
               </h3>
 
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {orderItems.map((item) => (
                   <div key={item.id} className="py-2.5 space-y-1">
-                    <div className="flex items-center justify-between text-sm font-bold text-slate-800">
+                    <div className="flex items-center justify-between text-sm font-bold text-slate-800 dark:text-slate-100">
                       <span>
                         {item.item_name} x {item.quantity}
                       </span>
-                      <span>${item.unit_price * item.quantity} 元</span>
+                      <span className="text-sky-600 dark:text-sky-400">${item.unit_price * item.quantity} 元</span>
                     </div>
                     {item.custom_notes && (
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-400 dark:text-slate-400">
                         {item.custom_notes}
                       </p>
                     )}
@@ -404,28 +408,28 @@ export default function OrderStatusPage({
                 ))}
               </div>
 
-              <div className="pt-2 border-t border-slate-100 space-y-1.5 text-xs text-slate-600">
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs text-slate-600 dark:text-slate-300">
                 <div className="flex justify-between">
                   <span>訂購人暱稱：</span>
-                  <span className="font-bold text-slate-800">
+                  <span className="font-bold text-slate-800 dark:text-slate-100">
                     {order.user_nickname}
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span>付款方式：</span>
-                  <span className="font-bold text-slate-800">
+                  <span className="font-bold text-slate-800 dark:text-slate-100">
                     {order.payment_method_name}
                   </span>
                 </div>
                 {order.sold_out_option && (
                   <div className="flex justify-between">
                     <span>缺貨備案：</span>
-                    <span className="font-bold text-slate-800">
+                    <span className="font-bold text-slate-800 dark:text-slate-100">
                       {order.sold_out_option}
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm font-extrabold text-sky-600 pt-2 border-t border-slate-100">
+                <div className="flex justify-between text-sm font-extrabold text-sky-600 dark:text-sky-400 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <span>應付總金額：</span>
                   <span className="text-base">${order.final_amount} 元</span>
                 </div>

@@ -151,6 +151,7 @@ export default function StoreClient({ storeId }: { storeId: string }) {
     [currentStoreItems]
   );
   const isClosed = groupMeta?.status === 'closed';
+  const isGroupClosed = isClosed;
 
   // 記憶化餐點搜尋過濾結果
   const filteredMenuItems = useMemo(() => {
@@ -165,14 +166,14 @@ export default function StoreClient({ storeId }: { storeId: string }) {
 
   const handleAddToCart = useCallback(
     (newItem: CartItem) => {
-      if (isClosed) {
+      if (isGroupClosed) {
         alert('⚠️ 團長已截單，目前停止收單中！');
         return;
       }
       addItem(newItem);
       showToast(`🛒 已將「${newItem.name}」加入購物車！`);
     },
-    [isClosed, addItem, showToast]
+    [isGroupClosed, addItem, showToast]
   );
 
   const handleClearStoreCart = useCallback(() => {
@@ -188,13 +189,12 @@ export default function StoreClient({ storeId }: { storeId: string }) {
   const isUrgent = countdownSeconds > 0 && countdownSeconds <= 300;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-28 transition-colors duration-200">
       <OfflineBanner />
       <Header />
 
-      {/* 複製提示 Toast */}
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg animate-in fade-in zoom-in duration-200">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg border border-slate-700 animate-in fade-in zoom-in duration-200">
           {toastMessage}
         </div>
       )}
@@ -203,29 +203,29 @@ export default function StoreClient({ storeId }: { storeId: string }) {
         <div className="flex items-center justify-between">
           <Link
             href="/"
-            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-sky-500 transition py-1"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 transition py-1"
           >
             ‹ 返回「咩nu」大廳
           </Link>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">
+            {store?.name ? `店家：${store.name}` : ''}
+          </span>
         </div>
 
-        {/* 實時全團點餐進度 */}
         <LiveOrderCounter storeId={storeId} />
 
-        {/* 團購截單鎖定提醒條 */}
-        {isClosed && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-3.5 shadow-xs text-xs font-bold flex items-center gap-2 animate-in fade-in duration-300">
-            <span className="text-lg shrink-0">🔒</span>
+        {isGroupClosed && (
+          <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl p-3.5 flex items-center gap-2.5 shadow-xs">
+            <span className="text-xl">🔒</span>
             <div>
-              <p className="font-extrabold text-rose-800">團長已截單，停止收單中</p>
-              <p className="text-[11px] text-rose-600 font-normal mt-0.5">
+              <p className="font-extrabold text-rose-800 dark:text-rose-300">團長已截單，停止收單中</p>
+              <p className="text-[11px] text-rose-600 dark:text-rose-400 font-normal mt-0.5">
                 此團購活動已截止，無法新增餐點與送出訂單。
               </p>
             </div>
           </div>
         )}
 
-        {/* 團長公告欄 */}
         {groupMeta?.announcement && (
           <div className="bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-2xl p-3 shadow-xs text-xs font-bold flex items-center gap-2 animate-in fade-in duration-300">
             <span className="text-base shrink-0">📢</span>
@@ -233,7 +233,6 @@ export default function StoreClient({ storeId }: { storeId: string }) {
           </div>
         )}
 
-        {/* 個人消費預算上限提醒 */}
         {groupMeta?.enable_budget_limit && groupMeta?.budget_limit_amount && (
           <BudgetLimitNotice
             budgetLimit={groupMeta.budget_limit_amount}
@@ -243,13 +242,12 @@ export default function StoreClient({ storeId }: { storeId: string }) {
 
         {groupMeta && (
           <div className="grid grid-cols-1 gap-2">
-            {/* 預計截單倒數計時器 */}
             {groupMeta.enable_countdown && (
               <div
                 className={`rounded-2xl p-3 flex items-center justify-between border shadow-xs transition-colors ${
                   isUrgent
                     ? 'bg-rose-950 text-rose-200 border-rose-800 animate-pulse'
-                    : 'bg-slate-900 text-white border-slate-800'
+                    : 'bg-slate-900 dark:bg-slate-800 text-white border-slate-800 dark:border-slate-700'
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -262,7 +260,7 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                   className={`font-mono text-sm font-extrabold px-2.5 py-0.5 rounded-lg border ${
                     isUrgent
                       ? 'bg-rose-900 text-rose-300 border-rose-700'
-                      : 'text-sky-400 bg-slate-800 border-slate-700'
+                      : 'text-sky-400 bg-slate-800 dark:bg-slate-950 border-slate-700 dark:border-slate-700'
                   }`}
                 >
                   {countdownSeconds > 0 ? formatCountdown(countdownSeconds) : '已截止收單'}
@@ -270,22 +268,21 @@ export default function StoreClient({ storeId }: { storeId: string }) {
               </div>
             )}
 
-            {/* 起送 / 免運門檻湊單進度條 */}
             {groupMeta.enable_min_threshold && (
-              <div className="bg-white rounded-2xl p-3 border border-sky-100 shadow-xs space-y-1.5">
+              <div className="bg-white dark:bg-[#131B2B] rounded-2xl p-3 border border-sky-100 dark:border-slate-800 shadow-xs space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-700 flex items-center gap-1">
+                  <span className="text-slate-700 dark:text-slate-200 flex items-center gap-1">
                     <span>🚚 起送湊單進度</span>
-                    <span className="text-sky-600">(${groupTotalAmount} / ${groupMeta.min_threshold_amount})</span>
+                    <span className="text-sky-600 dark:text-sky-400">(${groupTotalAmount} / ${groupMeta.min_threshold_amount})</span>
                   </span>
-                  <span className="text-sky-600">
+                  <span className="text-sky-600 dark:text-sky-400">
                     {groupTotalAmount >= groupMeta.min_threshold_amount
                       ? '🎉 已達標！'
                       : `還差 $${groupMeta.min_threshold_amount - groupTotalAmount} 元`}
                   </span>
                 </div>
 
-                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
                   <div
                     className="bg-gradient-to-r from-sky-400 to-blue-500 h-full transition-all duration-500 rounded-full"
                     style={{
@@ -302,19 +299,18 @@ export default function StoreClient({ storeId }: { storeId: string }) {
         )}
 
         {loading ? (
-          <div className="bg-white rounded-3xl p-8 text-center text-slate-400 text-sm animate-pulse">
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center text-slate-400 dark:text-slate-500 text-sm animate-pulse border border-slate-100 dark:border-slate-800">
             正在載入菜單與全團點餐數據...
           </div>
         ) : !store ? (
-          <div className="bg-white rounded-3xl p-8 text-center text-slate-500">
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800">
             找不到該店家資訊
           </div>
         ) : (
           <>
-            {/* 店家抬頭卡片：右側加入「🔗 揪團分享」按鈕 */}
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs flex items-center justify-between gap-3">
+            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs flex items-center justify-between gap-3">
               <div className="flex items-center gap-3.5 min-w-0">
-                <div className="w-16 h-16 rounded-2xl bg-sky-50 flex items-center justify-center text-3xl shrink-0 border border-sky-100 overflow-hidden">
+                <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-3xl shrink-0 border border-sky-100 dark:border-sky-900/60 overflow-hidden">
                   {store.image_url ? (
                     <img
                       src={store.image_url}
@@ -328,16 +324,15 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-xl font-extrabold text-slate-800 truncate">
+                  <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 truncate">
                     {store.name}
                   </h2>
-                  <span className="inline-block mt-1 bg-sky-50 text-sky-600 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100">
+                  <span className="inline-block mt-1 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">
                     🟢 開放揪團中
                   </span>
                 </div>
               </div>
 
-              {/* 🔗 店家專屬揪團分享按鈕 */}
               <button
                 type="button"
                 onClick={handleShareStore}
@@ -348,9 +343,9 @@ export default function StoreClient({ storeId }: { storeId: string }) {
             </div>
 
             <div className="space-y-3">
-              <h3 className="text-sm font-bold text-slate-700 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
                 <span>精選餐點</span>
-                <span className="text-xs text-slate-400 font-normal">
+                <span className="text-xs text-slate-400 dark:text-slate-500 font-normal">
                   共 {filteredMenuItems.length} 項
                 </span>
               </h3>
@@ -365,9 +360,9 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                   placeholder="搜尋餐點名稱或關鍵字..."
                   value={menuSearchQuery}
                   onChange={(e) => setMenuSearchQuery(e.target.value)}
-                  className="w-full bg-white text-slate-800 border border-slate-200 rounded-2xl py-2.5 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 transition shadow-xs"
+                  className="w-full bg-white dark:bg-[#131B2B] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl py-2.5 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 transition shadow-xs placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-sm">🔍</span>
               </div>
 
               {filteredMenuItems.map((item: MenuItem) => {
@@ -379,34 +374,34 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                     onClick={() => {
                       if (!isSoldOut) setSelectedMenuItem(item);
                     }}
-                    className={`bg-white rounded-3xl p-4 border shadow-xs transition flex items-center justify-between gap-3 content-auto ${
+                    className={`bg-white dark:bg-[#131B2B] rounded-3xl p-4 border shadow-xs transition flex items-center justify-between gap-3 content-auto ${
                       isSoldOut
-                        ? 'border-slate-200 opacity-60 cursor-not-allowed'
-                        : 'border-slate-100 hover:border-sky-200 cursor-pointer active:scale-[0.99]'
+                        ? 'border-slate-200 dark:border-slate-800 opacity-60 cursor-not-allowed'
+                        : 'border-slate-100 dark:border-slate-800/80 hover:border-sky-200 dark:hover:border-sky-500/40 cursor-pointer active:scale-[0.99]'
                     }`}
                   >
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-800 text-base">
+                        <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base">
                           {item.name}
                         </h4>
                         {isSoldOut && (
-                          <span className="bg-slate-200 text-slate-600 border border-slate-300 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                          <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
                             已售完
                           </span>
                         )}
                         {popularQty > 0 && (
-                          <span className="bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-0.5">
+                          <span className="bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-0.5">
                             🔥 本團已點 {popularQty} 份
                           </span>
                         )}
                       </div>
                       {item.description && (
-                        <p className="text-xs text-slate-400 line-clamp-2">
+                        <p className="text-xs text-slate-400 dark:text-slate-400 line-clamp-2">
                           {item.description}
                         </p>
                       )}
-                      <p className="text-sm font-extrabold text-sky-600">
+                      <p className="text-sm font-extrabold text-sky-600 dark:text-sky-400">
                         ${item.price} 元
                       </p>
                     </div>
@@ -416,8 +411,8 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                       disabled={isSoldOut}
                       className={`px-3.5 py-2 rounded-xl text-xs font-bold transition shrink-0 border ${
                         isSoldOut
-                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                          : 'bg-sky-50 hover:bg-sky-500 text-sky-600 hover:text-white border-sky-200'
+                          ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed'
+                          : 'bg-sky-50 dark:bg-slate-800 hover:bg-sky-500 dark:hover:bg-sky-600 text-sky-600 dark:text-sky-300 hover:text-white border-sky-200 dark:border-slate-700'
                       }`}
                     >
                       {isSoldOut ? '已售完' : '選購 +'}

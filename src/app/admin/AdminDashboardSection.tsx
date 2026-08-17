@@ -156,41 +156,41 @@ export function AdminDashboardSection({
 
   // 1. 向店家報單彙總清單組件
   const StoreSummaryCard = (
-    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-4">
+    <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+          <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
             <span>📦 向店家下單總表</span>
-            <span className="text-xs font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-100">
+            <span className="text-xs font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-full border border-sky-100 dark:border-sky-900/60">
               共 {totalItemCount} 份
             </span>
           </h3>
-          <p className="text-[11px] text-slate-400 mt-0.5">向店家電話/LINE 叫餐報單專用清單</p>
+          <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5">向店家電話/LINE 叫餐報單專用清單</p>
         </div>
 
         <button
           type="button"
           onClick={handleCopyStoreOrderText}
-          className="bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-sky-100 transition active:scale-95 flex items-center gap-1"
+          className="bg-sky-50 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 font-bold text-xs px-3 py-1.5 rounded-xl border border-sky-100 dark:border-slate-700 transition active:scale-95 flex items-center gap-1"
         >
           <span>📋 複製報單文字</span>
         </button>
       </div>
 
-      <div className="space-y-1.5 divide-y divide-slate-50 max-h-[360px] overflow-y-auto pr-1">
+      <div className="space-y-1.5 divide-y divide-slate-50 dark:divide-slate-800 max-h-[360px] overflow-y-auto pr-1">
         {Object.entries(itemSummary).map(([itemName, qty], idx) => (
-          <div key={itemName} className="flex items-center justify-between text-xs font-semibold text-slate-700 pt-2">
+          <div key={itemName} className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-200 pt-2">
             <div className="flex items-center gap-2 truncate mr-2">
-              <span className="text-slate-400 font-mono text-[11px]">{idx + 1}.</span>
+              <span className="text-slate-400 dark:text-slate-500 font-mono text-[11px]">{idx + 1}.</span>
               <span className="truncate">{itemName}</span>
             </div>
-            <span className="bg-sky-100 text-sky-800 font-black px-2.5 py-0.5 rounded-lg shrink-0 text-xs">
+            <span className="bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 font-black px-2.5 py-0.5 rounded-lg shrink-0 text-xs border border-transparent dark:border-sky-800/50">
               x {qty}
             </span>
           </div>
         ))}
         {Object.keys(itemSummary).length === 0 && (
-          <p className="text-center py-6 text-xs text-slate-400">目前尚無點餐資料</p>
+          <p className="text-center py-6 text-xs text-slate-400 dark:text-slate-500">目前尚無點餐資料</p>
         )}
       </div>
     </div>
@@ -198,45 +198,45 @@ export function AdminDashboardSection({
 
   // 2. 運費平攤算式設定組件
   const FeeSplitCard = (
-    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-xs space-y-3.5">
+    <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs space-y-3.5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+        <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
           <span>🔢 運費與折扣平攤設定</span>
         </h3>
-        <span className="text-[11px] text-slate-400 font-medium">即時試算每人金額</span>
+        <span className="text-[11px] text-slate-400 dark:text-slate-400 font-medium">即時試算每人金額</span>
       </div>
 
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <label htmlFor="split-delivery-fee" className="text-[10px] text-slate-400 font-bold block mb-1">外送費 (+)</label>
+          <label htmlFor="split-delivery-fee" className="text-[10px] text-slate-400 dark:text-slate-400 font-bold block mb-1">外送費 (+)</label>
           <input
             id="split-delivery-fee"
             name="deliveryFee"
             type="number"
             value={inputDeliveryFee}
             onChange={(e) => setInputDeliveryFee(Number(e.target.value))}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
           />
         </div>
         <div>
-          <label htmlFor="split-discount" className="text-[10px] text-slate-400 font-bold block mb-1">折扣 (-)</label>
+          <label htmlFor="split-discount" className="text-[10px] text-slate-400 dark:text-slate-400 font-bold block mb-1">折扣 (-)</label>
           <input
             id="split-discount"
             name="discount"
             type="number"
             value={inputDiscount}
             onChange={(e) => setInputDiscount(Number(e.target.value))}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
           />
         </div>
         <div>
-          <label htmlFor="split-rounding-rule" className="text-[10px] text-slate-400 font-bold block mb-1">取整規則</label>
+          <label htmlFor="split-rounding-rule" className="text-[10px] text-slate-400 dark:text-slate-400 font-bold block mb-1">取整規則</label>
           <select
             id="split-rounding-rule"
             name="roundingRule"
             value={roundingRule}
             onChange={(e) => setRoundingRule(e.target.value as 'floor' | 'ceil' | 'round')}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 px-1.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-1.5 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
           >
             <option value="floor">無條件捨去</option>
             <option value="ceil">無條件進位</option>
@@ -246,17 +246,17 @@ export function AdminDashboardSection({
       </div>
 
       {submissions.length > 0 && (
-        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200/60 space-y-1.5">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+        <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-200/60 dark:border-slate-700 space-y-1.5">
+          <p className="text-[10px] text-slate-400 dark:text-slate-400 font-bold uppercase tracking-wider">
             試算對比預覽 (每人差額: ${calculateAdjustedAmount(0)} 元)
           </p>
-          <div className="divide-y divide-slate-200 text-xs">
+          <div className="divide-y divide-slate-200 dark:divide-slate-700 text-xs">
             {submissions.slice(0, 3).map((sub) => (
               <div key={sub.id} className="py-1 flex justify-between font-semibold">
-                <span className="text-slate-700 truncate mr-2">{sub.user_nickname}</span>
-                <span className="text-slate-500 shrink-0">
+                <span className="text-slate-700 dark:text-slate-200 truncate mr-2">{sub.user_nickname}</span>
+                <span className="text-slate-500 dark:text-slate-400 shrink-0">
                   原價 ${sub.total_amount} ➔{' '}
-                  <span className="text-sky-600 font-extrabold">
+                  <span className="text-sky-600 dark:text-sky-400 font-extrabold">
                     ${calculateAdjustedAmount(sub.total_amount)} 元
                   </span>
                 </span>
@@ -269,7 +269,7 @@ export function AdminDashboardSection({
       <button
         type="button"
         onClick={handleApplyFeeSplit}
-        className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-2xl text-xs transition shadow-xs active:scale-95"
+        className="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-2xl text-xs transition shadow-xs active:scale-95 cursor-pointer"
       >
         套用平攤算式並更新全團應收金額
       </button>
@@ -278,17 +278,17 @@ export function AdminDashboardSection({
 
   // 3. 團員對帳清單組件
   const MemberOrdersCard = submissions.length === 0 ? (
-    <div className="bg-white rounded-3xl p-8 sm:p-12 text-center text-slate-400 text-xs border border-slate-100 shadow-xs space-y-3">
+    <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 sm:p-12 text-center text-slate-400 dark:text-slate-500 text-xs border border-slate-100 dark:border-slate-800 shadow-xs space-y-3">
       <div className="text-4xl">📭</div>
-      <h4 className="text-sm font-extrabold text-slate-700">目前尚無團員送單</h4>
-      <p className="text-slate-400 max-w-xs mx-auto">
+      <h4 className="text-sm font-extrabold text-slate-700 dark:text-slate-200">目前尚無團員送單</h4>
+      <p className="text-slate-400 dark:text-slate-400 max-w-xs mx-auto">
         此團購活動目前還沒有收到任何訂單。您可以點擊上方「➕ 幫朋友代點」由團長手動補單，或分享專屬點餐網址給朋友！
       </p>
       <div className="pt-2 flex justify-center gap-2">
         <button
           type="button"
           onClick={handleOpenManualOrderModal}
-          className="bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1.5"
+          className="bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
         >
           <span>➕ 幫朋友代點</span>
         </button>
@@ -297,12 +297,12 @@ export function AdminDashboardSection({
   ) : (
     <div className="space-y-3.5">
       {/* 頂部搜尋、篩選與批次勾選列 */}
-      <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
+      <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <span>👥 團員訂單對帳清單</span>
-              <span className="text-xs text-slate-400 font-bold">
+              <span className="text-xs text-slate-400 dark:text-slate-400 font-bold">
                 ({filteredSubmissions.length} / {submissions.length} 筆)
               </span>
             </h3>
@@ -312,7 +312,7 @@ export function AdminDashboardSection({
               <button
                 type="button"
                 onClick={handleToggleSelectAll}
-                className="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                className="text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-2.5 py-1 rounded-xl border border-transparent dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
               >
                 <input
                   type="checkbox"
@@ -331,7 +331,7 @@ export function AdminDashboardSection({
               type="button"
               disabled={selectedSubmissionIds.length === 0}
               onClick={handleBatchMarkPaid}
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-200 transition active:scale-95 disabled:opacity-40 cursor-pointer"
+              className="bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800/60 transition active:scale-95 disabled:opacity-40 cursor-pointer"
             >
               ☑️ 批次標記已付款 ({selectedSubmissionIds.length})
             </button>
@@ -339,7 +339,7 @@ export function AdminDashboardSection({
               type="button"
               disabled={selectedSubmissionIds.length === 0}
               onClick={handleBatchDeleteOrders}
-              className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold px-3 py-1.5 rounded-xl border border-rose-200 transition active:scale-95 disabled:opacity-40 cursor-pointer"
+              className="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-bold px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800/60 transition active:scale-95 disabled:opacity-40 cursor-pointer"
             >
               🗑️ 批次刪除 ({selectedSubmissionIds.length})
             </button>
@@ -358,25 +358,25 @@ export function AdminDashboardSection({
               placeholder="🔍 搜尋團員暱稱或單號..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-1.5 pl-3 pr-8 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-3 pr-8 text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
               >
                 ✕
               </button>
             )}
           </div>
 
-          <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold shrink-0">
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs font-bold shrink-0 border border-transparent dark:border-slate-700">
             <button
               type="button"
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1 rounded-lg transition ${
-                statusFilter === 'all' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'
+              className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                statusFilter === 'all' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-xs' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               全部 ({submissions.length})
@@ -384,8 +384,8 @@ export function AdminDashboardSection({
             <button
               type="button"
               onClick={() => setStatusFilter('unpaid')}
-              className={`px-3 py-1 rounded-lg transition ${
-                statusFilter === 'unpaid' ? 'bg-white text-amber-700 shadow-xs' : 'text-slate-500'
+              className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                statusFilter === 'unpaid' ? 'bg-white dark:bg-slate-700 text-amber-700 dark:text-amber-300 shadow-xs' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               ⏳ 待付款 ({unpaidSubmissionsCount})
@@ -393,8 +393,8 @@ export function AdminDashboardSection({
             <button
               type="button"
               onClick={() => setStatusFilter('paid')}
-              className={`px-3 py-1 rounded-lg transition ${
-                statusFilter === 'paid' ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-500'
+              className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                statusFilter === 'paid' ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-300 shadow-xs' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               ✅ 已付款 ({paidSubmissionsCount})
@@ -405,10 +405,10 @@ export function AdminDashboardSection({
 
       {/* 訂單卡片列表 */}
       {filteredSubmissions.length === 0 ? (
-        <div className="bg-white rounded-3xl p-10 text-center text-slate-400 text-xs border border-dashed border-slate-200 space-y-2">
+        <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-10 text-center text-slate-400 dark:text-slate-500 text-xs border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
           <div className="text-3xl">🔍</div>
-          <p className="font-bold text-slate-600">找不到符合條件的訂單</p>
-          <p className="text-slate-400">請嘗試更改搜尋關鍵字或切換篩選標籤。</p>
+          <p className="font-bold text-slate-600 dark:text-slate-300">找不到符合條件的訂單</p>
+          <p className="text-slate-400 dark:text-slate-500">請嘗試更改搜尋關鍵字或切換篩選標籤。</p>
         </div>
       ) : (
         <div className={isDesktop ? 'grid grid-cols-1 xl:grid-cols-2 gap-3' : 'space-y-3'}>
@@ -417,10 +417,10 @@ export function AdminDashboardSection({
             return (
               <div
                 key={sub.id}
-                className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-xs space-y-3 transition hover:border-slate-300"
+                className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 sm:p-5 border border-slate-100 dark:border-slate-800 shadow-xs space-y-3 transition hover:border-slate-300 dark:hover:border-slate-700"
               >
                 {/* 頂部姓名、單號與付款切換 */}
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <label htmlFor={`sub-select-${sub.id}`} className="sr-only">{`選取 ${sub.user_nickname} 的訂單`}</label>
                     <input
@@ -441,16 +441,16 @@ export function AdminDashboardSection({
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="font-extrabold text-slate-800 text-base truncate">
+                        <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-base truncate">
                           {sub.user_nickname}
                         </h4>
                         {sub.store_name && (
-                          <span className="bg-sky-50 text-sky-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-sky-100">
+                          <span className="bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10px] px-2 py-0.5 rounded-full font-bold border border-sky-100 dark:border-sky-900/60">
                             {sub.store_name}
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-400 font-mono mt-0.5">
                         #{sub.order_number} • {sub.payment_method_name}
                       </p>
                     </div>
@@ -459,10 +459,10 @@ export function AdminDashboardSection({
                   <button
                     type="button"
                     onClick={() => handleTogglePaid(sub.id, sub.is_paid)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition active:scale-95 shrink-0 ${
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold transition active:scale-95 shrink-0 cursor-pointer ${
                       sub.is_paid
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                        : 'bg-amber-100 text-amber-700 hover:bg-amber-200 animate-pulse'
+                        ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/80 border border-transparent dark:border-emerald-800/60'
+                        : 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/80 border border-transparent dark:border-amber-800/60 animate-pulse'
                     }`}
                   >
                     {sub.is_paid ? '✅ 已付款' : '⏳ 待付款'}
@@ -474,15 +474,15 @@ export function AdminDashboardSection({
                   {(sub.order_items || []).map((item) => (
                     <div
                       key={item.id}
-                      className="text-xs flex items-start justify-between text-slate-600 font-medium"
+                      className="text-xs flex items-start justify-between text-slate-600 dark:text-slate-300 font-medium"
                     >
                       <div>
                         <span>• {item.item_name} x {item.quantity}</span>
                         {item.custom_notes && (
-                          <p className="text-[10px] text-slate-400 pl-2">{item.custom_notes}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-400 pl-2">{item.custom_notes}</p>
                         )}
                       </div>
-                      <span className="font-bold text-slate-700 shrink-0">
+                      <span className="font-bold text-slate-700 dark:text-slate-200 shrink-0">
                         ${item.unit_price * item.quantity}
                       </span>
                     </div>
@@ -491,27 +491,27 @@ export function AdminDashboardSection({
 
                 {/* 缺貨備案提示 */}
                 {sub.sold_out_option && (
-                  <div className="text-[10px] text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/50">
-                    <span className="font-bold text-slate-700">缺貨處理：</span>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-[#182234] px-2.5 py-1 rounded-lg border border-slate-200/50 dark:border-slate-700">
+                    <span className="font-bold text-slate-700 dark:text-slate-200">缺貨處理：</span>
                     {sub.sold_out_option}
                   </div>
                 )}
 
                 {/* 數位簽名預覽 */}
                 {sub.signature_data && (
-                  <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 shrink-0">核實簽名:</span>
+                  <div className="bg-slate-50 dark:bg-[#182234] p-2 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 shrink-0">核實簽名:</span>
                     <img src={sub.signature_data} alt="簽名" className="h-6 object-contain" />
                   </div>
                 )}
 
                 {/* 底部功能捷徑與總額 */}
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
                   <div className="flex gap-1.5 flex-wrap">
                     <button
                       type="button"
                       onClick={() => setSignatureTarget(sub)}
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-xl transition active:scale-95"
+                      className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2.5 py-1 rounded-xl border border-transparent dark:border-slate-700 transition active:scale-95 cursor-pointer"
                     >
                       ✍️ 簽名
                     </button>
@@ -523,27 +523,27 @@ export function AdminDashboardSection({
                           amount: sub.final_amount,
                         })
                       }
-                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-xl transition active:scale-95"
+                      className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2.5 py-1 rounded-xl border border-transparent dark:border-slate-700 transition active:scale-95 cursor-pointer"
                     >
                       💵 找零試算
                     </button>
                     <button
                       type="button"
                       onClick={() => handleCopyPersonalReceipt(sub)}
-                      className="bg-sky-50 hover:bg-sky-100 text-sky-700 text-[10px] font-bold px-2.5 py-1 rounded-xl transition active:scale-95"
+                      className="bg-sky-50 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 text-[10px] font-bold px-2.5 py-1 rounded-xl border border-sky-100 dark:border-slate-700 transition active:scale-95 cursor-pointer"
                     >
                       📋 私訊催款
                     </button>
                     <button
                       type="button"
                       onClick={() => handleDeleteOrder(sub.id, sub.user_nickname, sub.order_number)}
-                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-bold px-2.5 py-1 rounded-xl border border-rose-100 transition active:scale-95 cursor-pointer"
+                      className="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 text-[10px] font-bold px-2.5 py-1 rounded-xl border border-rose-100 dark:border-rose-900/60 transition active:scale-95 cursor-pointer"
                     >
                       🗑️ 刪除
                     </button>
                   </div>
 
-                  <span className="text-sky-600 text-base font-extrabold">
+                  <span className="text-sky-600 dark:text-sky-400 text-base font-extrabold">
                     ${sub.final_amount} 元
                   </span>
                 </div>
@@ -557,63 +557,72 @@ export function AdminDashboardSection({
 
   return (
     <div className="space-y-5">
-      {/* 🏬 多店家/多團購活動即時切換導覽列 */}
-      {activeGroups && activeGroups.length > 1 && (
-        <div className="bg-white rounded-3xl p-3 border border-slate-100 shadow-xs flex items-center gap-2 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1 shrink-0 px-2 text-xs font-extrabold text-slate-500">
-            <span>🏬 進行中團購：</span>
-          </div>
+      {/* 🏬 多店家/多團購活動即時切換導覽列 (僅在有 2 個以上有訂單的活動時顯示；未有任何訂單或只有單一活動有單時不顯示) */}
+      {(() => {
+        const groupsWithOrders = (activeGroups || []).filter((g) => (g.order_count || 0) > 0);
+        const totalActiveOrders = (activeGroups || []).reduce((sum, g) => sum + (g.order_count || 0), 0);
 
-          <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
-            <button
-              type="button"
-              onClick={() => onSelectActiveGroup && onSelectActiveGroup('all')}
-              className={`px-3.5 py-1.5 rounded-2xl text-xs font-extrabold transition shrink-0 flex items-center gap-1.5 border cursor-pointer ${
-                selectedActiveGroupId === 'all'
-                  ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
-              }`}
-            >
-              <span>✨ 全部活動訂單</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+        if (totalActiveOrders === 0 || groupsWithOrders.length <= 1) {
+          return null;
+        }
+
+        return (
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-3 border border-slate-100 dark:border-slate-800 shadow-xs flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-1 shrink-0 px-2 text-xs font-extrabold text-slate-500 dark:text-slate-400">
+              <span>🏬 進行中團購：</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap sm:flex-nowrap">
+              <button
+                type="button"
+                onClick={() => onSelectActiveGroup && onSelectActiveGroup('all')}
+                className={`px-3.5 py-1.5 rounded-2xl text-xs font-extrabold transition shrink-0 flex items-center gap-1.5 border cursor-pointer ${
                   selectedActiveGroupId === 'all'
-                    ? 'bg-white/25 text-white'
-                    : 'bg-slate-200 text-slate-600'
+                    ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                    : 'bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
                 }`}
               >
-                {activeGroups.reduce((sum, g) => sum + (g.order_count || 0), 0)}
-              </span>
-            </button>
-
-            {activeGroups.map((g) => {
-              const isSelected = selectedActiveGroupId === g.id;
-              const storeName = g.stores?.name || g.title;
-              return (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => onSelectActiveGroup && onSelectActiveGroup(g.id)}
-                  className={`px-3.5 py-1.5 rounded-2xl text-xs font-extrabold transition shrink-0 flex items-center gap-1.5 border cursor-pointer ${
-                    isSelected
-                      ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
-                      : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                <span>✨ 全部活動訂單</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                    selectedActiveGroupId === 'all'
+                      ? 'bg-white/25 text-white'
+                      : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                   }`}
                 >
-                  <span>{storeName}</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-600'
+                  {totalActiveOrders}
+                </span>
+              </button>
+
+              {groupsWithOrders.map((g) => {
+                const isSelected = selectedActiveGroupId === g.id;
+                const storeName = g.stores?.name || g.title;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => onSelectActiveGroup && onSelectActiveGroup(g.id)}
+                    className={`px-3.5 py-1.5 rounded-2xl text-xs font-extrabold transition shrink-0 flex items-center gap-1.5 border cursor-pointer ${
+                      isSelected
+                        ? 'bg-sky-500 text-white border-sky-500 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
                     }`}
                   >
-                    {g.order_count || 0}
-                  </span>
-                </button>
-              );
-            })}
+                    <span>{storeName}</span>
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        isSelected ? 'bg-white/25 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      {g.order_count || 0}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 團長旗艦儀表板頂部卡片 */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-sky-900 text-white rounded-3xl p-5 sm:p-6 shadow-lg space-y-4 border border-slate-800">

@@ -104,17 +104,28 @@ export default function CustomModal({
         });
         setSelectedOptions(initialSelections);
 
-        // 檢查是否有未完成草稿
         const draftKey = `menu_app_draft_${item?.id}`;
-        const savedDraft = localStorage.getItem(draftKey);
-        if (savedDraft) {
-          try {
-            const parsed = JSON.parse(savedDraft);
-            if (parsed && parsed.selectedOptions) {
-              setHasDraft(true);
+        if (groups.length === 0) {
+          // 🛡️ 無客製化選項之商品：徹底清除舊草稿並確保不顯示草稿提示
+          localStorage.removeItem(draftKey);
+          setHasDraft(false);
+        } else {
+          // 檢查是否有未完成草稿（僅限有客製化選項之商品）
+          const savedDraft = localStorage.getItem(draftKey);
+          if (savedDraft) {
+            try {
+              const parsed = JSON.parse(savedDraft);
+              if (parsed && parsed.selectedOptions && Object.keys(parsed.selectedOptions).length > 0) {
+                setHasDraft(true);
+              } else {
+                setHasDraft(false);
+              }
+            } catch (e) {
+              console.error('讀取草稿失敗', e);
+              setHasDraft(false);
             }
-          } catch (e) {
-            console.error('讀取草稿失敗', e);
+          } else {
+            setHasDraft(false);
           }
         }
       }
@@ -125,9 +136,9 @@ export default function CustomModal({
     loadGroups();
   }, [item, existingCartItem]);
 
-  // 2. 自動暫存草稿至 LocalStorage（僅在新增模式）
+  // 2. 自動暫存草稿至 LocalStorage（僅在有客製化選項且為新增模式時）
   useEffect(() => {
-    if (!item || existingCartItem || loading) return;
+    if (!item || existingCartItem || loading || customGroups.length === 0) return;
     const draftKey = `menu_app_draft_${item.id}`;
     const draftData = {
       selectedOptions,
@@ -136,7 +147,7 @@ export default function CustomModal({
       savedAt: Date.now(),
     };
     localStorage.setItem(draftKey, JSON.stringify(draftData));
-  }, [selectedOptions, quantity, customNotes, item, existingCartItem, loading]);
+  }, [selectedOptions, quantity, customNotes, item, existingCartItem, loading, customGroups.length]);
 
   const handleRestoreDraft = () => {
     if (!item) return;
@@ -258,26 +269,26 @@ export default function CustomModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[88vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 shadow-2xl">
+      <div className="bg-white dark:bg-[#131B2B] text-slate-800 dark:text-slate-100 w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[88vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 shadow-2xl border border-slate-100 dark:border-slate-800">
         {/* Modal 頂部標題 */}
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
           <div>
-            <h3 className="text-base font-extrabold text-slate-800 flex items-center gap-2">
+            <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <span>{item.name}</span>
               {existingCartItem && (
-                <span className="text-[10px] bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded-full font-bold">
                   修改規格
                 </span>
               )}
             </h3>
-            <p className="text-xs text-sky-600 font-extrabold mt-0.5">
+            <p className="text-xs text-sky-600 dark:text-sky-400 font-extrabold mt-0.5">
               基本單價 ${item.price} 元起
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition flex items-center justify-center text-sm font-bold active:scale-95"
+            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center text-sm font-bold active:scale-95"
           >
             ✕
           </button>
@@ -285,7 +296,7 @@ export default function CustomModal({
 
         {/* 草稿恢復提示條 */}
         {hasDraft && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-xs text-amber-800">
+          <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/60 px-4 py-2 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
             <span className="font-bold">📋 偵測到上次選到一半的草稿</span>
             <div className="flex items-center gap-2">
               <button
@@ -298,7 +309,7 @@ export default function CustomModal({
               <button
                 type="button"
                 onClick={handleDiscardDraft}
-                className="text-slate-400 hover:text-slate-600 text-[11px]"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[11px]"
               >
                 捨棄
               </button>
@@ -308,33 +319,29 @@ export default function CustomModal({
 
         {/* 錯誤警告 */}
         {errorMsg && (
-          <div className="mx-4 mt-3 bg-red-50 text-red-600 text-xs font-bold p-2.5 rounded-xl border border-red-100 flex items-center gap-1.5 animate-shake">
+          <div className="mx-4 mt-3 bg-red-50 dark:bg-rose-950/40 text-red-600 dark:text-rose-300 text-xs font-bold p-2.5 rounded-xl border border-red-100 dark:border-rose-900/60 flex items-center gap-1.5 animate-shake">
             <span>⚠️</span>
             <span>{errorMsg}</span>
           </div>
         )}
 
         {/* 客製選項主體 */}
-        <div className="p-4 overflow-y-auto space-y-4 flex-1 text-slate-700 divide-y divide-slate-100">
+        <div className="p-4 overflow-y-auto space-y-4 flex-1 text-slate-700 dark:text-slate-200 divide-y divide-slate-100 dark:divide-slate-800">
           {loading ? (
-            <div className="text-center py-10 text-slate-400 text-xs animate-pulse">
+            <div className="text-center py-10 text-slate-400 dark:text-slate-500 text-xs animate-pulse">
               正在載入餐點規格選項...
             </div>
-          ) : customGroups.length === 0 ? (
-            <div className="text-center py-6 text-slate-400 text-xs">
-              此餐點為基本款，無其他客製化選項。
-            </div>
-          ) : (
+          ) : customGroups.length === 0 ? null : (
             customGroups.map((group) => {
               const currentSelected = selectedOptions[group.id] || [];
               return (
                 <div key={group.id} className="pt-3 first:pt-0 space-y-2">
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-200">
                     <span className="flex items-center gap-1">
                       <span>{group.title}</span>
                       {group.type === 'single' && <span className="text-sky-500">*</span>}
                     </span>
-                    <span className="text-[10px] text-slate-400 font-medium">
+                    <span className="text-[10px] text-slate-400 dark:text-slate-400 font-medium">
                       {group.type === 'single' && '必選 1 個'}
                       {group.type === 'any' && '可多選或不選'}
                       {group.type === 'limit' && `最多選 ${group.limit_number || 1} 個`}
@@ -352,14 +359,14 @@ export default function CustomModal({
                           className={`p-2.5 rounded-2xl text-xs font-bold border text-left transition flex items-center justify-between active:scale-[0.98] ${
                             isChecked
                               ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100/80'
+                              : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100/80 dark:hover:bg-slate-700'
                           }`}
                         >
                           <span className="truncate mr-1">{opt.name}</span>
                           {opt.price_adjustment > 0 ? (
                             <span
                               className={`text-[10px] font-extrabold shrink-0 ${
-                                isChecked ? 'text-white' : 'text-sky-600'
+                                isChecked ? 'text-white' : 'text-sky-600 dark:text-sky-400'
                               }`}
                             >
                               +${opt.price_adjustment}
@@ -367,7 +374,7 @@ export default function CustomModal({
                           ) : (
                             <span
                               className={`text-[10px] ${
-                                isChecked ? 'text-sky-100' : 'text-slate-400'
+                                isChecked ? 'text-sky-100' : 'text-slate-400 dark:text-slate-400'
                               }`}
                             >
                               +0
@@ -384,7 +391,7 @@ export default function CustomModal({
 
           {/* 特製備註輸入框 */}
           <div className="pt-3 space-y-1.5">
-            <label htmlFor="custom-notes-input" className="text-xs font-bold text-slate-700">特製備註 (選填)</label>
+            <label htmlFor="custom-notes-input" className="text-xs font-bold text-slate-700 dark:text-slate-200">特製備註 (選填)</label>
             <input
               id="custom-notes-input"
               name="customNotes"
@@ -392,26 +399,26 @@ export default function CustomModal({
               placeholder="有其他個人需求嗎？填寫備註..."
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
 
           {/* 購買數量調整 */}
           <div className="pt-3 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-700">購買數量</span>
-            <div className="flex items-center gap-3 bg-slate-100 rounded-xl p-1">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">購買數量</span>
+            <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200/60 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="w-7 h-7 rounded-lg bg-white text-slate-700 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center"
               >
                 -
               </button>
-              <span className="text-xs font-bold w-4 text-center">{quantity}</span>
+              <span className="text-xs font-bold w-4 text-center text-slate-800 dark:text-slate-100">{quantity}</span>
               <button
                 type="button"
                 onClick={() => setQuantity((q) => q + 1)}
-                className="w-7 h-7 rounded-lg bg-white text-slate-700 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center"
+                className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center"
               >
                 +
               </button>
@@ -420,10 +427,10 @@ export default function CustomModal({
         </div>
 
         {/* Modal 底部結算與按鈕 */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between gap-3">
           <div>
-            <span className="text-[10px] text-slate-400 font-bold block">合計金額</span>
-            <span className="text-lg font-extrabold text-sky-600">${itemTotalPrice} 元</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">合計金額</span>
+            <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">${itemTotalPrice} 元</span>
           </div>
           <button
             type="button"

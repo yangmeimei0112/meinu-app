@@ -342,12 +342,12 @@ function CheckoutContent() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-20 transition-colors duration-200">
       <OfflineBanner />
       <Header />
 
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg animate-in fade-in zoom-in duration-200">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg border border-slate-700 animate-in fade-in zoom-in duration-200">
           {toastMessage}
         </div>
       )}
@@ -355,12 +355,12 @@ function CheckoutContent() {
       <main className="max-w-md mx-auto px-4 pt-3 space-y-4">
         <Link
           href="/cart"
-          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-sky-500 transition py-1"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 transition py-1"
         >
           ‹ 返回購物車修改品項
         </Link>
 
-        <h2 className="text-xl font-extrabold text-slate-800">📋 確認點餐與結帳</h2>
+        <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">📋 確認點餐與結帳</h2>
 
         {/* 🍯 蜜罐陷阱欄位：視覺不可見，專門捕捉盲目填充的自動化腳本 */}
         <div aria-hidden="true" style={{ opacity: 0, position: 'absolute', top: -9999, left: -9999, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }}>
@@ -377,8 +377,8 @@ function CheckoutContent() {
         </div>
 
         {cartItems.length === 0 ? (
-          <div className="bg-white rounded-3xl p-8 text-center border border-slate-100 space-y-3">
-            <p className="text-sm font-semibold text-slate-600">購物車目前沒有餐點喔！</p>
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center border border-slate-100 dark:border-slate-800 space-y-3">
+            <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">購物車目前沒有餐點喔！</p>
             <Link
               href="/"
               className="inline-block bg-sky-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-xs"
@@ -397,42 +397,42 @@ function CheckoutContent() {
                 />
               )}
 
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs space-y-3">
+              <h3 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
                 1. 點餐明細 ({cartItems[0]?.storeName})
               </h3>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {cartItems.map((item) => (
                   <div key={item.cartItemId} className="py-2.5 space-y-1">
-                    <div className="flex items-center justify-between text-sm font-bold text-slate-800">
+                    <div className="flex items-center justify-between text-sm font-bold text-slate-800 dark:text-slate-100">
                       <span>
                         {item.name} x {item.quantity}
                       </span>
-                      <span>${item.totalPrice} 元</span>
+                      <span className="text-sky-600 dark:text-sky-400">${item.totalPrice} 元</span>
                     </div>
                     {item.selectedOptions.length > 0 && (
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-400 dark:text-slate-400">
                         {item.selectedOptions
                           .map((opt) => `${opt.groupTitle}: ${opt.itemName}`)
                           .join(' / ')}
                       </p>
                     )}
                     {item.customNotes && (
-                      <p className="text-xs text-sky-600">備註：{item.customNotes}</p>
+                      <p className="text-xs text-sky-600 dark:text-sky-400">備註：{item.customNotes}</p>
                     )}
                   </div>
                 ))}
               </div>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between font-extrabold text-base text-slate-800">
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between font-extrabold text-base text-slate-800 dark:text-slate-100">
                 <span>合計總金額</span>
-                <span className="text-sky-600">${grandTotal} 元</span>
+                <span className="text-sky-600 dark:text-sky-400">${grandTotal} 元</span>
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-2">
-              <label htmlFor="checkout-nickname-input" className="text-xs font-bold text-slate-700 flex items-center justify-between">
+            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs space-y-2">
+              <label htmlFor="checkout-nickname-input" className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
                 <span>2. 你的訂購暱稱 <span className="text-sky-500">*</span></span>
-                <span className="text-[10px] text-slate-400">下次會自動記憶</span>
+                <span className="text-[10px] text-slate-400 dark:text-slate-400">下次會自動記憶</span>
               </label>
               <input
                 id="checkout-nickname-input"
@@ -441,20 +441,20 @@ function CheckoutContent() {
                 placeholder="例如：小明 / 行銷部 賢義"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 px-3 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
               />
               {checkingDuplicate && nickname.trim() && (
-                <p className="text-[11px] text-slate-400">正在檢查是否重複暱稱...</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">正在檢查是否重複暱稱...</p>
               )}
               {!checkingDuplicate && hasDuplicateNickname && nickname.trim() && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 text-[11px] text-amber-700 font-semibold">
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl p-2 text-[11px] text-amber-700 dark:text-amber-300 font-semibold">
                   ⚠️ 目前已有同名暱稱，建議加上姓氏或代號避免對帳混淆。
                 </div>
               )}
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-slate-700">3. 選擇付款方式</h3>
+            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs space-y-3">
+              <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200">3. 選擇付款方式</h3>
               <div className="space-y-2">
                 {paymentMethods.map((pm) => {
                   const isSelected = selectedPayment === pm.name;
@@ -464,21 +464,21 @@ function CheckoutContent() {
                       onClick={() => setSelectedPayment(pm.name)}
                       className={`p-3 rounded-2xl border transition cursor-pointer space-y-1.5 ${
                         isSelected
-                          ? 'border-sky-500 bg-sky-50/50'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                          ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/30'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-700'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-800">{pm.name}</span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{pm.name}</span>
                         <span className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
-                          isSelected ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-300'
+                          isSelected ? 'border-sky-500 bg-sky-500 text-white' : 'border-slate-300 dark:border-slate-600'
                         }`}>
                           {isSelected && '✓'}
                         </span>
                       </div>
                       {pm.account_info && (
-                        <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-100">
-                          <p className="text-[11px] text-slate-500 truncate mr-2">
+                        <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-100 dark:border-slate-700">
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mr-2">
                             {pm.account_info}
                           </p>
                           <button
@@ -487,7 +487,7 @@ function CheckoutContent() {
                               e.stopPropagation();
                               handleCopyAccount(pm.account_info || '');
                             }}
-                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1 rounded-lg shrink-0 transition"
+                            className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2.5 py-1 rounded-lg shrink-0 transition"
                           >
                             📋 複製帳號
                           </button>
@@ -499,8 +499,8 @@ function CheckoutContent() {
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3">
-              <h3 className="text-xs font-bold text-slate-700">4. 若店家品項缺貨時的備案</h3>
+            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs space-y-3">
+              <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200">4. 若店家品項缺貨時的備案</h3>
               <div className="space-y-2">
                 {soldOutOptions.map((so) => {
                   const isSelected = selectedSoldOut === so.title;
@@ -510,8 +510,8 @@ function CheckoutContent() {
                       onClick={() => setSelectedSoldOut(so.title)}
                       className={`p-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition flex items-center justify-between ${
                         isSelected
-                          ? 'border-sky-500 bg-sky-50/50 text-sky-600'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                          ? 'border-sky-500 bg-sky-50/50 dark:bg-sky-950/30 text-sky-600 dark:text-sky-300'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                       }`}
                     >
                       <span>{so.title}</span>

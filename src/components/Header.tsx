@@ -60,9 +60,9 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-sky-100 shadow-xs">
+    <header className="sticky top-0 z-50 bg-white/90 dark:bg-[#0B0F17]/90 backdrop-blur-md border-b border-sky-100 dark:border-slate-800 shadow-xs">
       {toastMessage && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg animate-in fade-in zoom-in duration-200">
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg border border-slate-700 animate-in fade-in zoom-in duration-200">
           {toastMessage}
         </div>
       )}
@@ -76,7 +76,7 @@ export default function Header() {
             width={100}
             height={32}
             priority
-            className="object-contain h-7 w-auto"
+            className="object-contain h-7 w-auto dark:brightness-110"
           />
         </Link>
 
@@ -93,7 +93,7 @@ export default function Header() {
               placeholder="#快碼"
               value={shortCode}
               onChange={(e) => setShortCode(e.target.value.toUpperCase())}
-              className="w-full bg-slate-50 text-slate-800 border border-slate-200 rounded-xl py-1 px-2.5 text-xs text-center font-mono font-bold tracking-wider placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-slate-50 dark:bg-[#182234] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl py-1 px-2.5 text-xs text-center font-mono font-bold tracking-wider placeholder:font-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
             <button
               type="submit"
@@ -108,7 +108,7 @@ export default function Header() {
           {/* 我的訂單按鈕 */}
           <Link
             href="/my-orders"
-            className="relative bg-sky-50 hover:bg-sky-100 text-sky-700 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 active:scale-95"
+            className="relative bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 dark:border-slate-700 active:scale-95"
             title="查看我的送訂紀錄與付款狀態"
           >
             <span>📋 訂單</span>
@@ -121,7 +121,7 @@ export default function Header() {
           <button
             type="button"
             onClick={handleSharePlatform}
-            className="bg-sky-50 hover:bg-sky-100 text-sky-600 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-0.5 border border-sky-100 active:scale-95"
+            className="bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-0.5 border border-sky-100 dark:border-slate-700 active:scale-95"
             title="分享平台"
           >
             <span>🔗 分享</span>
@@ -131,7 +131,7 @@ export default function Header() {
           <button
             type="button"
             onClick={() => setIsQrModalOpen(true)}
-            className="bg-sky-50 hover:bg-sky-100 text-sky-600 p-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center border border-sky-100 active:scale-95"
+            className="bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 p-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center border border-sky-100 dark:border-slate-700 active:scale-95"
             title="顯示現場 QR Code"
           >
             📱

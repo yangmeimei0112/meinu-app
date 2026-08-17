@@ -94,17 +94,17 @@ export default function QRCodeModal({
 
   const modalContent = (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 relative transform transition-all my-auto max-h-[90vh] overflow-y-auto flex flex-col"
+        className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100 rounded-2xl shadow-2xl max-w-sm w-full p-6 relative transform transition-all my-auto max-h-[90vh] overflow-y-auto flex flex-col border border-slate-100 dark:border-slate-800"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 關閉按鈕 */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition"
           aria-label="關閉"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,15 +115,15 @@ export default function QRCodeModal({
         {/* 標題區 */}
         <div className="text-center mb-4 shrink-0">
           <div className="text-3xl mb-1">📱</div>
-          <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-          <p className="text-xs text-gray-500 mt-1">使用手機相機掃描 QR Code 即可開啟網頁</p>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100">{title}</h3>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">使用手機相機掃描 QR Code 即可開啟網頁</p>
         </div>
 
         {/* QR Code 展示區 */}
         <div className="flex justify-center mb-4 shrink-0">
           <div
             ref={qrContainerRef}
-            className="p-4 bg-white rounded-xl border-2 border-sky-100 shadow-inner flex items-center justify-center"
+            className="p-4 bg-white rounded-xl border-2 border-sky-100 dark:border-slate-700 shadow-inner flex items-center justify-center"
           >
             {targetUrl ? (
               <QRCodeSVG
@@ -135,7 +135,7 @@ export default function QRCodeModal({
                 includeMargin={false}
               />
             ) : (
-              <div className="w-[180px] h-[180px] bg-gray-100 animate-pulse rounded-lg flex items-center justify-center text-xs text-gray-400">
+              <div className="w-[180px] h-[180px] bg-gray-100 dark:bg-slate-800 animate-pulse rounded-lg flex items-center justify-center text-xs text-gray-400">
                 載入中...
               </div>
             )}
@@ -143,14 +143,14 @@ export default function QRCodeModal({
         </div>
 
         {/* 網址欄與複製 */}
-        <div className="bg-sky-50/70 rounded-lg p-2.5 mb-4 flex items-center justify-between text-xs border border-sky-100 shrink-0">
-          <span className="text-sky-800 font-mono truncate mr-2 flex-1">
+        <div className="bg-sky-50/70 dark:bg-slate-800/80 rounded-lg p-2.5 mb-4 flex items-center justify-between text-xs border border-sky-100 dark:border-slate-700 shrink-0">
+          <span className="text-sky-800 dark:text-sky-300 font-mono truncate mr-2 flex-1">
             {targetUrl}
           </span>
           <button
             type="button"
             onClick={handleCopy}
-            className="bg-white hover:bg-sky-100 text-sky-700 px-2.5 py-1 rounded border border-sky-200 font-medium transition shrink-0 active:scale-95"
+            className="bg-white dark:bg-slate-700 hover:bg-sky-100 dark:hover:bg-slate-600 text-sky-700 dark:text-sky-200 px-2.5 py-1 rounded border border-sky-200 dark:border-slate-600 font-medium transition shrink-0 active:scale-95"
           >
             {copied ? '✓ 已複製' : '複製'}
           </button>
@@ -171,7 +171,7 @@ export default function QRCodeModal({
           <button
             type="button"
             onClick={onClose}
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 px-4 rounded-xl transition text-sm active:scale-95"
+            className="bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-medium py-2.5 px-4 rounded-xl transition text-sm active:scale-95"
           >
             關閉
           </button>

@@ -70,23 +70,23 @@ export default function LiveOrderCounter({
   if (!hasData && count === 0) return null;
 
   return (
-    <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-sky-500/10 border border-amber-200/60 text-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between gap-2 animate-in fade-in duration-300">
+    <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-sky-500/10 dark:from-amber-950/30 dark:via-slate-900/40 dark:to-sky-950/30 border border-amber-200/60 dark:border-amber-900/40 text-slate-800 dark:text-slate-100 rounded-2xl p-3 shadow-xs flex items-center justify-between gap-2 animate-in fade-in duration-300">
       <div className="flex items-center gap-2 min-w-0">
         <span className="relative flex h-3 w-3 shrink-0">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
         </span>
         <div className="min-w-0">
-          <p className="text-xs font-extrabold text-slate-800 truncate">
+          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
             🔥 全團點餐進度
           </p>
-          <p className="text-[11px] text-slate-600 font-medium">
-            目前已收到 <span className="font-extrabold text-amber-600">{count}</span> 筆訂單，共累計{' '}
-            <span className="font-extrabold text-sky-600">${totalAmount} 元</span>
+          <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+            目前已收到 <span className="font-extrabold text-amber-600 dark:text-amber-400">{count}</span> 筆訂單，共累計{' '}
+            <span className="font-extrabold text-sky-600 dark:text-sky-400">${totalAmount} 元</span>
           </p>
         </div>
       </div>
-      <div className="bg-white px-2.5 py-1 rounded-xl text-[10px] font-extrabold text-amber-600 border border-amber-100 shadow-2xs shrink-0">
+      <div className="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl text-[10px] font-extrabold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40 shadow-2xs shrink-0">
         熱烈跟風中 🚀
       </div>
     </div>

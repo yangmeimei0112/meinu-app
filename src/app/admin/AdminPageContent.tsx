@@ -17,8 +17,10 @@ import AdminBatchImportModal from './AdminBatchImportModal';
 import AdminGroupSettingsModal from './AdminGroupSettingsModal';
 import { compressImageToWebP } from '@/lib/image-compress';
 import { generateMathChallenge, getLockoutDurationSec, securityDelay } from '@/lib/security';
+import { useTheme } from '@/lib/theme';
 
 export default function AdminPageContent() {
+  const { theme, toggleTheme } = useTheme();
   const [passcode, setPasscode] = useState<string>('');
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive'>('active');
@@ -28,6 +30,7 @@ export default function AdminPageContent() {
   // 🔔 即時音效狀態 Ref 保持最新值，防止閉包陷阱
   const isSoundEnabledRef = useRef<boolean>(true);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const audioObjRef = useRef<HTMLAudioElement | null>(null);
   const selectedActiveGroupIdRef = useRef<string>('all');
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const processedNotificationIdsRef = useRef<Set<string>>(new Set());
@@ -36,8 +39,16 @@ export default function AdminPageContent() {
   // 🛡️ 記錄後台進入/解鎖的絕對時間戳（任何早於此時間點的訂單均為歷史訂單，絕不重複發送通知）
   const sessionMountTimeRef = useRef<number>(Date.now());
 
-  // 初始化時讀取 sessionStorage 中已通知過的訂單 ID
+  // 初始化時預先載入音效檔案並讀取 sessionStorage 中已通知過的訂單 ID
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const audio = new Audio('/notification.mp3');
+        audio.preload = 'auto';
+        audioObjRef.current = audio;
+      } catch {}
+    }
+
     try {
       const stored = sessionStorage.getItem('menu_app_processed_notifications');
       if (stored) {
@@ -50,7 +61,7 @@ export default function AdminPageContent() {
   }, []);
 
   const notifyNewOrder = (orderId: string, nickname: string, orderCreatedAt?: string | number) => {
-    // 🛡️ 防線 1：檢查是否已在通知集合中
+    // 🛡️ 防線 1：檢查是否已在通知集合中（一筆訂單終身僅響鈴一次）
     if (processedNotificationIdsRef.current.has(orderId)) return;
 
     // 🛡️ 防線 2：時間戳過濾（若訂單建立時間早於進入後台的時間，一律視為歷史訂單直接登記，絕不響鈴）
@@ -62,21 +73,18 @@ export default function AdminPageContent() {
       }
     }
 
+    // 立即將此單號鎖定至已通知清單（不可撤回）
     processedNotificationIdsRef.current.add(orderId);
     knownOrderIdsRef.current.add(orderId);
 
     // 持久化至 sessionStorage，避免同分頁重新整理時重複通知
     try {
-      const arr = Array.from(processedNotificationIdsRef.current).slice(-200);
+      const arr = Array.from(processedNotificationIdsRef.current).slice(-300);
       sessionStorage.setItem('menu_app_processed_notifications', JSON.stringify(arr));
     } catch {}
 
-    const now = Date.now();
-    if (now - lastNotificationTimeRef.current > 1800) {
-      lastNotificationTimeRef.current = now;
-      playChimeSound();
-      showToast(`🔔 叮咚！收到 ${nickname || '團員'} 的新訂單！`);
-    }
+    playChimeSound();
+    showToast(`🔔 叮咚！收到 ${nickname || '團員'} 的新訂單！`);
   };
 
   useEffect(() => {
@@ -280,13 +288,31 @@ export default function AdminPageContent() {
 
   const playChimeSound = () => {
     if (!isSoundEnabledRef.current) return;
+
+    // 🛡️ 嚴格防重放節流閥：若 2.5 秒內已發聲過，絕不重複發聲
+    const now = Date.now();
+    if (now - lastNotificationTimeRef.current < 2500) {
+      return;
+    }
+    lastNotificationTimeRef.current = now;
+
     try {
-      // 🚀 雙引擎同時並行發聲：Web Audio API 原生震盪器 + notification.mp3
-      playSynthesizedChime();
-      const audio = new Audio('/notification.mp3');
-      audio.volume = 1.0;
-      audio.play().catch(() => {});
-    } catch {
+      // 優先使用標準 HTML5 Audio 播放真實 MP3 鈴聲
+      if (audioObjRef.current) {
+        audioObjRef.current.currentTime = 0;
+        const playPromise = audioObjRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err) => {
+            console.warn('Audio play error, falling back to Web Audio:', err);
+            // 只有當 MP3 播放失敗時，才以 Web Audio API 作為備用發聲
+            playSynthesizedChime();
+          });
+        }
+      } else {
+        playSynthesizedChime();
+      }
+    } catch (e) {
+      console.warn('playChimeSound fallback:', e);
       playSynthesizedChime();
     }
   };
@@ -545,9 +571,10 @@ export default function AdminPageContent() {
   useEffect(() => {
     if (!isUnlocked) return;
 
-    // 1. 即時訂單、明細與活動變更監聽頻道 (WebSocket 即時廣播)
+    // 1. 即時訂單、明細與活動變更監聽頻道 (WebSocket 即時廣播，使用隨機唯一頻道名防止連線殘留)
+    const channelName = `admin-rt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const channel = supabase
-      .channel('admin-realtime-global')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'order_submissions' },
@@ -581,6 +608,7 @@ export default function AdminPageContent() {
                   : s
               )
             );
+            fetchAdminData(selectedActiveGroupIdRef.current, true);
           }
         }
       )
@@ -590,11 +618,13 @@ export default function AdminPageContent() {
         (payload) => {
           const deletedId = (payload.old as any)?.id;
           if (deletedId) {
+            // ⚡ 0ms 立即樂觀移除該筆訂單與選取狀態
             setAllSubmissions((prev) => prev.filter((s) => s.id !== deletedId));
             setSelectedSubmissionIds((prev) => prev.filter((id) => id !== deletedId));
-          } else {
-            fetchAdminData(selectedActiveGroupIdRef.current, true);
+            knownOrderIdsRef.current.delete(deletedId);
           }
+          // ⚡ 即時同步重新抓取與計算各進行中團購的即時訂單數與總營業額
+          fetchAdminData(selectedActiveGroupIdRef.current, true);
         }
       )
       .on(
@@ -613,21 +643,24 @@ export default function AdminPageContent() {
       )
       .subscribe();
 
-    // 2. 智慧雙保險輪詢 (Smart High-Frequency Polling - 3.5 秒)
-    // 即使背景分頁降頻或 WebSocket 休眠，也能在 3.5 秒內自動捕獲新訂單並響鈴（每筆單號終身僅響鈴一次）
+    // 2. 智慧雙保險輪詢 (Smart High-Frequency Polling - 3 秒)
+    // 即使背景分頁降頻或 WebSocket 休眠，也能在 3 秒內自動捕獲「新訂單送達」或「前台使用者取消訂單」
     const pollingTimer = setInterval(async () => {
       try {
         const { data: latestSubs } = await supabase
           .from('order_submissions')
-          .select('id, user_nickname, created_at')
-          .order('created_at', { ascending: false })
-          .limit(10);
+          .select('id, user_nickname, created_at, group_order_id')
+          .order('created_at', { ascending: false });
 
-        if (latestSubs && latestSubs.length > 0 && !isInitialLoadRef.current) {
+        if (latestSubs && !isInitialLoadRef.current) {
+          const currentIdSet = new Set(latestSubs.map((s) => s.id));
           let hasNew = false;
+          let hasDeleted = false;
+
+          // 檢查是否有新送達的訂單
           for (const sub of latestSubs) {
             const orderTime = sub.created_at ? new Date(sub.created_at).getTime() : 0;
-            // 🛡️ 建立時間早於進入頁面時間的訂單一律標記為已處理，絕不誤發通知
+            // 建立時間早於進入頁面時間的訂單標記為已處理
             if (orderTime < sessionMountTimeRef.current - 3000) {
               processedNotificationIdsRef.current.add(sub.id);
               continue;
@@ -639,14 +672,24 @@ export default function AdminPageContent() {
             }
           }
 
-          if (hasNew) {
+          // 檢查是否有前台使用者取消 / 刪除的訂單（已存在於 knownOrderIdsRef 但不在目前 DB 中）
+          for (const knownId of Array.from(knownOrderIdsRef.current)) {
+            if (!currentIdSet.has(knownId)) {
+              hasDeleted = true;
+              knownOrderIdsRef.current.delete(knownId);
+              // 注意：processedNotificationIdsRef 終身保留，防止歷史訂單重複響鈴
+            }
+          }
+
+          // 若有新訂單或有訂單被取消，立即同步更新後台資料與營業統計
+          if (hasNew || hasDeleted) {
             fetchAdminData(selectedActiveGroupIdRef.current, true);
           }
         }
       } catch (err) {
         console.error('智慧輪詢更新失敗:', err);
       }
-    }, 3500);
+    }, 3000);
 
     return () => {
       supabase.removeChannel(channel);
@@ -1212,10 +1255,11 @@ export default function AdminPageContent() {
       await supabase.from('order_items').delete().eq('submission_id', subId);
       const { error } = await supabase.from('order_submissions').delete().eq('id', subId);
       if (error) throw error;
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
     } catch (err) {
       console.error('刪除訂單失敗:', err);
       showToast('❌ 刪除訂單失敗，正在重新同步...');
-      fetchAdminData(selectedActiveGroupIdRef.current);
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
     }
   };
 
@@ -1241,10 +1285,11 @@ export default function AdminPageContent() {
       await supabase.from('order_items').delete().in('submission_id', idsToDelete);
       const { error } = await supabase.from('order_submissions').delete().in('id', idsToDelete);
       if (error) throw error;
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
     } catch (err) {
       console.error('批次刪除訂單失敗:', err);
       showToast('❌ 批次刪除失敗，正在重新同步...');
-      fetchAdminData(selectedActiveGroupIdRef.current);
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
     }
   };
 
@@ -1394,22 +1439,22 @@ export default function AdminPageContent() {
 
   if (!isUnlocked) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-between pb-12">
+      <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col justify-between pb-12 transition-colors duration-200">
         <Header />
         <main className="max-w-md mx-auto w-full px-4 py-8">
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4 text-center">
-            <div className="w-16 h-16 rounded-full bg-sky-50 text-sky-500 text-3xl mx-auto flex items-center justify-center font-bold border border-sky-100">
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm space-y-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-sky-50 dark:bg-sky-950/40 text-sky-500 text-3xl mx-auto flex items-center justify-center font-bold border border-sky-100 dark:border-sky-900/60">
               👑
             </div>
             <div>
-              <h2 className="text-xl font-extrabold text-slate-800">「咩nu」團長管理後台</h2>
-              <p className="text-xs text-slate-400 mt-1">請輸入團長密碼解鎖權限</p>
+              <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">「咩nu」團長管理後台</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">請輸入團長密碼解鎖權限</p>
             </div>
 
             {lockoutRemaining > 0 ? (
-              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center space-y-1">
-                <p className="text-xs font-bold text-rose-700">🔒 密碼錯誤次數過多</p>
-                <p className="text-[11px] text-rose-600">系統防撞庫鎖定中，請於 <span className="font-bold font-mono">{lockoutRemaining}</span> 秒後再試</p>
+              <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl p-4 text-center space-y-1">
+                <p className="text-xs font-bold text-rose-700 dark:text-rose-300">🔒 密碼錯誤次數過多</p>
+                <p className="text-[11px] text-rose-600 dark:text-rose-400">系統防撞庫鎖定中，請於 <span className="font-bold font-mono">{lockoutRemaining}</span> 秒後再試</p>
               </div>
             ) : (
               <form onSubmit={handleUnlock} className="space-y-3 pt-2">
@@ -1423,13 +1468,13 @@ export default function AdminPageContent() {
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value)}
                   disabled={isVerifying}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-center text-sm font-bold focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-50"
+                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-center text-sm font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-50"
                 />
 
                 {/* 🛡️ 撞庫防護：連續錯誤 2 次以上啟動動態人機挑戰 */}
                 {failedAttempts >= 2 && (
-                  <div className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3 text-left space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-amber-800">
+                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 rounded-2xl p-3 text-left space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-amber-800 dark:text-amber-300">
                       <span>🤖 人機驗證安全挑戰：</span>
                       <button
                         type="button"
@@ -1437,13 +1482,13 @@ export default function AdminPageContent() {
                           setCaptchaChallenge(generateMathChallenge());
                           setCaptchaInput('');
                         }}
-                        className="text-sky-600 hover:text-sky-700 underline text-[10px] cursor-pointer"
+                        className="text-sky-600 dark:text-sky-400 hover:text-sky-700 underline text-[10px] cursor-pointer"
                       >
                         🔄 換一題
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="bg-white px-3 py-1.5 rounded-xl border border-amber-200 font-mono font-extrabold text-amber-900 text-sm tracking-wider shadow-xs">
+                      <span className="bg-white dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-900/60 font-mono font-extrabold text-amber-900 dark:text-amber-300 text-sm tracking-wider shadow-xs">
                         {captchaChallenge.question}
                       </span>
                       <label htmlFor="admin-captcha-input" className="sr-only">人機驗證答案</label>
@@ -1456,7 +1501,7 @@ export default function AdminPageContent() {
                         value={captchaInput}
                         onChange={(e) => setCaptchaInput(e.target.value)}
                         disabled={isVerifying}
-                        className="flex-1 bg-white border border-amber-200 rounded-xl py-1.5 px-3 text-center text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
+                        className="flex-1 bg-white dark:bg-[#182234] border border-amber-200 dark:border-amber-900/60 rounded-xl py-1.5 px-3 text-center text-sm font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -1465,7 +1510,7 @@ export default function AdminPageContent() {
                 <button
                   type="submit"
                   disabled={isVerifying}
-                  className="w-full bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 text-white font-bold py-3 rounded-2xl text-sm transition shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white font-bold py-3 rounded-2xl text-sm transition shadow-sm active:scale-95 cursor-pointer flex items-center justify-center gap-2"
                 >
                   {isVerifying ? (
                     <>
@@ -1488,12 +1533,12 @@ export default function AdminPageContent() {
   const isDesktop = viewMode === 'desktop';
 
   return (
-    <div className={`min-h-screen pb-20 transition-colors ${isDesktop ? 'bg-slate-100/70' : 'bg-slate-200/60'}`}>
+    <div className={`min-h-screen pb-20 transition-colors duration-200 ${isDesktop ? 'bg-slate-100/70 dark:bg-[#0B0F17]' : 'bg-slate-200/60 dark:bg-[#06090E]'}`}>
       <OfflineBanner />
       <Header />
 
       {toastMessage && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg animate-in fade-in zoom-in duration-200">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900 dark:bg-slate-800 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg border border-slate-700 animate-in fade-in zoom-in duration-200">
           {toastMessage}
         </div>
       )}
@@ -1503,20 +1548,20 @@ export default function AdminPageContent() {
         className={`mx-auto pt-4 space-y-4 transition-all duration-300 ${
           isDesktop
             ? 'max-w-7xl px-4 sm:px-6 lg:px-8'
-            : 'max-w-md px-4 min-h-screen bg-slate-50 border-x border-slate-200/80 shadow-2xl rounded-3xl my-2'
+            : 'max-w-md px-4 min-h-screen bg-slate-50 dark:bg-[#0B0F17] border-x border-slate-200/80 dark:border-slate-800 shadow-2xl rounded-3xl my-2'
         }`}
       >
         {/* 頂部操作與模式切換 Bar */}
-        <div className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-white dark:bg-[#131B2B] text-slate-800 dark:text-slate-100 rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 flex-wrap">
             <Link
               href="/"
-              className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-sky-600 transition py-1"
+              className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition py-1"
             >
               ‹ 返回點餐大廳
             </Link>
-            <span className="text-slate-300">|</span>
-            <span className="text-xs font-extrabold text-slate-800 truncate">
+            <span className="text-slate-300 dark:text-slate-700">|</span>
+            <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
               {activeGroup?.title || '咩nu 團購活動後台'}
             </span>
           </div>
@@ -1529,8 +1574,8 @@ export default function AdminPageContent() {
                 onClick={handleToggleSound}
                 className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 border ${
                   isSoundEnabled
-                    ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-                    : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-900/80'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
                 title={isSoundEnabled ? '新訂單音效提醒：已開啟（點擊靜音）' : '新訂單音效提醒：已靜音（點擊開啟）'}
               >
@@ -1542,10 +1587,11 @@ export default function AdminPageContent() {
                   type="button"
                   onClick={() => {
                     initAudio();
+                    lastNotificationTimeRef.current = 0;
                     playChimeSound();
                     showToast('🔔 正在試聽新訂單提示音效...');
                   }}
-                  className="text-xs px-2.5 py-1.5 rounded-xl font-bold bg-white text-slate-600 hover:text-amber-700 border border-slate-200 hover:border-amber-300 transition"
+                  className="text-xs px-2.5 py-1.5 rounded-xl font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 border border-slate-200 dark:border-slate-700 hover:border-amber-300 transition cursor-pointer"
                   title="點擊測試播放新訂單叮咚鈴聲"
                 >
                   🔊 試聽
@@ -1553,15 +1599,15 @@ export default function AdminPageContent() {
               )}
             </div>
 
-            {/* 螢幕模式切換器 */}
-            <div className="flex bg-slate-100 p-1 rounded-2xl text-xs font-bold">
+            {/* 螢幕模式切換器 (手機比例 / 電腦比例) */}
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl text-xs font-bold border border-transparent dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => handleToggleViewMode('desktop')}
-                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
                   viewMode === 'desktop'
-                    ? 'bg-white text-sky-700 shadow-xs font-extrabold'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs font-extrabold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
                 title="切換為電腦寬螢幕多欄排版"
               >
@@ -1571,10 +1617,10 @@ export default function AdminPageContent() {
               <button
                 type="button"
                 onClick={() => handleToggleViewMode('mobile')}
-                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
                   viewMode === 'mobile'
-                    ? 'bg-white text-sky-700 shadow-xs font-extrabold'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-white dark:bg-slate-700 text-sky-700 dark:text-sky-300 shadow-xs font-extrabold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                 }`}
                 title="切換為手機單手聚焦排版"
               >
@@ -1583,9 +1629,20 @@ export default function AdminPageContent() {
               </button>
             </div>
 
+            {/* 🌓 主題模式切換器 (位於手機比例/電腦比例同欄相鄰位置) */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="text-xs px-3 py-1.5 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+              title={theme === 'dark' ? '切換為亮色主題' : '切換為暗色主題'}
+            >
+              <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
+              <span>{theme === 'dark' ? '暗色主題' : '亮色主題'}</span>
+            </button>
+
             <button
               onClick={handleLogout}
-              className="text-xs bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold px-3 py-1.5 rounded-xl transition cursor-pointer"
+              className="text-xs bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 font-bold px-3 py-1.5 rounded-xl border border-transparent dark:border-slate-700 transition cursor-pointer"
             >
               🔒 上鎖登出
             </button>
@@ -1593,13 +1650,13 @@ export default function AdminPageContent() {
         </div>
 
         {/* 核心分頁 Tab 切換 */}
-        <div className={`flex bg-white p-1.5 rounded-2xl border border-slate-100 shadow-xs text-xs font-bold text-slate-600 ${isDesktop ? 'max-w-md' : 'w-full'}`}>
+        <div className={`flex bg-white dark:bg-[#131B2B] p-1.5 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs text-xs font-bold text-slate-600 dark:text-slate-300 ${isDesktop ? 'max-w-md' : 'w-full'}`}>
           <button
             onClick={() => setActiveTab('active')}
             className={`flex-1 py-2 rounded-xl transition ${
               activeTab === 'active'
                 ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 hover:text-slate-800'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100'
             }`}
           >
             即時對帳
@@ -1609,7 +1666,7 @@ export default function AdminPageContent() {
             className={`flex-1 py-2 rounded-xl transition ${
               activeTab === 'crud'
                 ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 hover:text-slate-800'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100'
             }`}
           >
             菜單/店家CRUD
@@ -1619,7 +1676,7 @@ export default function AdminPageContent() {
             className={`flex-1 py-2 rounded-xl transition ${
               activeTab === 'archive'
                 ? 'bg-sky-500 text-white shadow-xs font-extrabold'
-                : 'text-slate-500 hover:text-slate-800'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100'
             }`}
           >
             歷史歸檔 ({archivedGroups.length})
@@ -1627,7 +1684,7 @@ export default function AdminPageContent() {
         </div>
 
         {loading ? (
-          <div className="bg-white rounded-3xl p-10 text-center text-slate-400 text-xs animate-pulse border border-slate-100">
+          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-10 text-center text-slate-400 dark:text-slate-500 text-xs animate-pulse border border-slate-100 dark:border-slate-800">
             正在載入後台數據與團購活動資料...
           </div>
         ) : (
@@ -1805,14 +1862,14 @@ export default function AdminPageContent() {
 
       {isStoreModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150">
-            <h3 className="text-base font-extrabold text-center">
+          <div className="bg-white dark:bg-[#131B2B] w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
               {editingStore ? '✏️ 編輯店家資訊' : '🏪 新增合作店家'}
             </h3>
 
             <form onSubmit={handleSaveStore} className="space-y-3">
               <div>
-                <label htmlFor="store-form-name" className="text-xs font-bold text-slate-600">店家名稱</label>
+                <label htmlFor="store-form-name" className="text-xs font-bold text-slate-600 dark:text-slate-300">店家名稱</label>
                 <input
                   id="store-form-name"
                   name="storeName"
@@ -1821,21 +1878,21 @@ export default function AdminPageContent() {
                   placeholder="例如：50嵐"
                   value={storeForm.name}
                   onChange={(e) => setStoreForm({ ...storeForm, name: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <label htmlFor="store-form-image" className="text-xs font-bold text-slate-600">店家封面照片</label>
-                  <span className="text-[10px] text-sky-600 font-bold">💡 建議像素：800 x 600 px (自動轉 WebP)</span>
+                  <label htmlFor="store-form-image" className="text-xs font-bold text-slate-600 dark:text-slate-300">店家封面照片</label>
+                  <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">💡 建議像素：800 x 600 px (自動轉 WebP)</span>
                 </div>
 
-                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl p-3">
                   {storeImagePreview ? (
-                    <img src={storeImagePreview} alt="預覽" className="w-14 h-14 rounded-lg object-cover border border-slate-300" />
+                    <img src={storeImagePreview} alt="預覽" className="w-14 h-14 rounded-lg object-cover border border-slate-300 dark:border-slate-600" />
                   ) : (
-                    <div className="w-14 h-14 rounded-lg bg-slate-200 flex items-center justify-center text-xs text-slate-400 font-bold">無照片</div>
+                    <div className="w-14 h-14 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs text-slate-400 dark:text-slate-300 font-bold">無照片</div>
                   )}
 
                   <div className="flex-1">
@@ -1846,9 +1903,9 @@ export default function AdminPageContent() {
                       aria-label="上傳店家封面照片"
                       accept="image/*"
                       onChange={handleStoreImageChange}
-                      className="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-sky-50 file:text-sky-600 hover:file:bg-sky-100 cursor-pointer"
+                      className="w-full text-xs text-slate-500 dark:text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-sky-50 dark:file:bg-slate-800 file:text-sky-600 dark:file:text-sky-400 hover:file:bg-sky-100 dark:hover:file:bg-slate-700 cursor-pointer"
                     />
-                    <p className="text-[10px] text-slate-400 mt-1">前端自動壓縮為輕量 WebP 格式</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">前端自動壓縮為輕量 WebP 格式</p>
                   </div>
                 </div>
               </div>
@@ -1857,14 +1914,14 @@ export default function AdminPageContent() {
                 <button
                   type="button"
                   onClick={() => setIsStoreModalOpen(false)}
-                  className="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs transition"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={uploadingImage}
-                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs disabled:opacity-50"
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs disabled:opacity-50 transition"
                 >
                   {uploadingImage ? '上傳中...' : '儲存'}
                 </button>
@@ -1876,14 +1933,14 @@ export default function AdminPageContent() {
 
       {isCatModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150">
-            <h3 className="text-base font-extrabold text-center">
+          <div className="bg-white dark:bg-[#131B2B] w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
+            <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
               {editingCat ? '✏️ 編輯類別名稱' : '🏷️ 新增類別'}
             </h3>
 
             <form onSubmit={handleSaveCategory} className="space-y-3">
               <div>
-                <label htmlFor="cat-form-name" className="text-xs font-bold text-slate-600">類別名稱</label>
+                <label htmlFor="cat-form-name" className="text-xs font-bold text-slate-600 dark:text-slate-300">類別名稱</label>
                 <input
                   id="cat-form-name"
                   name="categoryName"
@@ -1892,7 +1949,7 @@ export default function AdminPageContent() {
                   placeholder="例如：手搖飲料"
                   value={catNameInput}
                   onChange={(e) => setCatNameInput(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
 
@@ -1900,13 +1957,13 @@ export default function AdminPageContent() {
                 <button
                   type="button"
                   onClick={() => setIsCatModalOpen(false)}
-                  className="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs transition"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs"
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition"
                 >
                   儲存
                 </button>
@@ -1918,14 +1975,14 @@ export default function AdminPageContent() {
 
       {isProductModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-extrabold text-center">
+          <div className="bg-white dark:bg-[#131B2B] w-full max-w-lg rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
               {editingProduct ? '✏️ 編輯餐點與客製化選項' : '➕ 新增餐點'}
             </h3>
 
             <form onSubmit={handleSaveProduct} className="space-y-3">
               <div>
-                <label htmlFor="prod-form-name" className="text-xs font-bold text-slate-600">餐點名稱 *</label>
+                <label htmlFor="prod-form-name" className="text-xs font-bold text-slate-600 dark:text-slate-300">餐點名稱 *</label>
                 <input
                   id="prod-form-name"
                   name="productName"
@@ -1934,112 +1991,117 @@ export default function AdminPageContent() {
                   placeholder="例如：珍珠奶茶"
                   value={productForm.name}
                   onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="prod-form-price" className="text-xs font-bold text-slate-600">基本價格 ($) *</label>
+                  <label htmlFor="prod-form-price" className="text-xs font-bold text-slate-600 dark:text-slate-300">基本價格 ($) *</label>
                   <input
                     id="prod-form-price"
                     name="productPrice"
                     type="number"
                     required
+                    min="0"
                     placeholder="例如：50"
                     value={productForm.price}
                     onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                    className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
                   />
                 </div>
+
                 <div>
-                  <label htmlFor="prod-form-stock" className="text-xs font-bold text-slate-600">庫存數量 (選填)</label>
-                  <input
-                    id="prod-form-stock"
-                    name="productStock"
-                    type="number"
-                    placeholder="不限數量"
-                    value={productForm.stock_quantity}
-                    onChange={(e) => setProductForm({ ...productForm, stock_quantity: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
-                  />
+                  <label htmlFor="prod-form-soldout" className="text-xs font-bold text-slate-600 dark:text-slate-300">是否售完/停售</label>
+                  <select
+                    id="prod-form-soldout"
+                    name="productIsSoldOut"
+                    value={productForm.is_sold_out ? 'true' : 'false'}
+                    onChange={(e) => setProductForm({ ...productForm, is_sold_out: e.target.value === 'true' })}
+                    className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  >
+                    <option value="false">🟢 正常供應中</option>
+                    <option value="true">⚪ 暫時已售完 / 下架</option>
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label htmlFor="prod-form-desc" className="text-xs font-bold text-slate-600">餐點描述 (選填)</label>
-                <input
+                <label htmlFor="prod-form-desc" className="text-xs font-bold text-slate-600 dark:text-slate-300">餐點簡介描述 (選填)</label>
+                <textarea
                   id="prod-form-desc"
                   name="productDescription"
-                  type="text"
-                  placeholder="例如：香濃好喝人氣款"
+                  rows={2}
+                  placeholder="簡短介紹這道餐點的特色或美味之處..."
                   value={productForm.description}
                   onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold mt-1"
+                  className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-medium mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
 
-              <div className="pt-3 border-t border-slate-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-slate-800">🛠️ 動態客製化選項區塊</span>
+              {/* 客製化規格選項管理 */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">客製化規格選項 (例如：甜度、冰塊、加料)</span>
                   <button
                     type="button"
                     onClick={handleAddCustomGroup}
-                    className="bg-sky-50 text-sky-600 text-xs font-bold px-3 py-1.5 rounded-xl border border-sky-200 hover:bg-sky-100"
+                    className="bg-sky-50 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-400 text-xs font-bold px-2.5 py-1 rounded-lg border border-sky-100 dark:border-slate-700 transition active:scale-95"
                   >
-                    ＋ 新增客製化區塊
+                    ＋ 新增規格組
                   </button>
                 </div>
 
                 {productCustomGroups.length === 0 ? (
-                  <p className="text-center text-xs text-slate-400 py-3 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    未設定客製化區塊 (前台將視為基本款，點擊直接加入購物車)
-                  </p>
+                  <div className="bg-slate-50 dark:bg-[#182234] p-4 rounded-xl text-center text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-700">
+                    此餐點為基本款（無客製化規格選項）
+                  </div>
                 ) : (
                   productCustomGroups.map((group) => (
-                    <div key={group.id} className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                    <div key={group.id} className="bg-slate-50 dark:bg-[#182234] p-3 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2.5">
                       <div className="flex gap-2 items-center">
                         <input
-                          id={`cg-title-${group.id}`}
-                          name={`cg_title_${group.id}`}
-                          aria-label="客製化區塊標題"
+                          id={`group-title-${group.id}`}
+                          name={`group_title_${group.id}`}
+                          aria-label="規格組名稱"
                           type="text"
                           required
-                          placeholder="區塊標題 (例：甜度、加料)"
+                          placeholder="規格組名稱 (例：甜度)"
                           value={group.title}
                           onChange={(e) =>
                             setProductCustomGroups(
                               productCustomGroups.map((g) => (g.id === group.id ? { ...g, title: e.target.value } : g))
                             )
                           }
-                          className="flex-1 bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold"
+                          className="flex-1 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-2 rounded-xl text-xs font-bold"
                         />
                         <select
-                          id={`cg-type-${group.id}`}
-                          name={`cg_type_${group.id}`}
-                          aria-label="客製化選擇模式"
+                          id={`group-type-${group.id}`}
+                          name={`group_type_${group.id}`}
+                          aria-label="規格選擇類型"
                           value={group.type}
                           onChange={(e) =>
                             setProductCustomGroups(
                               productCustomGroups.map((g) =>
-                                g.id === group.id ? { ...g, type: e.target.value as 'single' | 'any' | 'limit' } : g
+                                g.id === group.id ? { ...g, type: e.target.value as 'single' | 'limit' | 'any' } : g
                               )
                             )
                           }
-                          className="bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold"
+                          className="bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-2 rounded-xl text-xs font-bold"
                         >
-                          <option value="single">單選 (Must 1)</option>
-                          <option value="any">多選不限 (Any)</option>
-                          <option value="limit">限制數量 (Limit N)</option>
+                          <option value="single">單選 (必選 1)</option>
+                          <option value="limit">限量選 (最多 N)</option>
+                          <option value="any">自由選 (多選)</option>
                         </select>
 
                         {group.type === 'limit' && (
                           <input
-                            id={`cg-limit-${group.id}`}
-                            name={`cg_limit_${group.id}`}
-                            aria-label="限制數量"
+                            id={`group-limit-${group.id}`}
+                            name={`group_limit_${group.id}`}
+                            aria-label="最多可選數量"
                             type="number"
-                            placeholder="N"
+                            min="1"
+                            placeholder="上限"
                             value={group.limit_number || 1}
                             onChange={(e) =>
                               setProductCustomGroups(
@@ -2048,20 +2110,20 @@ export default function AdminPageContent() {
                                 )
                               )
                             }
-                            className="w-14 bg-white border border-slate-200 p-2 rounded-xl text-xs font-bold text-center"
+                            className="w-14 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-2 rounded-xl text-xs font-bold text-center"
                           />
                         )}
 
                         <button
                           type="button"
                           onClick={() => handleRemoveCustomGroup(group.id)}
-                          className="text-xs text-red-500 hover:bg-red-50 p-1.5 rounded-lg font-bold"
+                          className="text-xs text-red-500 hover:bg-red-50 dark:hover:bg-rose-950/40 p-1.5 rounded-lg font-bold"
                         >
                           🗑️
                         </button>
                       </div>
 
-                      <div className="space-y-2 pl-2 border-l-2 border-slate-200">
+                      <div className="space-y-2 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
                         {group.options.map((opt) => (
                           <div key={opt.id} className="flex gap-2 items-center">
                             <input
@@ -2086,7 +2148,7 @@ export default function AdminPageContent() {
                                   )
                                 )
                               }
-                              className="flex-1 bg-white border border-slate-200 p-1.5 rounded-lg text-xs font-bold"
+                              className="flex-1 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-1.5 rounded-lg text-xs font-bold"
                             />
                             <input
                               id={`opt-price-${opt.id}`}
@@ -2109,7 +2171,7 @@ export default function AdminPageContent() {
                                   )
                                 )
                               }
-                              className="w-20 bg-white border border-slate-200 p-1.5 rounded-lg text-xs font-bold"
+                              className="w-20 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 p-1.5 rounded-lg text-xs font-bold"
                             />
                             <button
                               type="button"
@@ -2123,7 +2185,7 @@ export default function AdminPageContent() {
                         <button
                           type="button"
                           onClick={() => handleAddOptionToGroup(group.id)}
-                          className="text-[10px] text-sky-600 font-bold hover:underline"
+                          className="text-[10px] text-sky-600 dark:text-sky-400 font-bold hover:underline"
                         >
                           ＋ 新增子選項
                         </button>
@@ -2137,13 +2199,13 @@ export default function AdminPageContent() {
                 <button
                   type="button"
                   onClick={() => setIsProductModalOpen(false)}
-                  className="flex-1 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-xs"
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl text-xs transition"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs"
+                  className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs transition"
                 >
                   儲存餐點
                 </button>
@@ -2163,11 +2225,11 @@ export default function AdminPageContent() {
 
       {changeModalTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-xs rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150 text-center">
-            <h3 className="text-base font-extrabold">💵 現金找零試算器</h3>
-            <p className="text-xs text-slate-500">
+          <div className="bg-white dark:bg-[#131B2B] w-full max-w-xs rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 text-center shadow-2xl">
+            <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">💵 現金找零試算器</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {changeModalTarget.nickname} 應付金額：
-              <span className="font-extrabold text-sky-600 text-sm">${changeModalTarget.amount} 元</span>
+              <span className="font-extrabold text-sky-600 dark:text-sky-400 text-sm">${changeModalTarget.amount} 元</span>
             </p>
 
             <label htmlFor="change-received-cash" className="sr-only">實收現金金額</label>
@@ -2179,13 +2241,13 @@ export default function AdminPageContent() {
               placeholder="例如：1000"
               value={receivedCash}
               onChange={(e) => setReceivedCash(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm font-bold text-center"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-sm font-bold text-center focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
 
             {Number(receivedCash) > 0 && (
-              <div className="bg-sky-50 p-3 rounded-2xl border border-sky-100">
-                <p className="text-xs text-sky-700 font-bold">💰 應找零金額</p>
-                <p className="text-xl font-extrabold text-sky-600 mt-0.5">
+              <div className="bg-sky-50 dark:bg-sky-950/40 p-3 rounded-2xl border border-sky-100 dark:border-sky-900/60">
+                <p className="text-xs text-sky-700 dark:text-sky-300 font-bold">💰 應找零金額</p>
+                <p className="text-xl font-extrabold text-sky-600 dark:text-sky-400 mt-0.5">
                   ${Math.max(0, Number(receivedCash) - changeModalTarget.amount)} 元
                 </p>
               </div>
@@ -2197,7 +2259,7 @@ export default function AdminPageContent() {
                 setChangeModalTarget(null);
                 setReceivedCash('');
               }}
-              className="w-full bg-slate-100 text-slate-700 font-bold py-2 rounded-xl text-xs"
+              className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2 rounded-xl text-xs transition"
             >
               關閉
             </button>

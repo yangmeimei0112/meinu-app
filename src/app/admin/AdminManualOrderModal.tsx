@@ -92,20 +92,20 @@ export default function AdminManualOrderModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-3xl p-5 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white dark:bg-[#131B2B] w-full max-w-sm rounded-3xl p-5 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-100">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
           <div className="flex items-center gap-2">
-            <span className="text-xl">➕</span>
+            <span className="text-xl">✍️</span>
             <div>
-              <h3 className="text-base font-extrabold text-slate-800">團長代點餐 / 人工補單</h3>
-              <p className="text-xs text-slate-400">幫現場或發 LINE 的朋友手動新增一筆訂單</p>
+              <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">團長代點餐 / 人工補單</h3>
+              <p className="text-xs text-slate-400 dark:text-slate-400">幫現場或發 LINE 的朋友手動新增一筆訂單</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center font-bold text-xs"
+            className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer"
           >
             ✕
           </button>
@@ -114,7 +114,7 @@ export default function AdminManualOrderModal({
         <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
           {/* 朋友暱稱 */}
           <div className="space-y-1">
-            <label htmlFor="manual-order-nickname" className="text-xs font-bold text-slate-700">朋友暱稱 <span className="text-rose-500">*</span></label>
+            <label htmlFor="manual-order-nickname" className="text-xs font-bold text-slate-700 dark:text-slate-300">朋友暱稱 <span className="text-rose-500">*</span></label>
             <input
               id="manual-order-nickname"
               name="manualNickname"
@@ -122,19 +122,19 @@ export default function AdminManualOrderModal({
               placeholder="例如：小明 / 研發部 阿義"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
 
           {/* 選擇餐點 */}
           <div className="space-y-1">
-            <label htmlFor="manual-order-item" className="text-xs font-bold text-slate-700">選擇餐點品項</label>
+            <label htmlFor="manual-order-item" className="text-xs font-bold text-slate-700 dark:text-slate-300">選擇餐點品項</label>
             <select
               id="manual-order-item"
               name="manualItemId"
               value={selectedItemId}
               onChange={(e) => setSelectedItemId(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-800"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {menuItems.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -146,20 +146,20 @@ export default function AdminManualOrderModal({
 
           {/* 數量 */}
           <div className="flex items-center justify-between pt-1">
-            <span className="text-xs font-bold text-slate-700">點餐數量</span>
-            <div className="flex items-center gap-3 bg-slate-100 rounded-xl p-1">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">點餐數量</span>
+            <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-transparent dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                className="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center"
+                className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center cursor-pointer"
               >
                 -
               </button>
-              <span className="text-xs font-bold w-4 text-center">{quantity}</span>
+              <span className="text-xs font-bold w-4 text-center text-slate-800 dark:text-slate-100">{quantity}</span>
               <button
                 type="button"
                 onClick={() => setQuantity((q) => q + 1)}
-                className="w-6 h-6 rounded-lg bg-white text-slate-700 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center"
+                className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center cursor-pointer"
               >
                 +
               </button>
@@ -168,7 +168,7 @@ export default function AdminManualOrderModal({
 
           {/* 規格與備註 */}
           <div className="space-y-1">
-            <label htmlFor="manual-order-custom-notes" className="text-xs font-bold text-slate-700">客製規格與特製備註</label>
+            <label htmlFor="manual-order-custom-notes" className="text-xs font-bold text-slate-700 dark:text-slate-300">客製規格與特製備註</label>
             <input
               id="manual-order-custom-notes"
               name="manualCustomNotes"
@@ -176,19 +176,19 @@ export default function AdminManualOrderModal({
               placeholder="例如：微糖少冰、加珍珠"
               value={customNotes}
               onChange={(e) => setCustomNotes(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
 
           {/* 付款方式 */}
           <div className="space-y-1">
-            <label htmlFor="manual-order-payment-method" className="text-xs font-bold text-slate-700">付款方式</label>
+            <label htmlFor="manual-order-payment-method" className="text-xs font-bold text-slate-700 dark:text-slate-300">付款方式</label>
             <select
               id="manual-order-payment-method"
               name="manualPaymentMethod"
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-800"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {paymentMethods.map((pm) => (
                 <option key={pm.id} value={pm.name}>
@@ -200,13 +200,13 @@ export default function AdminManualOrderModal({
 
           {/* 缺貨備案 */}
           <div className="space-y-1">
-            <label htmlFor="manual-order-soldout-option" className="text-xs font-bold text-slate-700">遇缺貨備案</label>
+            <label htmlFor="manual-order-soldout-option" className="text-xs font-bold text-slate-700 dark:text-slate-300">遇缺貨備案</label>
             <select
               id="manual-order-soldout-option"
               name="manualSoldOutOption"
               value={soldOutOption}
               onChange={(e) => setSoldOutOption(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-bold text-slate-800"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {soldOutOptions.map((so) => (
                 <option key={so.id} value={so.title}>
@@ -217,17 +217,17 @@ export default function AdminManualOrderModal({
           </div>
         </div>
 
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
           <div className="text-xs">
-            <span className="text-slate-400 font-bold block">合計金額</span>
-            <span className="text-base font-extrabold text-sky-600">${itemTotal} 元</span>
+            <span className="text-slate-400 dark:text-slate-400 font-bold block">合計金額</span>
+            <span className="text-base font-extrabold text-sky-600 dark:text-sky-400">${itemTotal} 元</span>
           </div>
 
           <button
             type="button"
             disabled={isSubmitting}
             onClick={handleManualSubmit}
-            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-2.5 rounded-2xl text-xs shadow-md transition active:scale-95 disabled:opacity-50"
+            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-2.5 rounded-2xl text-xs shadow-md transition active:scale-95 disabled:opacity-50 cursor-pointer"
           >
             {isSubmitting ? '正在寫入...' : '➕ 確定新增代點訂單'}
           </button>

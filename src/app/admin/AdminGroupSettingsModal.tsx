@@ -101,15 +101,15 @@ export default function AdminGroupSettingsModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white w-full max-w-lg rounded-3xl p-6 space-y-5 shadow-2xl my-auto max-h-[90vh] overflow-y-auto text-slate-800 animate-in zoom-in-95 duration-150">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div className="bg-white dark:bg-[#131B2B] w-full max-w-lg rounded-3xl p-6 space-y-5 shadow-2xl my-auto max-h-[90vh] overflow-y-auto text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <span className="text-2xl">⚙️</span>
             <div>
-              <h3 className="text-base font-extrabold text-slate-800">
+              <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
                 {groupOrder ? '團購活動與進階設定' : '🚀 發起全新團購活動'}
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 dark:text-slate-400">
                 設定公告通知、湊單進度條、截單倒數與個人補助預算
               </p>
             </div>
@@ -117,7 +117,7 @@ export default function AdminGroupSettingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-700 flex items-center justify-center font-bold text-xs"
+            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer"
           >
             ✕
           </button>
@@ -126,7 +126,7 @@ export default function AdminGroupSettingsModal({
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           {/* 活動名稱 */}
           <div>
-            <label htmlFor="group-modal-title" className="font-bold text-slate-700 block mb-1">
+            <label htmlFor="group-modal-title" className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
               團購活動標題 <span className="text-rose-500">*</span>
             </label>
             <input
@@ -137,13 +137,13 @@ export default function AdminGroupSettingsModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="例如：週五午餐 50嵐飲料揪團"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400 text-sm"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400 text-sm"
             />
           </div>
 
           {/* 合作門市選擇 */}
           <div>
-            <label htmlFor="group-modal-store" className="font-bold text-slate-700 block mb-1">
+            <label htmlFor="group-modal-store" className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
               合作店家 / 門市 <span className="text-rose-500">*</span>
             </label>
             <select
@@ -152,7 +152,7 @@ export default function AdminGroupSettingsModal({
               value={storeId}
               onChange={(e) => setStoreId(e.target.value)}
               required
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -163,10 +163,10 @@ export default function AdminGroupSettingsModal({
           </div>
 
           {/* 團長即時公告欄 */}
-          <div className="bg-sky-50/60 rounded-2xl p-3.5 border border-sky-100 space-y-1.5">
-            <label htmlFor="group-modal-announcement" className="font-bold text-sky-900 flex items-center gap-1.5">
+          <div className="bg-sky-50/60 dark:bg-sky-950/40 rounded-2xl p-3.5 border border-sky-100 dark:border-sky-900/60 space-y-1.5">
+            <label htmlFor="group-modal-announcement" className="font-bold text-sky-900 dark:text-sky-300 flex items-center gap-1.5">
               <span>📢 團長即時公告欄</span>
-              <span className="text-[10px] text-sky-600 font-normal">（前台頂部即時顯示彩色跑馬燈）</span>
+              <span className="text-[10px] text-sky-600 dark:text-sky-400 font-normal">（前台頂部即時顯示彩色跑馬燈）</span>
             </label>
             <input
               id="group-modal-announcement"
@@ -175,14 +175,14 @@ export default function AdminGroupSettingsModal({
               value={announcement}
               onChange={(e) => setAnnouncement(e.target.value)}
               placeholder="例如：團長已下單！預計 12:30 送達一樓大廳 / 記得自備零錢"
-              className="w-full bg-white border border-sky-200 rounded-xl p-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-white dark:bg-[#182234] border border-sky-200 dark:border-sky-800/60 rounded-xl p-2 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
 
           {/* 湊單門檻進度條 */}
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-2">
+          <div className="bg-slate-50 dark:bg-[#182234] rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="group-modal-enable-min-threshold" className="font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
+              <label htmlFor="group-modal-enable-min-threshold" className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer">
                 <span>🚚 起送 / 免運湊單進度條</span>
               </label>
               <input
@@ -197,7 +197,7 @@ export default function AdminGroupSettingsModal({
             </div>
             {enableMinThreshold && (
               <div className="pt-1">
-                <label htmlFor="group-modal-min-threshold" className="text-[11px] text-slate-500 font-medium block mb-1">
+                <label htmlFor="group-modal-min-threshold" className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block mb-1">
                   起送/免運門檻金額 ($)：
                 </label>
                 <input
@@ -208,16 +208,16 @@ export default function AdminGroupSettingsModal({
                   value={minThresholdAmount}
                   onChange={(e) => setMinThresholdAmount(Number(e.target.value))}
                   placeholder="例如：300"
-                  className="w-full bg-white border border-slate-200 rounded-xl p-2 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  className="w-full bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 rounded-xl p-2 font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
             )}
           </div>
 
           {/* 截單倒數計時器 */}
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-2">
+          <div className="bg-slate-50 dark:bg-[#182234] rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="group-modal-enable-countdown" className="font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
+              <label htmlFor="group-modal-enable-countdown" className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer">
                 <span>⏱️ 預計截單倒數計時器</span>
               </label>
               <input
@@ -232,7 +232,7 @@ export default function AdminGroupSettingsModal({
             </div>
             {enableCountdown && (
               <div className="pt-1">
-                <label htmlFor="group-modal-cutoff-time" className="text-[11px] text-slate-500 font-medium block mb-1">
+                <label htmlFor="group-modal-cutoff-time" className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block mb-1">
                   預計截止時間：
                 </label>
                 <input
@@ -241,16 +241,16 @@ export default function AdminGroupSettingsModal({
                   type="datetime-local"
                   value={cutoffTime}
                   onChange={(e) => setCutoffTime(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl p-2 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  className="w-full bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 rounded-xl p-2 font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
             )}
           </div>
 
           {/* 個人消費/公費補助上限 */}
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200 space-y-2">
+          <div className="bg-slate-50 dark:bg-[#182234] rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
-              <label htmlFor="group-modal-enable-budget" className="font-bold text-slate-800 flex items-center gap-1.5 cursor-pointer">
+              <label htmlFor="group-modal-enable-budget" className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer">
                 <span>💵 每人預算上限 / 公費補貼提醒</span>
               </label>
               <input
@@ -265,7 +265,7 @@ export default function AdminGroupSettingsModal({
             </div>
             {enableBudgetLimit && (
               <div className="pt-1">
-                <label htmlFor="group-modal-budget-limit" className="text-[11px] text-slate-500 font-medium block mb-1">
+                <label htmlFor="group-modal-budget-limit" className="text-[11px] text-slate-500 dark:text-slate-400 font-medium block mb-1">
                   每人補助/預算上限金額 ($)：
                 </label>
                 <input
@@ -276,25 +276,25 @@ export default function AdminGroupSettingsModal({
                   value={budgetLimitAmount}
                   onChange={(e) => setBudgetLimitAmount(Number(e.target.value))}
                   placeholder="例如：150"
-                  className="w-full bg-white border border-slate-200 rounded-xl p-2 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  className="w-full bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 rounded-xl p-2 font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
                 />
               </div>
             )}
           </div>
 
           {/* 底部儲存與取消按鈕 */}
-          <div className="flex gap-2 pt-3 border-t border-slate-100">
+          <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-2xl transition"
+              className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-2xl transition cursor-pointer"
             >
               取消
             </button>
             <button
               type="submit"
               disabled={isSaving}
-              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-extrabold py-2.5 rounded-2xl transition shadow-xs active:scale-95 disabled:opacity-50"
+              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-extrabold py-2.5 rounded-2xl transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               {isSaving ? '儲存中...' : '💾 儲存團購設定'}
             </button>
