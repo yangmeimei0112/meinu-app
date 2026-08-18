@@ -5,18 +5,42 @@ import Link from 'next/link';
 import Image from 'next/image';
 import QRCodeModal from './QRCodeModal';
 
+export const ORDERS_UPDATE_EVENT = 'menu_app_orders_updated';
+
 function subscribeStorage(callback: () => void) {
   window.addEventListener('storage', callback);
-  return () => window.removeEventListener('storage', callback);
+  window.addEventListener(ORDERS_UPDATE_EVENT, callback);
+  return () => {
+    window.removeEventListener('storage', callback);
+    window.removeEventListener(ORDERS_UPDATE_EVENT, callback);
+  };
 }
 
-function getRecentOrdersSnapshot() {
+// 🛡️ 嚴格檢查是否「確實有新送出且未查看的歷史訂單」
+function getHasNewOrdersSnapshot() {
   if (typeof window === 'undefined') return false;
   try {
-    return Boolean(
-      localStorage.getItem('menu_app_order_history') ||
-      localStorage.getItem('menu_app_last_order_id')
-    );
+    // 1. 嚴格檢查歷史訂單紀錄是否存在且長度大於 0 (防範 "[]" 空陣列誤判)
+    let hasActualOrders = false;
+    const historyRaw = localStorage.getItem('menu_app_order_history');
+    if (historyRaw) {
+      const list = JSON.parse(historyRaw);
+      if (Array.isArray(list) && list.length > 0) {
+        hasActualOrders = true;
+      }
+    }
+    const lastId = localStorage.getItem('menu_app_last_order_id');
+    if (lastId && typeof lastId === 'string' && lastId.trim().length > 0) {
+      hasActualOrders = true;
+    }
+
+    // 若完全沒有任何訂單，絕對不閃爍紅點
+    if (!hasActualOrders) {
+      return false;
+    }
+
+    // 2. 只有在有新送出且尚未進入「我的訂單」頁面查看時，才閃爍紅點
+    return localStorage.getItem('menu_app_has_new_order') === 'true';
   } catch {
     return false;
   }
@@ -26,7 +50,7 @@ export default function Header() {
   const [shortCode, setShortCode] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const hasRecentOrders = useSyncExternalStore(subscribeStorage, getRecentOrdersSnapshot, () => false);
+  const hasNewOrder = useSyncExternalStore(subscribeStorage, getHasNewOrdersSnapshot, () => false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -105,15 +129,15 @@ export default function Header() {
         </form>
 
         <div className="flex items-center gap-1 shrink-0">
-          {/* 我的訂單按鈕 */}
+          {/* 我的訂單按鈕 (僅在有全新歷史訂單時閃爍紅點) */}
           <Link
             href="/my-orders"
             className="relative bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 dark:border-slate-700 active:scale-95"
             title="查看我的送訂紀錄與付款狀態"
           >
             <span>📋 訂單</span>
-            {hasRecentOrders && (
-              <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+            {hasNewOrder && (
+              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
             )}
           </Link>
 
@@ -139,12 +163,12 @@ export default function Header() {
         </div>
       </div>
 
+      {/* 現場 QR Code 彈窗 */}
       <QRCodeModal
         isOpen={isQrModalOpen}
         onClose={() => setIsQrModalOpen(false)}
-        url={typeof window !== 'undefined' ? window.location.origin : ''}
-        title="掃碼直達「咩nu」大廳"
+        title="咩nu 點餐大廳 QR Code"
       />
     </header>
   );
-}
+}

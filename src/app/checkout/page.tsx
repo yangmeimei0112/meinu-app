@@ -322,6 +322,7 @@ function CheckoutContent() {
 
       // 儲存至單一最新與歷史訂單清單 (供「我的訂單」頁面查詢)
       localStorage.setItem('menu_app_last_order_id', submission.id);
+      localStorage.setItem('menu_app_has_new_order', 'true');
       try {
         const historyRaw = localStorage.getItem('menu_app_order_history');
         const historyList: string[] = historyRaw ? JSON.parse(historyRaw) : [];
@@ -332,6 +333,10 @@ function CheckoutContent() {
       } catch (e) {
         console.error(e);
       }
+      try {
+        window.dispatchEvent(new Event('menu_app_orders_updated'));
+        window.dispatchEvent(new Event('storage'));
+      } catch {}
 
       alert(`🎉 訂單送出成功！單號：${orderNumber}`);
       router.push(`/order-status/${submission.id}`);

@@ -143,3 +143,43 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background-size: 200% 100%;
   animation: shimmer 2.5s infinite;
 }
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(2deg);
+  }
+}
+
+@keyframes steamRise {
+  0% {
+    opacity: 0;
+    transform: translateY(3px) scale(0.9);
+  }
+  50% {
+    opacity: 0.75;
+    transform: translateY(-3px) scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-9px) scale(1.15);
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.animate-steam-1 {
+  animation: steamRise 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-steam-2 {
+  animation: steamRise 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite 0.75s;
+}
+
+.animate-steam-3 {
+  animation: steamRise 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite 1.4s;
+}

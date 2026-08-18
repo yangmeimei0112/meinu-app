@@ -51,6 +51,13 @@ export default function MyOrdersPage() {
   };
 
   useEffect(() => {
+    // 進入「我的訂單」頁面時，標記新訂單已查看，解除 Header 上的紅點閃爍
+    try {
+      localStorage.setItem('menu_app_has_new_order', 'false');
+      window.dispatchEvent(new Event('menu_app_orders_updated'));
+      window.dispatchEvent(new Event('storage'));
+    } catch {}
+
     async function fetchOrders() {
       setLoading(true);
 
@@ -59,7 +66,10 @@ export default function MyOrdersPage() {
 
         const historyRaw = localStorage.getItem('menu_app_order_history');
         if (historyRaw) {
-          orderIds = JSON.parse(historyRaw);
+          try {
+            const parsed = JSON.parse(historyRaw);
+            if (Array.isArray(parsed)) orderIds = parsed;
+          } catch {}
         }
 
         const lastId = localStorage.getItem('menu_app_last_order_id');
