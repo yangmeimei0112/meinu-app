@@ -240,7 +240,6 @@ export default function MultiCartPage() {
                     <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                       <span>{currentGroup.storeName}</span>
                     </h3>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-400">一店一車，獨立選購與結帳送單</p>
                   </div>
                   <button
                     type="button"

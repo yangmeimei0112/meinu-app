@@ -72,13 +72,39 @@ export default function HomePage() {
           {/* 實時全團點餐進度卡片 */}
           <LiveOrderCounter />
 
-          {/* 淡藍主題歡迎橫幅 */}
-          <div className="bg-gradient-to-r from-sky-500 via-blue-500 to-indigo-500 dark:from-sky-600 dark:via-blue-700 dark:to-indigo-800 text-white rounded-3xl p-5 shadow-sm">
-            <p className="text-xs font-medium opacity-90">👋 歡迎來到</p>
-            <h2 className="text-xl font-extrabold mt-0.5">「咩nu」開放點餐大廳</h2>
-            <p className="text-xs opacity-90 mt-1">
-              自由挑選喜歡的店家菜單，隨手揪團輕鬆點餐！
-            </p>
+          {/* ✨ 現代極簡風格歡迎模塊 (Minimalist Welcome Bento Card) */}
+          <div className="relative overflow-hidden bg-white dark:bg-[#131B2B] border border-slate-200/80 dark:border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xs transition-colors">
+            {/* 背景柔和氛圍光暈 */}
+            <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-sky-400/10 dark:bg-sky-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 -mb-6 -ml-6 w-24 h-24 bg-blue-500/5 dark:bg-blue-400/5 rounded-full blur-xl pointer-events-none" />
+
+            <div className="relative flex items-center justify-between gap-3">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-sky-100 dark:border-sky-900/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+                  <span>點餐大廳 • 咩nu</span>
+                </div>
+
+                <h2 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight leading-snug">
+                  自由挑選喜愛的店家菜單
+                </h2>
+
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                  隨手揪團輕鬆點餐，一鍵快速結帳送單
+                </p>
+              </div>
+
+              {/* 右側極簡幾何圖示徽章 */}
+              <div className="w-10 h-10 rounded-2xl bg-sky-50 dark:bg-sky-950/50 border border-sky-100 dark:border-sky-800/60 text-sky-500 dark:text-sky-400 flex items-center justify-center shrink-0 shadow-2xs">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+                  <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+                  <line x1="6" y1="1" x2="6" y2="4" />
+                  <line x1="10" y1="1" x2="10" y2="4" />
+                  <line x1="14" y1="1" x2="14" y2="4" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* 🔍 店家搜尋列 */}

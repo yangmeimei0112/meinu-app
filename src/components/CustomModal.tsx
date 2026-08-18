@@ -453,7 +453,7 @@ export default function CustomModal({
               )}
             </h3>
             <p className="text-xs text-sky-600 dark:text-sky-400 font-extrabold mt-0.5">
-              基本單價 ${item.price} 元起
+              ${item.price} 元
             </p>
           </div>
           <button
