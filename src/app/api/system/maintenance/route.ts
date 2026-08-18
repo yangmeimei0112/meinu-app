@@ -18,8 +18,8 @@ interface MaintenanceConfig {
 
 const defaultConfig: MaintenanceConfig = {
   is_maintenance: false,
-  title: '🚧 系統更新維護中',
-  message: '為了提供更好的揪團點餐體驗，網站目前正在進行例行升級維護。暫停點餐服務，請稍後再下單，感謝您的耐心等候！',
+  title: '網站更新維護中，請稍後再下單',
+  message: '為了提供更好的揪團點餐體驗，網站目前正在進行例行升級維護。暫停點餐服務，請稍後再下單，感謝您的耐心等候。',
   estimated_end_time: '預計 15-30 分鐘內完成',
   reason: '系統例行升級',
   updated_at: new Date().toISOString(),
@@ -79,14 +79,25 @@ function writeConfig(config: MaintenanceConfig): boolean {
   return written || !!memoryCache;
 }
 
-// 供前台訪客快速查詢維護狀態 (0 延遲，支援快取控制)
+// 供前台訪客快速查詢維護狀態 (附帶目前伺服端部署 Build ID 與版本時間戳)
 export async function GET() {
   const config = readConfig();
-  return NextResponse.json(config, {
-    headers: {
-      'Cache-Control': 'no-store, max-age=0',
+  const buildId = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || process.env.VERCEL_GIT_COMMIT_SHA || 'dev';
+
+  return NextResponse.json(
+    {
+      ...config,
+      build_id: buildId,
+      server_timestamp: Date.now(),
     },
-  });
+    {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    }
+  );
 }
 
 // 🛡️ 供團長後台控制開關與修改維護公告 (具備嚴格安全鑑權與長度防禦)
@@ -129,8 +140,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: updatedConfig.is_maintenance ? '🚧 已開啟前台系統維護模式' : '✅ 已關閉維護模式，前台恢復正常點餐',
+      message: updatedConfig.is_maintenance ? '已開啟前台系統維護模式' : '已關閉維護模式，前台恢復正常點餐',
       config: updatedConfig,
+      build_id: process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || process.env.VERCEL_GIT_COMMIT_SHA || 'dev',
     });
   } catch (err: any) {
     console.error('更新維護狀態出錯:', err);

@@ -11,6 +11,39 @@ export interface MaintenanceData {
   estimated_end_time?: string;
   reason?: string;
   updated_at: string;
+  build_id?: string;
+}
+
+// ----------------------------------------------------
+// 🧹 強制清除所有快取並帶隨機時間戳硬重整至最新版本
+// ----------------------------------------------------
+async function forceHardReloadToLatestVersion(targetUrl?: string) {
+  try {
+    // 1. 清除 Service Worker 註冊 (若有)
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((r) => r.unregister()));
+    }
+    // 2. 清除瀏覽器 CacheStorage 快取
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+    }
+    // 3. 清除 SessionStorage 維護鎖定標記
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('meinu_maintenance_locked');
+      sessionStorage.removeItem('meinu_maintenance_deadline');
+    }
+  } catch (e) {
+    console.error('快取清理出錯:', e);
+  }
+
+  // 4. 強制帶隨機時間戳硬重整 (Bypass Browser HTTP Cache)
+  if (typeof window !== 'undefined') {
+    const url = new URL(targetUrl || window.location.href);
+    url.searchParams.set('_update', String(Date.now()));
+    window.location.replace(url.toString());
+  }
 }
 
 // ----------------------------------------------------
@@ -427,7 +460,7 @@ function DraggableFloatingCapsule({
 }
 
 // ----------------------------------------------------
-// 🛡️ 前台主防護攔截器 (60fps 流暢進度條 + 可拖移懸浮膠囊 + 絕對時間戳雙重硬鎖定)
+// 🛡️ 前台主防護攔截器 (60fps 流暢進度條 + 跨版本自動強制重整同步)
 // ----------------------------------------------------
 export default function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -444,6 +477,8 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
 
   const initialCheckDoneRef = useRef<boolean>(false);
   const deadlineRef = useRef<number | null>(null);
+  const wasInMaintenanceRef = useRef<boolean>(false);
+  const initialClientBuildRef = useRef<string>(process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || 'dev');
 
   // 1. 初始化讀取 SessionStorage 狀態（防止重整或跳轉頁面時繞過）
   useEffect(() => {
@@ -451,12 +486,14 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
       const savedLocked = sessionStorage.getItem('meinu_maintenance_locked');
       if (savedLocked === 'true') {
         setIsCountDownFinished(true);
+        wasInMaintenanceRef.current = true;
       }
       const savedDeadline = sessionStorage.getItem('meinu_maintenance_deadline');
       if (savedDeadline) {
         const dl = Number(savedDeadline);
         if (Date.now() >= dl) {
           setIsCountDownFinished(true);
+          wasInMaintenanceRef.current = true;
           sessionStorage.setItem('meinu_maintenance_locked', 'true');
         } else {
           deadlineRef.current = dl;
@@ -466,7 +503,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
     } catch {}
   }, []);
 
-  // 2. 輪詢查詢伺服端維護狀態
+  // 2. 輪詢查詢伺服端維護狀態與版本
   const fetchMaintenanceStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
@@ -474,7 +511,9 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
         const json: MaintenanceData = await res.json();
         setMaintenanceData((prev) => {
           if (json.is_maintenance) {
-            // 若為維護中
+            // 🔴 伺服端處於維護狀態中
+            wasInMaintenanceRef.current = true;
+
             if (!initialCheckDoneRef.current) {
               // 首次載入若伺服端本就處於維護中，檢查是否有現存倒數
               const savedDeadline = sessionStorage.getItem('meinu_maintenance_deadline');
@@ -487,7 +526,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
                 sessionStorage.setItem('meinu_maintenance_locked', 'true');
               }
             } else if (!prev?.is_maintenance && !deadlineRef.current) {
-              // 🔴 使用者在使用中，後台剛開啟維護模式：觸發 30 秒倒數 + 3秒置中動畫
+              // 使用者在使用中，後台剛開啟維護模式：觸發 30 秒倒數 + 3秒置中動畫
               const targetDeadline = Date.now() + 30000;
               deadlineRef.current = targetDeadline;
               try {
@@ -498,13 +537,29 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
               setSmoothProgress(100);
               setIsCenterPopup(true);
 
-              // 3 秒後平滑自動移動至畫面頂部
               setTimeout(() => {
                 setIsCenterPopup(false);
               }, 3000);
             }
           } else {
-            // 🟢 若後台關閉維護：徹底重置倒數與所有鎖定狀態
+            // 🟢 伺服端已關閉維護 (或原本即為正常營運)
+            const hadBeenInMaintenance =
+              wasInMaintenanceRef.current || sessionStorage.getItem('meinu_maintenance_locked') === 'true';
+            const serverBuildId = json.build_id;
+            const isNewVersionDeployed =
+              serverBuildId &&
+              serverBuildId !== 'dev' &&
+              serverBuildId !== initialClientBuildRef.current;
+
+            // 🚀 關鍵防護：若使用者先前處於維護畫面，或維護期間已部署新版本至 GitHub
+            // ➜ 即刻強制清除所有快取並硬重整以載入最新版本，絕不停留於舊版本！
+            if (hadBeenInMaintenance || isNewVersionDeployed) {
+              wasInMaintenanceRef.current = false;
+              deadlineRef.current = null;
+              forceHardReloadToLatestVersion();
+              return json;
+            }
+
             deadlineRef.current = null;
             setCountdown(null);
             setSmoothProgress(100);
@@ -570,6 +625,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
       if (remaining <= 0) {
         // 🔒 倒數結束：100% 絕對鎖定並切換至全螢幕維護頁面
         setIsCountDownFinished(true);
+        wasInMaintenanceRef.current = true;
         setCountdown(null);
         setSmoothProgress(0);
         deadlineRef.current = null;
@@ -595,10 +651,10 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
 
     if (updated) {
       if (!updated.is_maintenance) {
-        setCheckMessage('維護已完成！正在為您重新載入頁面...');
+        setCheckMessage('維護已完成！正在為您同步載入最新版本...');
         setTimeout(() => {
-          window.location.reload();
-        }, 600);
+          forceHardReloadToLatestVersion();
+        }, 500);
       } else {
         setCheckMessage('系統仍在庫升級中，請稍後再試。');
         setTimeout(() => setCheckMessage(null), 4000);
@@ -608,6 +664,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
 
   const handleImmediateSwitch = () => {
     setIsCountDownFinished(true);
+    wasInMaintenanceRef.current = true;
     setCountdown(null);
     setSmoothProgress(0);
     deadlineRef.current = null;
