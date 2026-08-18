@@ -61,19 +61,22 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
       .catch(() => {});
   }, [onUnlockSuccess, onInitAudio]);
 
+  const [authError, setAuthError] = useState<string | null>(null);
+
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isVerifying) return;
+    setAuthError(null);
 
     if (lockoutRemaining > 0) {
-      alert(`🔒 系統處於防撞庫安全鎖定中，請於 ${lockoutRemaining} 秒後再試！`);
+      setAuthError(`🔒 系統處於防撞庫安全鎖定中，請於 ${lockoutRemaining} 秒後再試！`);
       return;
     }
 
     // 當錯誤次數 >= 2 時強制驗證動態人機挑戰
     if (failedAttempts >= 2) {
       if (!captchaInput.trim() || Number(captchaInput.trim()) !== captchaChallenge.answer) {
-        alert('⚠️ 人機驗證算術答案錯誤！請重新計算輸入。');
+        setAuthError('⚠️ 人機驗證算術答案錯誤！請重新計算輸入。');
         setCaptchaChallenge(generateMathChallenge());
         setCaptchaInput('');
         return;
@@ -96,6 +99,7 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
         onUnlockSuccess();
         setFailedAttempts(0);
         setCaptchaInput('');
+        setAuthError(null);
         onInitAudio();
         try {
           sessionStorage.removeItem('menu_app_admin_failed');
@@ -118,11 +122,11 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
           setLockoutRemaining(lockSec);
         }
 
-        alert(data.message || '❌ 密碼錯誤！');
+        setAuthError(data.message || '❌ 密碼錯誤，請重新輸入！');
       }
     } catch (err) {
       console.error(err);
-      alert('連線伺服器驗證失敗，請檢查網路連線');
+      setAuthError('連線伺服器驗證失敗，請檢查網路連線');
     } finally {
       setIsVerifying(false);
     }
@@ -151,6 +155,11 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
             </div>
           ) : (
             <form onSubmit={handleUnlock} className="space-y-3 pt-2">
+              {authError && (
+                <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/70 text-rose-700 dark:text-rose-300 text-xs font-bold px-3.5 py-2.5 rounded-2xl animate-in fade-in zoom-in-95 duration-150 text-center shadow-xs">
+                  {authError}
+                </div>
+              )}
               <label htmlFor="admin-passcode-input" className="sr-only">
                 團長後台解鎖密碼
               </label>

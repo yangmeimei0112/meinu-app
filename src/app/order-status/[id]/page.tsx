@@ -254,10 +254,17 @@ export default function OrderStatusPage({
     });
   };
 
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   // 執行確認動作（修改或取消）
   const handleExecuteModalAction = async () => {
     if (!isOrderOwner) {
-      alert('🔒 權限限制：此訂單不屬於此裝置，無法執行修改或取消操作！');
+      showToast('🔒 權限限制：此訂單不屬於此裝置，無法執行修改或取消操作！');
       setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
       return;
     }
@@ -300,8 +307,8 @@ export default function OrderStatusPage({
 
         cleanLocalHistory();
 
-        alert('🔄 已成功將品項還原回購物車！請在購物車進行修改。');
-        router.push('/cart');
+        showToast('🔄 已成功將品項還原回購物車！正在前往購物車...');
+        setTimeout(() => router.push('/cart'), 500);
       } else {
         // 取消訂單：刪除後台此筆訂單明細與訂單主檔
         await supabase.from('order_items').delete().eq('submission_id', submissionId);
@@ -313,12 +320,12 @@ export default function OrderStatusPage({
         if (error) throw error;
         cleanLocalHistory();
 
-        alert('🗑️ 訂單已順利取消！');
-        router.push('/');
+        showToast('🗑️ 訂單已順利取消！正在返回首頁大廳...');
+        setTimeout(() => router.push('/'), 500);
       }
     } catch (e) {
       console.error(e);
-      alert('❌ 操作失敗，可能訂單已被處理或網路不穩，請稍後重試');
+      showToast('❌ 操作失敗，可能訂單已被處理或網路不穩，請稍後重試');
     } finally {
       setIsActionLoading(false);
     }
@@ -332,6 +339,13 @@ export default function OrderStatusPage({
     <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-20 transition-colors duration-200">
       <OfflineBanner />
       <Header />
+
+      {/* 🌟 自訂高質感浮動通知視窗 */}
+      {toastMessage && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 dark:bg-slate-800/95 text-white text-xs font-bold px-5 py-3 rounded-full shadow-2xl border border-slate-700 backdrop-blur-md animate-in fade-in zoom-in duration-200 flex items-center gap-2">
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       <main className="max-w-md mx-auto px-4 pt-3 space-y-4">
         <Link

@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import CustomModal from '@/components/CustomModal';
 import BudgetLimitNotice from '@/components/BudgetLimitNotice';
+import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import { supabase } from '@/lib/supabase';
 import { MultiStoreCart, CartItem } from '@/types/cart';
 import { MenuItem, GroupOrder } from '@/types/database';
@@ -16,6 +17,15 @@ export default function MultiCartPage() {
   const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
   const [editingMenuItem, setEditingMenuItem] = useState<MenuItem | null>(null);
   const [activeGroupOrder, setActiveGroupOrder] = useState<GroupOrder | null>(null);
+  const [clearConfirmModal, setClearConfirmModal] = useState<{
+    isOpen: boolean;
+    storeId: string;
+    storeName: string;
+  }>({
+    isOpen: false,
+    storeId: '',
+    storeName: '',
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem('menu_app_multi_cart');
@@ -110,12 +120,21 @@ export default function MultiCartPage() {
   };
 
   const handleClearStoreCart = (storeId: string) => {
-    if (!confirm('⚠️ 確定要清空這間店家的購物車嗎？')) return;
+    const storeName = multiCart[storeId]?.storeName || '這間店家';
+    setClearConfirmModal({
+      isOpen: true,
+      storeId,
+      storeName,
+    });
+  };
+
+  const executeClearStoreCart = (storeId: string) => {
     const updated = { ...multiCart };
     delete updated[storeId];
     const remainingIds = Object.keys(updated);
     setActiveStoreId(remainingIds[0] || '');
     saveMultiCart(updated);
+    setClearConfirmModal({ isOpen: false, storeId: '', storeName: '' });
   };
 
   // ✏️ 快速在購物車中修改餐點規格 (Edit in Cart)
@@ -381,6 +400,18 @@ export default function MultiCartPage() {
           onUpdateCartItem={handleSaveEditedItem}
         />
       )}
+
+      {/* 🗑️ 清空店家購物車確認彈窗 */}
+      <DoubleConfirmModal
+        isOpen={clearConfirmModal.isOpen}
+        title="⚠️ 清空店家購物車"
+        message={`確定要清空「${clearConfirmModal.storeName}」購物車中的所有餐點嗎？此動作無法復原。`}
+        confirmText="確定清空"
+        cancelText="保留餐點"
+        isDanger={true}
+        onConfirm={() => executeClearStoreCart(clearConfirmModal.storeId)}
+        onCancel={() => setClearConfirmModal({ isOpen: false, storeId: '', storeName: '' })}
+      />
     </div>
   );
 }

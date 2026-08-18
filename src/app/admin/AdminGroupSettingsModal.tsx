@@ -68,12 +68,15 @@ export default function AdminGroupSettingsModal({
     }
   }, [groupOrder, stores, isOpen]);
 
+  const [modalError, setModalError] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setModalError(null);
     if (!title.trim() || !storeId) {
-      alert('請填寫團購活動名稱並選擇合作門市');
+      setModalError('⚠️ 請填寫團購活動名稱並選擇合作門市！');
       return;
     }
 
@@ -93,7 +96,7 @@ export default function AdminGroupSettingsModal({
       onClose();
     } catch (err: any) {
       console.error(err);
-      alert(`儲存失敗：${err?.message || err}`);
+      setModalError(`❌ 儲存失敗：${err?.message || err}`);
     } finally {
       setIsSaving(false);
     }
@@ -124,6 +127,12 @@ export default function AdminGroupSettingsModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          {modalError && (
+            <div className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/70 text-rose-700 dark:text-rose-300 text-xs font-bold p-3 rounded-2xl animate-in fade-in zoom-in-95 duration-150 shadow-xs">
+              {modalError}
+            </div>
+          )}
+
           {/* 活動名稱 */}
           <div>
             <label htmlFor="group-modal-title" className="font-bold text-slate-700 dark:text-slate-300 block mb-1">

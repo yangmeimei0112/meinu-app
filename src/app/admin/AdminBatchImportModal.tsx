@@ -21,6 +21,7 @@ export default function AdminBatchImportModal({
 }: AdminBatchImportModalProps) {
   const [csvContent, setCsvContent] = useState<string>('');
   const [isImporting, setIsImporting] = useState<boolean>(false);
+  const [statusMsg, setStatusMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
   if (!isOpen || !storeId) return null;
 
@@ -58,6 +59,7 @@ export default function AdminBatchImportModal({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setStatusMsg(null);
 
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -69,8 +71,9 @@ export default function AdminBatchImportModal({
 
   // 解析並執行批次匯入
   const handleExecuteImport = async () => {
+    setStatusMsg(null);
     if (!csvContent.trim()) {
-      alert('請先貼上或上傳 CSV 內容！');
+      setStatusMsg({ text: '⚠️ 請先貼上或上傳 CSV 內容！', isError: true });
       return;
     }
 
@@ -82,7 +85,8 @@ export default function AdminBatchImportModal({
       // 去掉第一行標題
       const dataRows = rows.slice(1);
       if (dataRows.length === 0) {
-        alert('CSV 內容為空或無有效資料列！');
+        setStatusMsg({ text: '⚠️ CSV 內容為空或無有效資料列！', isError: true });
+        setIsImporting(false);
         return;
       }
 
@@ -140,13 +144,18 @@ export default function AdminBatchImportModal({
         }
       }
 
-      alert(`🎉 成功匯入 ${successCount} 個菜單品項至「${storeName}」！`);
-      setCsvContent('');
-      onImportSuccess();
-      onClose();
+      setStatusMsg({
+        text: `🎉 成功匯入 ${successCount} 個菜單品項至「${storeName}」！`,
+        isError: false,
+      });
+      setTimeout(() => {
+        setCsvContent('');
+        onImportSuccess();
+        onClose();
+      }, 1200);
     } catch (err) {
       console.error('Batch import error:', err);
-      alert('❌ 匯入失敗，請檢查 CSV 格式是否符合範本');
+      setStatusMsg({ text: '❌ 匯入失敗，請檢查 CSV 格式是否符合範本', isError: true });
     } finally {
       setIsImporting(false);
     }
@@ -173,6 +182,19 @@ export default function AdminBatchImportModal({
             ✕
           </button>
         </div>
+
+        {/* 🌟 狀態與錯誤自訂通知橫幅 */}
+        {statusMsg && (
+          <div
+            className={`p-3 rounded-2xl text-xs font-bold border animate-in fade-in zoom-in-95 duration-150 ${
+              statusMsg.isError
+                ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/70 text-rose-700 dark:text-rose-300'
+                : 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-900/70 text-emerald-700 dark:text-emerald-300'
+            }`}
+          >
+            {statusMsg.text}
+          </div>
+        )}
 
         {/* 範本下載按鈕群 */}
         <div className="space-y-1.5">

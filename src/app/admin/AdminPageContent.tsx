@@ -29,6 +29,7 @@ const AdminManualOrderModal = dynamic(() => import('./AdminManualOrderModal'), {
 const AdminBatchImportModal = dynamic(() => import('./AdminBatchImportModal'), { ssr: false });
 const AdminGroupSettingsModal = dynamic(() => import('./AdminGroupSettingsModal'), { ssr: false });
 const SignatureModal = dynamic(() => import('@/components/SignatureModal'), { ssr: false });
+const DoubleConfirmModal = dynamic(() => import('@/components/DoubleConfirmModal'), { ssr: false });
 
 export default function AdminPageContent() {
   const { theme, toggleTheme } = useTheme();
@@ -62,6 +63,24 @@ export default function AdminPageContent() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   }, []);
+
+  const [adminConfirmModal, setAdminConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    cancelText: string;
+    isDanger: boolean;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '確定',
+    cancelText: '取消',
+    isDanger: false,
+    onConfirm: () => {},
+  });
 
   const notifyNewOrder = useCallback(
     (orderId: string, nickname: string, orderCreatedAt?: string | number) => {
@@ -463,7 +482,7 @@ export default function AdminPageContent() {
         const { error: uploadError } = await supabase.storage.from('stores').upload(fileName, storeImageFile);
         if (uploadError) {
           console.error('上傳圖片錯誤:', uploadError);
-          alert('圖片上傳失敗，請確認 Supabase Storage 是否已建立名稱為 "stores" 的 Public Bucket');
+          showToast('❌ 圖片上傳失敗，請確認 Storage 設定');
           setUploadingImage(false);
           return;
         }
@@ -497,23 +516,33 @@ export default function AdminPageContent() {
       fetchAdminData();
     } catch (err: any) {
       console.error('儲存店家失敗:', err);
-      alert(`儲存店家失敗: ${err?.message || err}`);
+      showToast(`❌ 儲存店家失敗: ${err?.message || '請稍後重試'}`);
     } finally {
       setUploadingImage(false);
     }
   };
 
-  const handleDeleteStore = async (storeId: string) => {
-    if (!confirm('⚠️ 確定要刪除此店家嗎？此動作無法復原！')) return;
-    try {
-      const { error } = await supabase.from('stores').delete().eq('id', storeId);
-      if (error) throw error;
-      showToast('🗑️ 店家已刪除');
-      fetchAdminData();
-    } catch (err) {
-      console.error('刪除店家失敗:', err);
-      alert('刪除失敗');
-    }
+  const handleDeleteStore = (storeId: string) => {
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '⚠️ 刪除合作店家',
+      message: '確定要刪除此店家嗎？此動作將一併影響相關菜單且無法復原！',
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const { error } = await supabase.from('stores').delete().eq('id', storeId);
+          if (error) throw error;
+          showToast('🗑️ 店家已刪除');
+          fetchAdminData();
+        } catch (err) {
+          console.error('刪除店家失敗:', err);
+          showToast('❌ 刪除店家失敗');
+        }
+      },
+    });
   };
 
   const handleSaveCategory = async (e: React.FormEvent) => {
@@ -538,16 +567,27 @@ export default function AdminPageContent() {
     }
   };
 
-  const handleDeleteCategory = async (catId: string) => {
-    if (!confirm('確定要刪除此類別嗎？')) return;
-    try {
-      const { error } = await supabase.from('categories').delete().eq('id', catId);
-      if (error) throw error;
-      showToast('🗑️ 類別已刪除');
-      fetchAdminData();
-    } catch (err) {
-      console.error('刪除類別失敗:', err);
-    }
+  const handleDeleteCategory = (catId: string) => {
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '⚠️ 刪除商品分類',
+      message: '確定要刪除此商品分類嗎？',
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const { error } = await supabase.from('categories').delete().eq('id', catId);
+          if (error) throw error;
+          showToast('🗑️ 類別已刪除');
+          fetchAdminData();
+        } catch (err) {
+          console.error('刪除類別失敗:', err);
+          showToast('❌ 刪除分類失敗');
+        }
+      },
+    });
   };
 
   const handleMoveCategory = async (cat: Category, direction: 'up' | 'down') => {
@@ -586,15 +626,25 @@ export default function AdminPageContent() {
     fetchAdminData();
   };
 
-  const handleDeletePaymentMethod = async (id: string) => {
-    if (!confirm('確定要刪除此付款方式嗎？')) return;
-    const { error } = await supabase.from('payment_methods').delete().eq('id', id);
-    if (error) {
-      showToast('❌ 刪除付款方式失敗');
-      return;
-    }
-    showToast('🗑️ 付款方式已刪除');
-    fetchAdminData();
+  const handleDeletePaymentMethod = (id: string) => {
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '⚠️ 刪除付款方式',
+      message: '確定要刪除此付款方式嗎？',
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        const { error } = await supabase.from('payment_methods').delete().eq('id', id);
+        if (error) {
+          showToast('❌ 刪除付款方式失敗');
+          return;
+        }
+        showToast('🗑️ 付款方式已刪除');
+        fetchAdminData();
+      },
+    });
   };
 
   const handleTogglePaymentMethodActive = async (id: string, currentStatus: boolean) => {
@@ -629,15 +679,25 @@ export default function AdminPageContent() {
     fetchAdminData();
   };
 
-  const handleDeleteSoldOutOption = async (id: string) => {
-    if (!confirm('確定要刪除此缺貨備案嗎？')) return;
-    const { error } = await supabase.from('sold_out_options').delete().eq('id', id);
-    if (error) {
-      showToast('❌ 刪除缺貨備案失敗');
-      return;
-    }
-    showToast('🗑️ 缺貨備案已刪除');
-    fetchAdminData();
+  const handleDeleteSoldOutOption = (id: string) => {
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '⚠️ 刪除缺貨備案',
+      message: '確定要刪除此缺貨備案嗎？',
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        const { error } = await supabase.from('sold_out_options').delete().eq('id', id);
+        if (error) {
+          showToast('❌ 刪除缺貨備案失敗');
+          return;
+        }
+        showToast('🗑️ 缺貨備案已刪除');
+        fetchAdminData();
+      },
+    });
   };
 
   const handleMoveSoldOutOption = async (id: string, direction: 'up' | 'down') => {
@@ -713,7 +773,7 @@ export default function AdminPageContent() {
     e.preventDefault();
     const targetStoreId = selectedCrudStoreId || editingProduct?.store_id;
     if (!targetStoreId || !productForm.name.trim()) {
-      alert('請確認已選擇店家並填寫餐點名稱！');
+      showToast('⚠️ 請確認已選擇店家並填寫餐點名稱！');
       return;
     }
     try {
@@ -740,20 +800,31 @@ export default function AdminPageContent() {
       fetchAdminData();
     } catch (err: any) {
       console.error('儲存餐點失敗:', err);
-      alert(`儲存餐點失敗：${err?.message || err?.details || '請確認 Supabase menu_items 欄位'}`);
+      showToast(`❌ 儲存餐點失敗: ${err?.message || '請檢查格式'}`);
     }
   };
 
-  const handleDeleteProduct = async (productId: string) => {
-    if (!confirm('確定要刪除此品項嗎？')) return;
-    try {
-      const { error } = await supabase.from('menu_items').delete().eq('id', productId);
-      if (error) throw error;
-      showToast('🗑️ 品項已刪除');
-      fetchAdminData();
-    } catch (err) {
-      console.error('刪除品項失敗:', err);
-    }
+  const handleDeleteProduct = (productId: string) => {
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '⚠️ 刪除餐點品項',
+      message: '確定要刪除此餐點品項嗎？此動作無法復原！',
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          const { error } = await supabase.from('menu_items').delete().eq('id', productId);
+          if (error) throw error;
+          showToast('🗑️ 品項已刪除');
+          fetchAdminData();
+        } catch (err) {
+          console.error('刪除品項失敗:', err);
+          showToast('❌ 刪除品項失敗');
+        }
+      },
+    });
   };
 
   const handleToggleProductStatus = async (productId: string) => {
@@ -825,13 +896,22 @@ export default function AdminPageContent() {
     }
   };
 
-  const handleArchiveGroup = async () => {
+  const handleArchiveGroup = () => {
     if (!activeGroup) return;
-    if (!confirm('📦 確定要歸檔此團購活動嗎？歸檔後可隨時一鍵重開新團。')) return;
-
-    await supabase.from('group_orders').update({ status: 'completed' }).eq('id', activeGroup.id);
-    showToast('📦 團購活動已移入歷史歸檔！');
-    fetchAdminData();
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '📦 歸檔團購活動',
+      message: '確定要歸檔此團購活動嗎？歸檔後可隨時一鍵重開新團。',
+      confirmText: '確定歸檔',
+      cancelText: '取消',
+      isDanger: false,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        await supabase.from('group_orders').update({ status: 'completed' }).eq('id', activeGroup.id);
+        showToast('📦 團購活動已移入歷史歸檔！');
+        fetchAdminData();
+      },
+    });
   };
 
   const handleReopenGroup = async (group: GroupOrderAdmin) => {
@@ -859,77 +939,83 @@ export default function AdminPageContent() {
       setActiveTab('active');
       fetchAdminData();
     } else {
-      alert('建立新團購活動失敗');
+      showToast('❌ 建立新團購活動失敗');
     }
   };
 
-  const handleDeleteArchivedGroup = async (groupId: string, title: string) => {
-    if (
-      !confirm(
-        `🗑️ 確定要刪除歷史活動「${title}」嗎？\n此動作將一併清除該活動底下的所有歷史訂單紀錄，且無法復原。`
-      )
-    ) {
-      return;
-    }
+  const handleDeleteArchivedGroup = (groupId: string, title: string) => {
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '🗑️ 刪除歷史活動',
+      message: `確定要刪除歷史活動「${title}」嗎？此動作將一併清除該活動底下的所有歷史訂單紀錄，且無法復原。`,
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          // 1. 取得該活動所有訂單 ID
+          const { data: subs } = await supabase
+            .from('order_submissions')
+            .select('id')
+            .eq('group_order_id', groupId);
 
-    try {
-      // 1. 取得該活動所有訂單 ID
-      const { data: subs } = await supabase
-        .from('order_submissions')
-        .select('id')
-        .eq('group_order_id', groupId);
+          if (subs && subs.length > 0) {
+            const subIds = subs.map((s) => s.id);
+            await supabase.from('order_items').delete().in('submission_id', subIds);
+            await supabase.from('order_submissions').delete().in('id', subIds);
+          }
 
-      if (subs && subs.length > 0) {
-        const subIds = subs.map((s) => s.id);
-        await supabase.from('order_items').delete().in('submission_id', subIds);
-        await supabase.from('order_submissions').delete().in('id', subIds);
-      }
+          const { error } = await supabase.from('group_orders').delete().eq('id', groupId);
+          if (error) throw error;
 
-      const { error } = await supabase.from('group_orders').delete().eq('id', groupId);
-      if (error) throw error;
-
-      showToast(`🗑️ 已刪除歷史活動「${title}」`);
-      fetchAdminData();
-    } catch (err: any) {
-      console.error('刪除歷史活動失敗:', err);
-      showToast(`❌ 刪除失敗：${err?.message || err}`);
-    }
+          showToast(`🗑️ 已刪除歷史活動「${title}」`);
+          fetchAdminData();
+        } catch (err: any) {
+          console.error('刪除歷史活動失敗:', err);
+          showToast(`❌ 刪除失敗：${err?.message || err}`);
+        }
+      },
+    });
   };
 
-  const handleBatchDeleteArchivedGroups = async (groupIds: string[]) => {
+  const handleBatchDeleteArchivedGroups = (groupIds: string[]) => {
     if (!groupIds.length) return;
     const count = groupIds.length;
 
-    if (
-      !confirm(
-        `🗑️ 確定要批次刪除選取的 ${count} 個歷史活動嗎？\n此動作將一併清除這些活動底下的所有歷史訂單紀錄，且無法復原。`
-      )
-    ) {
-      return;
-    }
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '🗑️ 批次刪除歷史活動',
+      message: `確定要批次刪除選取的 ${count} 個歷史活動嗎？此動作將一併清除這些活動底下的所有歷史訂單紀錄，且無法復原。`,
+      confirmText: '確定批次刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        try {
+          // 1. 取得所有選取活動的訂單 ID
+          const { data: subs } = await supabase
+            .from('order_submissions')
+            .select('id')
+            .in('group_order_id', groupIds);
 
-    try {
-      // 1. 取得所有選取活動的訂單 ID
-      const { data: subs } = await supabase
-        .from('order_submissions')
-        .select('id')
-        .in('group_order_id', groupIds);
+          if (subs && subs.length > 0) {
+            const subIds = subs.map((s) => s.id);
+            await supabase.from('order_items').delete().in('submission_id', subIds);
+            await supabase.from('order_submissions').delete().in('id', subIds);
+          }
 
-      if (subs && subs.length > 0) {
-        const subIds = subs.map((s) => s.id);
-        await supabase.from('order_items').delete().in('submission_id', subIds);
-        await supabase.from('order_submissions').delete().in('id', subIds);
-      }
+          const { error } = await supabase.from('group_orders').delete().in('id', groupIds);
+          if (error) throw error;
 
-      const { error } = await supabase.from('group_orders').delete().in('id', groupIds);
-      if (error) throw error;
-
-      showToast(`🗑️ 已批次刪除 ${count} 個歷史活動`);
-      fetchAdminData();
-    } catch (err: any) {
-      console.error('批次刪除歷史活動失敗:', err);
-      showToast(`❌ 批次刪除失敗：${err?.message || err}`);
-    }
+          showToast(`🗑️ 已批次刪除 ${count} 個歷史活動`);
+          fetchAdminData();
+        } catch (err: any) {
+          console.error('批次刪除歷史活動失敗:', err);
+          showToast(`❌ 批次刪除失敗：${err?.message || err}`);
+        }
+      },
+    });
   };
 
   const handleSaveGroupSettings = async (updatedData: {
@@ -997,58 +1083,64 @@ export default function AdminPageContent() {
     }
   };
 
-  const handleDeleteOrder = async (subId: string, nickname: string, orderNumber: string) => {
-    if (
-      !confirm(
-        `🗑️ 確定要刪除「${nickname}」的訂單 #${orderNumber} 嗎？\n此動作將一併刪除該訂單的所有餐點明細，且無法復原。`
-      )
-    ) {
-      return;
-    }
+  const handleDeleteOrder = (subId: string, nickname: string, orderNumber: string) => {
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '🗑️ 刪除訂單',
+      message: `確定要刪除「${nickname}」的訂單 #${orderNumber} 嗎？此動作將一併刪除該訂單的所有餐點明細，且無法復原。`,
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        setAllSubmissions((prev) => prev.filter((s) => s.id !== subId));
+        setSelectedSubmissionIds((prev) => prev.filter((id) => id !== subId));
+        showToast(`🗑️ 已刪除 ${nickname} 的訂單`);
 
-    setAllSubmissions((prev) => prev.filter((s) => s.id !== subId));
-    setSelectedSubmissionIds((prev) => prev.filter((id) => id !== subId));
-    showToast(`🗑️ 已刪除 ${nickname} 的訂單`);
-
-    try {
-      await supabase.from('order_items').delete().eq('submission_id', subId);
-      const { error } = await supabase.from('order_submissions').delete().eq('id', subId);
-      if (error) throw error;
-      fetchAdminData(selectedActiveGroupIdRef.current, true);
-    } catch (err) {
-      console.error('刪除訂單失敗:', err);
-      showToast('❌ 刪除訂單失敗，正在重新同步...');
-      fetchAdminData(selectedActiveGroupIdRef.current, true);
-    }
+        try {
+          await supabase.from('order_items').delete().eq('submission_id', subId);
+          const { error } = await supabase.from('order_submissions').delete().eq('id', subId);
+          if (error) throw error;
+          fetchAdminData(selectedActiveGroupIdRef.current, true);
+        } catch (err) {
+          console.error('刪除訂單失敗:', err);
+          showToast('❌ 刪除訂單失敗，正在重新同步...');
+          fetchAdminData(selectedActiveGroupIdRef.current, true);
+        }
+      },
+    });
   };
 
-  const handleBatchDeleteOrders = async () => {
+  const handleBatchDeleteOrders = () => {
     if (!selectedSubmissionIds.length) return;
     const idsToDelete = [...selectedSubmissionIds];
     const count = idsToDelete.length;
 
-    if (
-      !confirm(
-        `🗑️ 確定要批次刪除選取的 ${count} 筆訂單嗎？\n此動作將一併刪除這些訂單的所有餐點明細，且無法復原。`
-      )
-    ) {
-      return;
-    }
+    setAdminConfirmModal({
+      isOpen: true,
+      title: '🗑️ 批次刪除訂單',
+      message: `確定要批次刪除選取的 ${count} 筆訂單嗎？此動作將一併刪除這些訂單的所有餐點明細，且無法復原。`,
+      confirmText: '確定批次刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        setAllSubmissions((prev) => prev.filter((s) => !idsToDelete.includes(s.id)));
+        setSelectedSubmissionIds([]);
+        showToast(`🗑️ 已批次刪除 ${count} 筆訂單`);
 
-    setAllSubmissions((prev) => prev.filter((s) => !idsToDelete.includes(s.id)));
-    setSelectedSubmissionIds([]);
-    showToast(`🗑️ 已批次刪除 ${count} 筆訂單`);
-
-    try {
-      await supabase.from('order_items').delete().in('submission_id', idsToDelete);
-      const { error } = await supabase.from('order_submissions').delete().in('id', idsToDelete);
-      if (error) throw error;
-      fetchAdminData(selectedActiveGroupIdRef.current, true);
-    } catch (err) {
-      console.error('批次刪除訂單失敗:', err);
-      showToast('❌ 批次刪除失敗，正在重新同步...');
-      fetchAdminData(selectedActiveGroupIdRef.current, true);
-    }
+        try {
+          await supabase.from('order_items').delete().in('submission_id', idsToDelete);
+          const { error } = await supabase.from('order_submissions').delete().in('id', idsToDelete);
+          if (error) throw error;
+          fetchAdminData(selectedActiveGroupIdRef.current, true);
+        } catch (err) {
+          console.error('批次刪除訂單失敗:', err);
+          showToast('❌ 批次刪除失敗，正在重新同步...');
+          fetchAdminData(selectedActiveGroupIdRef.current, true);
+        }
+      },
+    });
   };
 
   const handleCopyPersonalReceipt = async (sub: OrderSubmissionAdmin) => {
@@ -1637,6 +1729,18 @@ export default function AdminPageContent() {
           setChangeModalTarget(null);
           setReceivedCash('');
         }}
+      />
+
+      {/* ⚠️ 全域後台操作二次確認彈窗 */}
+      <DoubleConfirmModal
+        isOpen={adminConfirmModal.isOpen}
+        title={adminConfirmModal.title}
+        message={adminConfirmModal.message}
+        confirmText={adminConfirmModal.confirmText}
+        cancelText={adminConfirmModal.cancelText}
+        isDanger={adminConfirmModal.isDanger}
+        onConfirm={adminConfirmModal.onConfirm}
+        onCancel={() => setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

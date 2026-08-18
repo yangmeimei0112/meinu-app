@@ -221,7 +221,7 @@ export default function StoreClient({ storeId }: { storeId: string }) {
   const handleAddToCart = useCallback(
     (newItem: CartItem) => {
       if (isGroupClosed) {
-        alert('⚠️ 團長已截單，目前停止收單中！');
+        showToast('⚠️ 團長已截單，目前停止收單中！');
         return;
       }
       addItem(newItem);

@@ -14,6 +14,7 @@ import { generateSequentialOrderNumber } from '@/lib/order-utils';
 import CheckoutSummary from './components/CheckoutSummary';
 import CheckoutOptions from './components/CheckoutOptions';
 import OrderSuccessModal from '@/components/OrderSuccessModal';
+import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 
 function CheckoutContent() {
   const router = useRouter();
@@ -47,6 +48,22 @@ function CheckoutContent() {
     isOpen: false,
     orderNumber: '',
     submissionId: '',
+  });
+
+  const [duplicateConfirmModal, setDuplicateConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    cancelText: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: '確定',
+    cancelText: '取消',
+    onConfirm: () => {},
   });
 
   // 1. 載入指定店家的購物車品項與暱稱
@@ -223,7 +240,7 @@ function CheckoutContent() {
 
       if (existingGroup && existingGroup.length > 0) {
         if (existingGroup[0].status === 'closed') {
-          alert('🚫 團長已截單，目前停止收單中！無法送出訂單。');
+          showToast('🚫 團長已截單，目前停止收單中！無法送出訂單。');
           setIsSubmitting(false);
           return;
         }
@@ -252,14 +269,34 @@ function CheckoutContent() {
         .limit(1);
 
       if ((duplicateRows?.length || 0) > 0) {
-        const shouldContinue = window.confirm(
-          `⚠️ 目前已有一位「${cleanNickname}」送單囉！\n請問您是「${cleanNickname}」本人，還是另一位同名朋友？\n\n建議加上姓氏或代號（例如：戴小明、小明B）避免對帳混淆。\n\n要繼續以此暱稱送單嗎？`
-        );
-        if (!shouldContinue) {
-          setIsSubmitting(false);
-          return;
-        }
+        setDuplicateConfirmModal({
+          isOpen: true,
+          title: '⚠️ 發現同名訂單提醒',
+          message: `目前已有一位「${cleanNickname}」送單囉！建議加上姓氏或代號（例如：戴小明、小明B）避免對帳混淆。確定要繼續以此暱稱送單嗎？`,
+          confirmText: '繼續以此暱稱送單',
+          cancelText: '返回修改暱稱',
+          onConfirm: () => {
+            setDuplicateConfirmModal((prev) => ({ ...prev, isOpen: false }));
+            executeFinalOrderSubmission(cleanNickname, activeGroupId);
+          },
+        });
+        setIsSubmitting(false);
+        return;
       }
+
+      await executeFinalOrderSubmission(cleanNickname, activeGroupId);
+    } catch (err) {
+      console.error(err);
+      showToast('❌ 送出失敗，請重試或檢查網路連線');
+      setIsSubmitting(false);
+    }
+  };
+
+  // 實際執行訂單寫入流程
+  const executeFinalOrderSubmission = async (cleanNickname: string, activeGroupId: string) => {
+    setIsSubmitting(true);
+    try {
+      const storeId = cartItems[0].storeId;
 
       // 🔢 規律化循序單號生成 (MN-001, MN-002, MN-003 ...)
       const orderNumber = await generateSequentialOrderNumber(supabase, activeGroupId);
@@ -542,6 +579,18 @@ function CheckoutContent() {
         submissionId={successModalData.submissionId}
         storeName={successModalData.storeName}
         totalAmount={successModalData.totalAmount}
+      />
+
+      {/* ⚠️ 同暱稱防撞二次確認自訂彈窗 */}
+      <DoubleConfirmModal
+        isOpen={duplicateConfirmModal.isOpen}
+        title={duplicateConfirmModal.title}
+        message={duplicateConfirmModal.message}
+        confirmText={duplicateConfirmModal.confirmText}
+        cancelText={duplicateConfirmModal.cancelText}
+        isDanger={false}
+        onConfirm={duplicateConfirmModal.onConfirm}
+        onCancel={() => setDuplicateConfirmModal((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

@@ -32,6 +32,7 @@ export default function AdminManualOrderModal({
   const [paymentMethod, setPaymentMethod] = useState<string>(paymentMethods[0]?.name || '現金付款');
   const [soldOutOption, setSoldOutOption] = useState<string>(soldOutOptions[0]?.title || '直接取消該餐點');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [statusMsg, setStatusMsg] = useState<{ text: string; isError: boolean } | null>(null);
 
   if (!isOpen || !groupOrder) return null;
 
@@ -39,12 +40,13 @@ export default function AdminManualOrderModal({
   const itemTotal = currentItem ? currentItem.price * quantity : 0;
 
   const handleManualSubmit = async () => {
+    setStatusMsg(null);
     if (!nickname.trim()) {
-      alert('請填寫朋友暱稱！');
+      setStatusMsg({ text: '⚠️ 請填寫朋友暱稱！', isError: true });
       return;
     }
     if (!currentItem) {
-      alert('請選擇餐點品項！');
+      setStatusMsg({ text: '⚠️ 請選擇餐點品項！', isError: true });
       return;
     }
 
@@ -77,15 +79,17 @@ export default function AdminManualOrderModal({
         custom_notes: customNotes.trim() ? customNotes.trim() : null,
       });
 
-      alert(`🎉 已成功幫「${nickname.trim()}」代點餐點！`);
-      setNickname('');
-      setCustomNotes('');
-      setQuantity(1);
-      onOrderAdded();
-      onClose();
+      setStatusMsg({ text: `🎉 已成功幫「${nickname.trim()}」代點餐點！`, isError: false });
+      setTimeout(() => {
+        setNickname('');
+        setCustomNotes('');
+        setQuantity(1);
+        onOrderAdded();
+        onClose();
+      }, 1000);
     } catch (err) {
       console.error(err);
-      alert('❌ 代點失敗，請稍後重試');
+      setStatusMsg({ text: '❌ 代點失敗，請稍後重試', isError: true });
     } finally {
       setIsSubmitting(false);
     }
@@ -110,6 +114,19 @@ export default function AdminManualOrderModal({
             ✕
           </button>
         </div>
+
+        {/* 🌟 自訂狀態與錯誤提示通知視窗橫幅 */}
+        {statusMsg && (
+          <div
+            className={`p-3 rounded-2xl text-xs font-bold border animate-in fade-in zoom-in-95 duration-150 ${
+              statusMsg.isError
+                ? 'bg-rose-50 dark:bg-rose-950/50 border-rose-200 dark:border-rose-900/70 text-rose-700 dark:text-rose-300'
+                : 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-900/70 text-emerald-700 dark:text-emerald-300'
+            }`}
+          >
+            {statusMsg.text}
+          </div>
+        )}
 
         <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
           {/* 朋友暱稱 */}
