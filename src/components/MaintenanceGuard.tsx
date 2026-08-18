@@ -77,19 +77,15 @@ function IconChevronUp({ className = 'w-4 h-4' }: { className?: string }) {
   );
 }
 
-function IconChevronDown({ className = 'w-4 h-4' }: { className?: string }) {
+function IconMove({ className = 'w-3.5 h-3.5' }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
-
-function IconX({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="5 9 2 12 5 15" />
+      <polyline points="9 5 12 2 15 5" />
+      <polyline points="15 19 12 22 9 19" />
+      <polyline points="19 9 22 12 19 15" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <line x1="12" y1="2" x2="12" y2="22" />
     </svg>
   );
 }
@@ -281,7 +277,157 @@ export function MaintenanceScreen({
 }
 
 // ----------------------------------------------------
-// 🛡️ 前台主防護攔截器 (30 秒倒數 + 3秒置中動畫後頂部吸附 + 收合隱藏)
+// 📱 可任意滑鼠與手機觸控拖曳的懸浮倒數膠囊組件 (Draggable Capsule)
+// ----------------------------------------------------
+function DraggableFloatingCapsule({
+  countdown,
+  onExpand,
+}: {
+  countdown: number;
+  onExpand: () => void;
+}) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{
+    startX: number;
+    startY: number;
+    initX: number;
+    initY: number;
+    hasMoved: boolean;
+  }>({
+    startX: 0,
+    startY: 0,
+    initX: 0,
+    initY: 0,
+    hasMoved: false,
+  });
+  const capsuleRef = useRef<HTMLDivElement>(null);
+
+  // 初始化預設位置（置於螢幕頂部居中偏右）
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const defaultWidth = 230;
+      const initialX = Math.max(12, Math.min(window.innerWidth - defaultWidth - 12, (window.innerWidth - defaultWidth) / 2));
+      const initialY = 16;
+      setPos({ x: initialX, y: initialY });
+    }
+  }, []);
+
+  // 1. 滑鼠拖曳事件處理 (Desktop Mouse Drag)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!pos) return;
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: pos.x,
+      initY: pos.y,
+      hasMoved: false,
+    };
+    setIsDragging(true);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - dragStartRef.current.startX;
+      const dy = moveEvent.clientY - dragStartRef.current.startY;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        dragStartRef.current.hasMoved = true;
+      }
+      const elWidth = capsuleRef.current?.offsetWidth || 230;
+      const elHeight = capsuleRef.current?.offsetHeight || 44;
+      const newX = Math.max(8, Math.min(window.innerWidth - elWidth - 8, dragStartRef.current.initX + dx));
+      const newY = Math.max(8, Math.min(window.innerHeight - elHeight - 8, dragStartRef.current.initY + dy));
+      setPos({ x: newX, y: newY });
+    };
+
+    const onMouseUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // 2. 手機觸控拖曳事件處理 (Mobile Touch Drag)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!pos || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    dragStartRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      initX: pos.x,
+      initY: pos.y,
+      hasMoved: false,
+    };
+    setIsDragging(true);
+
+    const onTouchMove = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches.length === 0) return;
+      const t = moveEvent.touches[0];
+      const dx = t.clientX - dragStartRef.current.startX;
+      const dy = t.clientY - dragStartRef.current.startY;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        dragStartRef.current.hasMoved = true;
+      }
+      const elWidth = capsuleRef.current?.offsetWidth || 230;
+      const elHeight = capsuleRef.current?.offsetHeight || 44;
+      const newX = Math.max(8, Math.min(window.innerWidth - elWidth - 8, dragStartRef.current.initX + dx));
+      const newY = Math.max(8, Math.min(window.innerHeight - elHeight - 8, dragStartRef.current.initY + dy));
+      setPos({ x: newX, y: newY });
+    };
+
+    const onTouchEnd = () => {
+      setIsDragging(false);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+  };
+
+  // 區分點擊（展開）與拖曳（移動）
+  const handleClick = (e: React.MouseEvent) => {
+    if (dragStartRef.current.hasMoved) {
+      e.stopPropagation();
+      return;
+    }
+    onExpand();
+  };
+
+  return (
+    <div
+      ref={capsuleRef}
+      style={{
+        position: 'fixed',
+        left: pos ? `${pos.x}px` : '50%',
+        top: pos ? `${pos.y}px` : '16px',
+        transform: pos ? 'none' : 'translateX(-50%)',
+        zIndex: 99999,
+        touchAction: 'none',
+      }}
+      onMouseDown={handleMouseDown}
+      onTouchStart={handleTouchStart}
+      onClick={handleClick}
+      className={`select-none bg-slate-900/95 text-amber-400 border-2 border-amber-500/80 shadow-2xl backdrop-blur-md px-3.5 py-2 rounded-full text-xs font-black flex items-center gap-2.5 transition-all cursor-grab active:cursor-grabbing pointer-events-auto ${
+        isDragging ? 'scale-105 shadow-amber-500/40 ring-4 ring-amber-400/30' : 'hover:scale-102 hover:border-amber-400'
+      }`}
+    >
+      <div className="flex items-center gap-1.5">
+        <IconAlertTriangle className="w-4 h-4 animate-pulse text-amber-400 shrink-0" />
+        <span className="tabular-nums font-black text-amber-300">維護倒數 {countdown}s</span>
+      </div>
+
+      <div className="flex items-center gap-1 text-[10px] text-slate-300 bg-slate-800/90 px-2 py-0.5 rounded-md border border-slate-700">
+        <IconMove className="w-3 h-3 text-slate-400" />
+        <span>拖移 / 點擊展開</span>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------------------------------------
+// 🛡️ 前台主防護攔截器 (60fps 流暢進度條 + 可拖移懸浮膠囊 + 絕對時間戳雙重硬鎖定)
 // ----------------------------------------------------
 export default function MaintenanceGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -291,6 +437,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
 
   // 🔔 30 秒倒數與狀態控制
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [smoothProgress, setSmoothProgress] = useState<number>(100);
   const [isCountDownFinished, setIsCountDownFinished] = useState<boolean>(false);
   const [isCenterPopup, setIsCenterPopup] = useState<boolean>(false);
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
@@ -348,6 +495,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
               } catch {}
 
               setCountdown(30);
+              setSmoothProgress(100);
               setIsCenterPopup(true);
 
               // 3 秒後平滑自動移動至畫面頂部
@@ -359,6 +507,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
             // 🟢 若後台關閉維護：徹底重置倒數與所有鎖定狀態
             deadlineRef.current = null;
             setCountdown(null);
+            setSmoothProgress(100);
             setIsCountDownFinished(false);
             setIsCenterPopup(false);
             setIsMinimized(false);
@@ -388,7 +537,29 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
     return () => clearInterval(timer);
   }, [fetchMaintenanceStatus]);
 
-  // 4. 精密倒數時鐘計數器（以絕對時間戳記計算，防頁面卡頓或背景 Tab 延遲）
+  // 4. 60fps 無卡頓流暢微進度條動畫（基於 requestAnimationFrame）
+  useEffect(() => {
+    if (!deadlineRef.current) return;
+    let animId: number;
+
+    const updateSmoothProgress = () => {
+      if (!deadlineRef.current) return;
+      const now = Date.now();
+      const remainingMs = deadlineRef.current - now;
+      const totalDurationMs = 30000;
+      const pct = Math.max(0, Math.min(100, (remainingMs / totalDurationMs) * 100));
+      setSmoothProgress(pct);
+
+      if (remainingMs > 0) {
+        animId = requestAnimationFrame(updateSmoothProgress);
+      }
+    };
+
+    animId = requestAnimationFrame(updateSmoothProgress);
+    return () => cancelAnimationFrame(animId);
+  }, [countdown]);
+
+  // 5. 精密秒數倒數計時器（以絕對時間戳記計算，防頁面卡頓或背景 Tab 延遲）
   useEffect(() => {
     if (!deadlineRef.current) return;
 
@@ -400,6 +571,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
         // 🔒 倒數結束：100% 絕對鎖定並切換至全螢幕維護頁面
         setIsCountDownFinished(true);
         setCountdown(null);
+        setSmoothProgress(0);
         deadlineRef.current = null;
         try {
           sessionStorage.setItem('meinu_maintenance_locked', 'true');
@@ -411,7 +583,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
     };
 
     tick();
-    const interval = setInterval(tick, 500);
+    const interval = setInterval(tick, 300);
     return () => clearInterval(interval);
   }, [countdown]);
 
@@ -437,6 +609,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
   const handleImmediateSwitch = () => {
     setIsCountDownFinished(true);
     setCountdown(null);
+    setSmoothProgress(0);
     deadlineRef.current = null;
     try {
       sessionStorage.setItem('meinu_maintenance_locked', 'true');
@@ -461,7 +634,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
 
   return (
     <>
-      {/* ⚠️ 30 秒預警通知：前 3 秒置中彈窗，3 秒後平滑轉移至頂部橫幅 */}
+      {/* ⚠️ 30 秒預警通知：前 3 秒置中彈窗，3 秒後平滑轉移至頂部橫幅 (含 60fps 平滑進度條與可拖移懸浮膠囊) */}
       {maintenanceData?.is_maintenance && countdown !== null && countdown > 0 && !isAdminRoute && (
         <>
           {/* 1. 前 3 秒：畫面正中央彈出式動畫 */}
@@ -485,10 +658,11 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
                   </p>
                 </div>
 
-                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                {/* 60fps 平滑流暢進度條 */}
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60 shadow-inner">
                   <div
-                    className="h-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500 ease-linear rounded-full"
-                    style={{ width: `${(countdown / 30) * 100}%` }}
+                    className="h-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 rounded-full will-change-[width]"
+                    style={{ width: `${smoothProgress}%` }}
                   />
                 </div>
 
@@ -512,81 +686,74 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
             </div>
           )}
 
-          {/* 2. 3 秒後：移至畫面頂部 (支援縮小膠囊與收合/展開) */}
+          {/* 2. 3 秒後：移至畫面頂部 (支援縮小為可自由拖移的懸浮膠囊) */}
           {!isCenterPopup && (
-            <div className="fixed inset-x-0 top-0 z-[9998] p-3 sm:p-4 pointer-events-none">
+            <>
               {isMinimized ? (
-                /* 縮小版懸浮膠囊按鈕 */
-                <div className="max-w-max mx-auto pointer-events-auto">
-                  <button
-                    type="button"
-                    onClick={() => setIsMinimized(false)}
-                    className="bg-slate-900/95 text-amber-400 border border-amber-500/70 shadow-xl backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-black flex items-center gap-2 transition hover:scale-105 active:scale-95 cursor-pointer animate-in slide-in-from-top-2"
-                  >
-                    <IconAlertTriangle className="w-3.5 h-3.5 animate-pulse" />
-                    <span>維護倒數 {countdown}s</span>
-                    <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.2 rounded-md">
-                      展開
-                    </span>
-                  </button>
-                </div>
+                /* 可任意滑鼠與手機觸控拖曳的懸浮膠囊 */
+                <DraggableFloatingCapsule
+                  countdown={countdown}
+                  onExpand={() => setIsMinimized(false)}
+                />
               ) : (
                 /* 頂部展開警示橫幅 */
-                <div className="max-w-2xl mx-auto bg-slate-900/95 text-white backdrop-blur-md rounded-2xl p-3.5 sm:p-4 border border-amber-500/60 shadow-2xl space-y-2.5 pointer-events-auto animate-in slide-in-from-top-4 duration-300">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5">
-                        <IconAlertTriangle className="w-4 h-4 animate-pulse" />
-                      </div>
-                      <div className="min-w-0 space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs sm:text-sm font-black text-amber-400">
-                            系統維護預警廣播
-                          </h4>
-                          <span className="text-[10px] bg-amber-400/20 text-amber-300 font-extrabold px-2 py-0.5 rounded-full border border-amber-400/30">
-                            {countdown} 秒後切換
-                          </span>
+                <div className="fixed inset-x-0 top-0 z-[9998] p-3 sm:p-4 pointer-events-none">
+                  <div className="max-w-2xl mx-auto bg-slate-900/95 text-white backdrop-blur-md rounded-2xl p-3.5 sm:p-4 border border-amber-500/60 shadow-2xl space-y-2.5 pointer-events-auto animate-in slide-in-from-top-4 duration-300">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center shrink-0 mt-0.5">
+                          <IconAlertTriangle className="w-4 h-4 animate-pulse" />
                         </div>
-                        <p className="text-[11px] sm:text-xs text-slate-300 font-medium leading-relaxed truncate sm:whitespace-normal">
-                          {maintenanceData.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim() || '網站即將進入例行維護'}
-                          ：請儘速送單。
-                        </p>
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs sm:text-sm font-black text-amber-400">
+                              系統維護預警廣播
+                            </h4>
+                            <span className="text-[10px] bg-amber-400/20 text-amber-300 font-extrabold px-2 py-0.5 rounded-full border border-amber-400/30">
+                              {countdown} 秒後切換
+                            </span>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-slate-300 font-medium leading-relaxed truncate sm:whitespace-normal">
+                            {maintenanceData.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim() || '網站即將進入例行維護'}
+                            ：請儘速送單。
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {/* 立即切換 */}
+                        <button
+                          type="button"
+                          onClick={handleImmediateSwitch}
+                          className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl transition shadow-xs active:scale-95 cursor-pointer"
+                        >
+                          立即切換
+                        </button>
+
+                        {/* 隱藏/縮小通知按鈕 */}
+                        <button
+                          type="button"
+                          onClick={() => setIsMinimized(true)}
+                          aria-label="縮小隱藏通知"
+                          className="w-7 h-7 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-slate-700 flex items-center justify-center transition cursor-pointer"
+                          title="隱藏此橫幅（縮小為可拖曳膠囊）"
+                        >
+                          <IconChevronUp className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {/* 立即切換 */}
-                      <button
-                        type="button"
-                        onClick={handleImmediateSwitch}
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs px-3 py-1.5 rounded-xl transition shadow-xs active:scale-95 cursor-pointer"
-                      >
-                        立即切換
-                      </button>
-
-                      {/* 隱藏/縮小通知按鈕 */}
-                      <button
-                        type="button"
-                        onClick={() => setIsMinimized(true)}
-                        aria-label="縮小隱藏通知"
-                        className="w-7 h-7 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-xl border border-slate-700 flex items-center justify-center transition cursor-pointer"
-                        title="隱藏此橫幅（縮小為膠囊）"
-                      >
-                        <IconChevronUp className="w-4 h-4" />
-                      </button>
+                    {/* 60fps 平滑流暢進度條（無 1 秒停頓） */}
+                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700/60 shadow-inner">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600 rounded-full will-change-[width]"
+                        style={{ width: `${smoothProgress}%` }}
+                      />
                     </div>
-                  </div>
-
-                  {/* 30 秒流動倒數進度條 */}
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all duration-500 ease-linear rounded-full"
-                      style={{ width: `${(countdown / 30) * 100}%` }}
-                    />
                   </div>
                 </div>
               )}
-            </div>
+            </>
           )}
         </>
       )}
