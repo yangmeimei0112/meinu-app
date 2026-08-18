@@ -414,7 +414,7 @@ export default function AdminStoreHub({
                     onClick={() => onSelectStudioStore(store.id)}
                     className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-extrabold text-xs py-2.5 rounded-2xl transition shadow-xs active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <span>🛠️ 進入菜單設計 (Design Menu)</span>
+                    <span>🛠️ 進入菜單設計</span>
                     <span className="text-sm">➔</span>
                   </button>
 

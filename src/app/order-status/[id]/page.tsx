@@ -51,10 +51,46 @@ export default function OrderStatusPage({
   const resolvedParams = use(params);
   const submissionId = resolvedParams.id;
 
-  const [order, setOrder] = useState<OrderSubmissionDetail | null>(null);
-  const [orderItems, setOrderItems] = useState<OrderItemDetail[]>([]);
-  const [groupOrder, setGroupOrder] = useState<GroupOrderMeta | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  // ⚡ 優先自 SessionStorage 讀取背景預載入快取，達成 0ms 瞬開載入，徹底消除「正在載入」文字閃爍
+  const [order, setOrder] = useState<OrderSubmissionDetail | null>(() => {
+    if (typeof window !== 'undefined' && submissionId) {
+      try {
+        const raw = sessionStorage.getItem(`meinu_order_cache_${submissionId}`);
+        if (raw) return JSON.parse(raw).order || null;
+      } catch {}
+    }
+    return null;
+  });
+
+  const [orderItems, setOrderItems] = useState<OrderItemDetail[]>(() => {
+    if (typeof window !== 'undefined' && submissionId) {
+      try {
+        const raw = sessionStorage.getItem(`meinu_order_cache_${submissionId}`);
+        if (raw) return JSON.parse(raw).orderItems || [];
+      } catch {}
+    }
+    return [];
+  });
+
+  const [groupOrder, setGroupOrder] = useState<GroupOrderMeta | null>(() => {
+    if (typeof window !== 'undefined' && submissionId) {
+      try {
+        const raw = sessionStorage.getItem(`meinu_order_cache_${submissionId}`);
+        if (raw) return JSON.parse(raw).groupOrder || null;
+      } catch {}
+    }
+    return null;
+  });
+
+  const [loading, setLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && submissionId) {
+      try {
+        const raw = sessionStorage.getItem(`meinu_order_cache_${submissionId}`);
+        if (raw) return false;
+      } catch {}
+    }
+    return true;
+  });
 
   const [timeLeft, setTimeLeft] = useState<number>(60);
   const [isTimerPaused, setIsTimerPaused] = useState<boolean>(false);
@@ -94,10 +130,14 @@ export default function OrderStatusPage({
     }
   }, [submissionId]);
 
-  // 1. 抓取訂單詳細資料與明細
+  // 1. 抓取訂單詳細資料與明細 (SWR 平滑背景更新)
   useEffect(() => {
     async function fetchOrderDetails() {
-      setLoading(true);
+      // 只有在無快取的情況下才展示骨架屏
+      const hasCachedData = typeof window !== 'undefined' && sessionStorage.getItem(`meinu_order_cache_${submissionId}`);
+      if (!hasCachedData && !order) {
+        setLoading(true);
+      }
 
       const { data: orderData } = await supabase
         .from('order_submissions')

@@ -371,6 +371,45 @@ function CheckoutContent() {
         window.dispatchEvent(new Event('storage'));
       } catch {}
 
+      // ⚡ 建立訂單背景預載入快取（讓轉場結束跳轉至訂單頁時達成 0ms 瞬開，完全不顯示載入骨架）
+      try {
+        const preloadedCache = {
+          order: {
+            id: submission.id,
+            group_order_id: activeGroupId,
+            order_number: orderNumber,
+            user_nickname: cleanNickname,
+            payment_method_name: sanitizeInput(selectedPayment, 40),
+            sold_out_option: sanitizeInput(selectedSoldOut, 40),
+            total_amount: safeGrandTotal,
+            final_amount: safeGrandTotal,
+            is_paid: false,
+            created_at: new Date().toISOString(),
+          },
+          orderItems: itemsPayload.map((item, idx) => ({
+            id: insertedItems?.[idx]?.id || `item-${idx}`,
+            item_name: item.item_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            custom_notes: item.custom_notes || null,
+          })),
+          groupOrder: activeGroupOrder
+            ? {
+                id: activeGroupOrder.id,
+                store_id: activeGroupOrder.store_id,
+                status: activeGroupOrder.status,
+                stores: {
+                  id: activeGroupOrder.store_id,
+                  name: cartItems[0]?.storeName || '店家',
+                },
+              }
+            : null,
+        };
+        sessionStorage.setItem(`meinu_order_cache_${submission.id}`, JSON.stringify(preloadedCache));
+      } catch (e) {
+        console.error('儲存訂單預載快取失敗', e);
+      }
+
       // 啟動精緻可愛的送單成功動態轉場視窗（取代瀏覽器原生 alert 彈窗）
       setSuccessModalData({
         isOpen: true,
