@@ -77,6 +77,23 @@ export default function OrderStatusPage({
     isDanger: false,
   });
 
+  const [isOrderOwner, setIsOrderOwner] = useState<boolean>(true);
+
+  // 🛡️ 擁有者權限校驗 (防止 IDOR 越權篡改/取消他人訂單)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && submissionId) {
+      try {
+        const historyRaw = localStorage.getItem('menu_app_order_history');
+        const historyList: string[] = historyRaw ? JSON.parse(historyRaw) : [];
+        const lastId = localStorage.getItem('menu_app_last_order_id');
+        const isMine = historyList.includes(submissionId) || lastId === submissionId;
+        setIsOrderOwner(isMine);
+      } catch {
+        setIsOrderOwner(true);
+      }
+    }
+  }, [submissionId]);
+
   // 1. 抓取訂單詳細資料與明細
   useEffect(() => {
     async function fetchOrderDetails() {
@@ -199,6 +216,12 @@ export default function OrderStatusPage({
 
   // 執行確認動作（修改或取消）
   const handleExecuteModalAction = async () => {
+    if (!isOrderOwner) {
+      alert('🔒 權限限制：此訂單不屬於此裝置，無法執行修改或取消操作！');
+      setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
+      return;
+    }
+
     setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
     setIsActionLoading(true);
 
@@ -326,14 +349,16 @@ export default function OrderStatusPage({
               </div>
             </div>
 
-            {/* 1 分鐘限時自主修改/取消卡片 */}
-            <OrderStatusActions
-              timeLeft={timeLeft}
-              isClosed={isClosed}
-              isActionDisabled={isActionDisabled}
-              onOpenModify={handleOpenModifyModal}
-              onOpenCancel={handleOpenCancelModal}
-            />
+            {/* 1 分鐘限時自主修改/取消卡片（僅訂單擁有者裝置可見可操作） */}
+            {isOrderOwner && (
+              <OrderStatusActions
+                timeLeft={timeLeft}
+                isClosed={isClosed}
+                isActionDisabled={isActionDisabled}
+                onOpenModify={handleOpenModifyModal}
+                onOpenCancel={handleOpenCancelModal}
+              />
+            )}
 
             {/* 明細卡片 */}
             <OrderStatusReceipt

@@ -251,7 +251,10 @@ function CheckoutContent() {
 
       // 🔢 規律化循序單號生成 (MN-001, MN-002, MN-003 ...)
       const orderNumber = await generateSequentialOrderNumber(supabase, activeGroupId);
-      const safeGrandTotal = Math.max(0, Math.round(Number(grandTotal) || 0));
+      const numGrandTotal = Number(grandTotal);
+      const safeGrandTotal = Number.isFinite(numGrandTotal)
+        ? Math.max(0, Math.min(999999, Math.round(numGrandTotal)))
+        : 0;
 
       const { data: submission, error: subErr } = await supabase
         .from('order_submissions')
@@ -270,15 +273,24 @@ function CheckoutContent() {
 
       if (subErr || !submission) throw new Error('建立訂單失敗');
 
-      // 批次寫入所有訂單餐點項目（進行安全清洗與數值邊界校驗）
+      // 批次寫入所有訂單餐點項目（進行安全清洗與雙向極限數值鉗制）
       const itemsPayload = cartItems.map((item) => {
         const cleanItemName = sanitizeInput(item.name, 60);
         const cleanNotes = sanitizeInput(item.customNotes, 150);
         const customOptionText = (item.selectedOptions || [])
           .map((opt) => `${sanitizeInput(opt.groupTitle, 30)}:${sanitizeInput(opt.itemName, 30)}`)
           .join(', ');
-        const safeQuantity = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
-        const safeUnitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0));
+        
+        const numQty = Number(item.quantity);
+        const safeQuantity = Number.isFinite(numQty)
+          ? Math.max(1, Math.min(99, Math.floor(numQty)))
+          : 1;
+
+        const numPrice = Number(item.unitPrice);
+        const safeUnitPrice = Number.isFinite(numPrice)
+          ? Math.max(0, Math.min(99999, Math.round(numPrice)))
+          : 0;
+
         return {
           submission_id: submission.id,
           item_name: cleanItemName,
@@ -302,10 +314,15 @@ function CheckoutContent() {
           const originalCartItem = cartItems[idx];
           if (originalCartItem?.selectedOptions) {
             originalCartItem.selectedOptions.forEach((opt) => {
+              const numExtra = Number(opt.extraPrice);
+              const safeExtra = Number.isFinite(numExtra)
+                ? Math.max(0, Math.min(99999, Math.round(numExtra)))
+                : 0;
+
               optionsPayload.push({
                 order_item_id: orderItem.id,
                 option_name: `${sanitizeInput(opt.groupTitle, 30)}: ${sanitizeInput(opt.itemName, 30)}`,
-                extra_price: Math.max(0, Math.round(Number(opt.extraPrice) || 0)),
+                extra_price: safeExtra,
               });
             });
           }

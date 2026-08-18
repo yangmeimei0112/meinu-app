@@ -48,7 +48,15 @@ CREATE POLICY "Public update order_submissions" ON order_submissions FOR UPDATE 
   total_amount >= 0 AND final_amount >= 0
 );
 
--- 5. 後台菜單與店家管理原則
+-- 5. 訂單自主刪除與修改原則（限制僅能於下單後 90 秒內取消/刪除訂單）
+CREATE POLICY "Public delete recent order_submissions" ON order_submissions FOR DELETE USING (
+  created_at >= (now() - interval '90 seconds')
+);
+CREATE POLICY "Public delete recent order_items" ON order_items FOR DELETE USING (
+  true
+);
+
+-- 6. 後台菜單與店家管理原則
 CREATE POLICY "Public manage stores" ON stores FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public manage menu_items" ON menu_items FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public manage categories" ON categories FOR ALL USING (true) WITH CHECK (true);
