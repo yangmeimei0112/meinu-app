@@ -1,8 +1,8 @@
 -- ==============================================================================
--- 🛡️ 咩nu 團購點餐平台：Supabase Row Level Security (RLS) 資安防護策略
+-- 🛡️ 咩nu 團購點餐平台：Supabase Row Level Security (RLS) 資安防護策略 (進階防禦版)
 -- ==============================================================================
 -- 說明：請將以下 SQL 複製至 Supabase 專案後台的 SQL Editor 中執行，
--- 以在資料庫底層徹底封鎖未授權竄改、刪除與惡意覆寫行為。
+-- 以在資料庫底層徹底封鎖未授權竄改、越權刪除與負數金額惡意覆寫行為。
 
 -- 1. 啟用全資料表 RLS 行級安全防護
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
@@ -30,15 +30,23 @@ CREATE POLICY "Public read order_submissions" ON order_submissions FOR SELECT US
 CREATE POLICY "Public read order_items" ON order_items FOR SELECT USING (true);
 CREATE POLICY "Public read order_item_options" ON order_item_options FOR SELECT USING (true);
 
--- 3. 前台送單寫入原則（允許訪客建立訂單與團購，但限制不可任意竄改其他欄位）
+-- 3. 前台送單寫入原則（強制金額與數量必須 >= 0，防範負數竄改攻擊）
 CREATE POLICY "Public insert group_orders" ON group_orders FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public insert order_submissions" ON order_submissions FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public insert order_items" ON order_items FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public insert order_item_options" ON order_item_options FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public insert order_submissions" ON order_submissions FOR INSERT WITH CHECK (
+  total_amount >= 0 AND final_amount >= 0 AND length(user_nickname) > 0
+);
+CREATE POLICY "Public insert order_items" ON order_items FOR INSERT WITH CHECK (
+  quantity > 0 AND unit_price >= 0
+);
+CREATE POLICY "Public insert order_item_options" ON order_item_options FOR INSERT WITH CHECK (
+  extra_price >= 0
+);
 
 -- 4. 團購活動更新與訂單付款狀態更新原則
 CREATE POLICY "Public update group_orders" ON group_orders FOR UPDATE USING (true) WITH CHECK (true);
-CREATE POLICY "Public update order_submissions" ON order_submissions FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Public update order_submissions" ON order_submissions FOR UPDATE USING (true) WITH CHECK (
+  total_amount >= 0 AND final_amount >= 0
+);
 
 -- 5. 後台菜單與店家管理原則
 CREATE POLICY "Public manage stores" ON stores FOR ALL USING (true) WITH CHECK (true);

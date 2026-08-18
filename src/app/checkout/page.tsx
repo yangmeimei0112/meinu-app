@@ -251,6 +251,8 @@ function CheckoutContent() {
 
       // 🔢 規律化循序單號生成 (MN-001, MN-002, MN-003 ...)
       const orderNumber = await generateSequentialOrderNumber(supabase, activeGroupId);
+      const safeGrandTotal = Math.max(0, Math.round(Number(grandTotal) || 0));
+
       const { data: submission, error: subErr } = await supabase
         .from('order_submissions')
         .insert({
@@ -259,8 +261,8 @@ function CheckoutContent() {
           user_nickname: cleanNickname,
           payment_method_name: sanitizeInput(selectedPayment, 40),
           sold_out_option: sanitizeInput(selectedSoldOut, 40),
-          total_amount: grandTotal,
-          final_amount: grandTotal,
+          total_amount: safeGrandTotal,
+          final_amount: safeGrandTotal,
           is_paid: false,
         })
         .select('id')
@@ -268,18 +270,20 @@ function CheckoutContent() {
 
       if (subErr || !submission) throw new Error('建立訂單失敗');
 
-      // 批次寫入所有訂單餐點項目（進行安全清洗）
+      // 批次寫入所有訂單餐點項目（進行安全清洗與數值邊界校驗）
       const itemsPayload = cartItems.map((item) => {
         const cleanItemName = sanitizeInput(item.name, 60);
         const cleanNotes = sanitizeInput(item.customNotes, 150);
         const customOptionText = (item.selectedOptions || [])
           .map((opt) => `${sanitizeInput(opt.groupTitle, 30)}:${sanitizeInput(opt.itemName, 30)}`)
           .join(', ');
+        const safeQuantity = Math.max(1, Math.min(99, Math.floor(Number(item.quantity) || 1)));
+        const safeUnitPrice = Math.max(0, Math.round(Number(item.unitPrice) || 0));
         return {
           submission_id: submission.id,
           item_name: cleanItemName,
-          quantity: Math.max(1, Math.min(99, item.quantity)),
-          unit_price: item.unitPrice,
+          quantity: safeQuantity,
+          unit_price: safeUnitPrice,
           custom_notes: cleanNotes
             ? `${customOptionText} | 備註: ${cleanNotes}`
             : customOptionText,
@@ -300,8 +304,8 @@ function CheckoutContent() {
             originalCartItem.selectedOptions.forEach((opt) => {
               optionsPayload.push({
                 order_item_id: orderItem.id,
-                option_name: `${opt.groupTitle}: ${opt.itemName}`,
-                extra_price: opt.extraPrice,
+                option_name: `${sanitizeInput(opt.groupTitle, 30)}: ${sanitizeInput(opt.itemName, 30)}`,
+                extra_price: Math.max(0, Math.round(Number(opt.extraPrice) || 0)),
               });
             });
           }

@@ -104,7 +104,20 @@ export async function GET() {
 
 // 🛡️ 供團長後台控制開關與修改維護公告 (具備嚴格安全鑑權與長度防禦)
 export async function POST(req: NextRequest) {
-  // 1. 驗證團長認證 Token (防範未授權訪客或機器人惡意開關/竄改維護設定)
+  // 1. 驗證 CSRF 同源性
+  const host = req.headers.get('host');
+  const origin = req.headers.get('origin');
+  if (host && origin) {
+    try {
+      if (new URL(origin).host !== host) {
+        return NextResponse.json({ success: false, message: '🚫 跨來源請求被拒' }, { status: 403 });
+      }
+    } catch {
+      return NextResponse.json({ success: false, message: '🚫 不合法的請求來源' }, { status: 403 });
+    }
+  }
+
+  // 2. 驗證團長認證 Token (防範未授權訪客或機器人惡意開關/竄改維護設定)
   const token = req.cookies.get('meinu_admin_token')?.value;
   if (!verifyAdminToken(token)) {
     return NextResponse.json(
@@ -117,7 +130,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const current = readConfig();
 
-    // 2. 嚴格 Payload 字串長度限制防禦 (防範惡意大型緩衝區灌水注入)
+    // 3. 嚴格 Payload 字串長度限制與協議防禦 (防範惡意大型緩衝區灌水注入與 javascript: 偽協定)
     const rawTitle = typeof body.title === 'string' ? body.title.trim().slice(0, 100) : current.title;
     const rawMessage = typeof body.message === 'string' ? body.message.trim().slice(0, 500) : current.message;
     const rawEstimated =
@@ -125,7 +138,15 @@ export async function POST(req: NextRequest) {
         ? body.estimated_end_time.trim().slice(0, 60)
         : current.estimated_end_time;
     const rawReason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 50) : current.reason;
-    const rawCustomImage = typeof body.custom_image_url === 'string' ? body.custom_image_url.trim() : (current.custom_image_url || '');
+    
+    let rawCustomImage = current.custom_image_url || '';
+    if (typeof body.custom_image_url === 'string') {
+      const imgCandidate = body.custom_image_url.trim();
+      // 僅允許標準 HTTP(S) 或 data:image/ 安全協議，封鎖 javascript: 或其他危險偽協定
+      if (!imgCandidate || /^https?:\/\//i.test(imgCandidate) || /^data:image\//i.test(imgCandidate)) {
+        rawCustomImage = imgCandidate.slice(0, 500000); // 允許 Base64 圖片但限制最大長度
+      }
+    }
 
     const updatedConfig: MaintenanceConfig = {
       is_maintenance: typeof body.is_maintenance === 'boolean' ? body.is_maintenance : current.is_maintenance,

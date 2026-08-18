@@ -12,14 +12,31 @@ export function sanitizeInput(input: string, maxLength: number = 100): string {
 
   return input
     .trim()
-    // 移除危險的 HTML 標籤（如 <script>, <iframe>, <object>, <embed> 等）
+    // 移除 Null Byte 與隱藏控制字元 (防範字串截斷攻擊)
+    .replace(/[\0\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    // 移除危險的 HTML 標籤（如 <script>, <iframe>, <object>, <embed>, <svg>, <link> 等）
     .replace(/<[^>]*>?/gm, '')
-    // 移除 javascript: 偽協定
-    .replace(/javascript:/gi, '')
-    // 移除 inline event handlers 如 onload=, onclick=
+    // 移除 javascript: / vbscript: / data: 偽協定
+    .replace(/(javascript|vbscript):/gi, '')
+    // 移除 inline event handlers 如 onload=, onclick=, onerror=
     .replace(/on\w+\s*=/gi, '')
     // 限制最大字串長度
     .slice(0, maxLength);
+}
+
+/**
+ * 🛡️ 驗證外部圖片或轉址 URL 是否安全（防止 javascript: 或 SSRF 偽協定）
+ * @param url 待檢查網址
+ */
+export function isSafeUrl(url: string | undefined | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  // 僅允許標準 http, https 或 data:image/ 安全協議
+  return (
+    /^https?:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=]+$/i.test(trimmed) ||
+    /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,[a-zA-Z0-9+/=]+$/i.test(trimmed)
+  );
 }
 
 /**

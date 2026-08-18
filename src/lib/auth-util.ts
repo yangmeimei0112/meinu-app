@@ -15,8 +15,13 @@ export function verifyAdminToken(token: string | undefined | null): boolean {
       .update(`admin_${timestamp}`)
       .digest('hex');
 
-    // 密碼學校驗簽章與 7 天有效期
-    const isValidSignature = signature === expectedSignature;
+    // 🛡️ 密碼學恆定時間簽章校驗 (Constant-Time Verification) 杜絕時序側信道分析
+    const expectedBuffer = Buffer.from(expectedSignature);
+    const actualBuffer = Buffer.from(signature);
+    const isValidSignature =
+      expectedBuffer.length === actualBuffer.length &&
+      crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+
     const isNotExpired = Date.now() - Number(timestamp) < 7 * 24 * 60 * 60 * 1000;
 
     return isValidSignature && isNotExpired;
