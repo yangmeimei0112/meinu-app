@@ -310,7 +310,7 @@ export function MaintenanceScreen({
 }
 
 // ----------------------------------------------------
-// 📱 可任意滑鼠與手機觸控拖曳的懸浮倒數膠囊組件 (Draggable Capsule)
+// 📱 極致 0 延遲原生 Pointer 拖曳懸浮倒數膠囊組件 (Draggable Capsule)
 // ----------------------------------------------------
 function DraggableFloatingCapsule({
   countdown,
@@ -319,19 +319,20 @@ function DraggableFloatingCapsule({
   countdown: number;
   onExpand: () => void;
 }) {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number }>({ x: 16, y: 16 });
   const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef<{
+  const isDraggingRef = useRef(false);
+  const dragInfoRef = useRef<{
     startX: number;
     startY: number;
-    initX: number;
-    initY: number;
+    initialPosX: number;
+    initialPosY: number;
     hasMoved: boolean;
   }>({
     startX: 0,
     startY: 0,
-    initX: 0,
-    initY: 0,
+    initialPosX: 16,
+    initialPosY: 16,
     hasMoved: false,
   });
   const capsuleRef = useRef<HTMLDivElement>(null);
@@ -343,115 +344,105 @@ function DraggableFloatingCapsule({
       const initialX = Math.max(12, Math.min(window.innerWidth - defaultWidth - 12, (window.innerWidth - defaultWidth) / 2));
       const initialY = 16;
       setPos({ x: initialX, y: initialY });
+      dragInfoRef.current.initialPosX = initialX;
+      dragInfoRef.current.initialPosY = initialY;
     }
   }, []);
 
-  // 1. 滑鼠拖曳事件處理 (Desktop Mouse Drag)
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (!pos) return;
-    dragStartRef.current = {
+  // 1. 原生 PointerDown：啟動指標捕獲與即時座標追蹤 (支援滑鼠與手機觸控)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // 僅響應主鍵/單指點觸
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+
+    isDraggingRef.current = true;
+    setIsDragging(true);
+
+    dragInfoRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      initX: pos.x,
-      initY: pos.y,
+      initialPosX: pos.x,
+      initialPosY: pos.y,
       hasMoved: false,
     };
-    setIsDragging(true);
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const dx = moveEvent.clientX - dragStartRef.current.startX;
-      const dy = moveEvent.clientY - dragStartRef.current.startY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        dragStartRef.current.hasMoved = true;
-      }
-      const elWidth = capsuleRef.current?.offsetWidth || 230;
-      const elHeight = capsuleRef.current?.offsetHeight || 44;
-      const newX = Math.max(8, Math.min(window.innerWidth - elWidth - 8, dragStartRef.current.initX + dx));
-      const newY = Math.max(8, Math.min(window.innerHeight - elHeight - 8, dragStartRef.current.initY + dy));
-      setPos({ x: newX, y: newY });
-    };
-
-    const onMouseUp = () => {
-      setIsDragging(false);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
   };
 
-  // 2. 手機觸控拖曳事件處理 (Mobile Touch Drag)
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (!pos || e.touches.length === 0) return;
-    const touch = e.touches[0];
-    dragStartRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      initX: pos.x,
-      initY: pos.y,
-      hasMoved: false,
-    };
-    setIsDragging(true);
+  // 2. 原生 PointerMove：硬體加速 1:1 即時無延遲跟隨移動
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
 
-    const onTouchMove = (moveEvent: TouchEvent) => {
-      if (moveEvent.touches.length === 0) return;
-      const t = moveEvent.touches[0];
-      const dx = t.clientX - dragStartRef.current.startX;
-      const dy = t.clientY - dragStartRef.current.startY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        dragStartRef.current.hasMoved = true;
-      }
-      const elWidth = capsuleRef.current?.offsetWidth || 230;
-      const elHeight = capsuleRef.current?.offsetHeight || 44;
-      const newX = Math.max(8, Math.min(window.innerWidth - elWidth - 8, dragStartRef.current.initX + dx));
-      const newY = Math.max(8, Math.min(window.innerHeight - elHeight - 8, dragStartRef.current.initY + dy));
-      setPos({ x: newX, y: newY });
-    };
+    const dx = e.clientX - dragInfoRef.current.startX;
+    const dy = e.clientY - dragInfoRef.current.startY;
 
-    const onTouchEnd = () => {
-      setIsDragging(false);
-      window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend', onTouchEnd);
-    };
-
-    window.addEventListener('touchmove', onTouchMove, { passive: false });
-    window.addEventListener('touchend', onTouchEnd);
-  };
-
-  // 區分點擊（展開）與拖曳（移動）
-  const handleClick = (e: React.MouseEvent) => {
-    if (dragStartRef.current.hasMoved) {
-      e.stopPropagation();
-      return;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      dragInfoRef.current.hasMoved = true;
     }
-    onExpand();
+
+    const elWidth = capsuleRef.current?.offsetWidth || 230;
+    const elHeight = capsuleRef.current?.offsetHeight || 44;
+
+    const newX = Math.max(8, Math.min(window.innerWidth - elWidth - 8, dragInfoRef.current.initialPosX + dx));
+    const newY = Math.max(8, Math.min(window.innerHeight - elHeight - 8, dragInfoRef.current.initialPosY + dy));
+
+    setPos({ x: newX, y: newY });
+  };
+
+  // 3. 原生 PointerUp：釋放指標捕獲，並精準判定是「輕觸展開」還是「拖曳結束」
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+
+    const moved = dragInfoRef.current.hasMoved;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+
+    if (!moved) {
+      onExpand();
+    }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    isDraggingRef.current = false;
+    setIsDragging(false);
   };
 
   return (
     <div
       ref={capsuleRef}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       style={{
         position: 'fixed',
-        left: pos ? `${pos.x}px` : '50%',
-        top: pos ? `${pos.y}px` : '16px',
-        transform: pos ? 'none' : 'translateX(-50%)',
+        left: 0,
+        top: 0,
+        transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
         zIndex: 99999,
         touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
       }}
-      onMouseDown={handleMouseDown}
-      onTouchStart={handleTouchStart}
-      onClick={handleClick}
-      className={`select-none bg-slate-900/95 text-amber-400 border-2 border-amber-500/80 shadow-2xl backdrop-blur-md px-3.5 py-2 rounded-full text-xs font-black flex items-center gap-2.5 transition-all cursor-grab active:cursor-grabbing pointer-events-auto ${
-        isDragging ? 'scale-105 shadow-amber-500/40 ring-4 ring-amber-400/30' : 'hover:scale-102 hover:border-amber-400'
+      className={`select-none bg-slate-900/95 text-amber-400 border-2 border-amber-500/80 shadow-2xl backdrop-blur-md px-3.5 py-2 rounded-full text-xs font-black flex items-center gap-2.5 pointer-events-auto cursor-grab active:cursor-grabbing will-change-transform ${
+        isDragging
+          ? 'scale-105 shadow-amber-500/40 ring-4 ring-amber-400/30 transition-none'
+          : 'hover:scale-102 hover:border-amber-400 transition-transform duration-150'
       }`}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 pointer-events-none">
         <IconAlertTriangle className="w-4 h-4 animate-pulse text-amber-400 shrink-0" />
         <span className="tabular-nums font-black text-amber-300">維護倒數 {countdown}s</span>
       </div>
 
-      <div className="flex items-center gap-1 text-[10px] text-slate-300 bg-slate-800/90 px-2 py-0.5 rounded-md border border-slate-700">
+      <div className="flex items-center gap-1 text-[10px] text-slate-300 bg-slate-800/90 px-2 py-0.5 rounded-md border border-slate-700 pointer-events-none">
         <IconMove className="w-3 h-3 text-slate-400" />
         <span>拖移 / 點擊展開</span>
       </div>
@@ -747,7 +738,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
           {!isCenterPopup && (
             <>
               {isMinimized ? (
-                /* 可任意滑鼠與手機觸控拖曳的懸浮膠囊 */
+                /* 極致 0 延遲原生 Pointer 拖曳懸浮膠囊 */
                 <DraggableFloatingCapsule
                   countdown={countdown}
                   onExpand={() => setIsMinimized(false)}
