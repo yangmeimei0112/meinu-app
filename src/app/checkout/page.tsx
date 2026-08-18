@@ -13,6 +13,7 @@ import { sanitizeInput, checkRateLimit, isHumanInteractionTime } from '@/lib/sec
 import { generateSequentialOrderNumber } from '@/lib/order-utils';
 import CheckoutSummary from './components/CheckoutSummary';
 import CheckoutOptions from './components/CheckoutOptions';
+import OrderSuccessModal from '@/components/OrderSuccessModal';
 
 function CheckoutContent() {
   const router = useRouter();
@@ -36,6 +37,17 @@ function CheckoutContent() {
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [successModalData, setSuccessModalData] = useState<{
+    isOpen: boolean;
+    orderNumber: string;
+    submissionId: string;
+    storeName?: string;
+    totalAmount?: number;
+  }>({
+    isOpen: false,
+    orderNumber: '',
+    submissionId: '',
+  });
 
   // 1. 載入指定店家的購物車品項與暱稱
   useEffect(() => {
@@ -359,8 +371,14 @@ function CheckoutContent() {
         window.dispatchEvent(new Event('storage'));
       } catch {}
 
-      alert(`🎉 訂單送出成功！單號：${orderNumber}`);
-      router.push(`/order-status/${submission.id}`);
+      // 啟動精緻可愛的送單成功動態轉場視窗（取代瀏覽器原生 alert 彈窗）
+      setSuccessModalData({
+        isOpen: true,
+        orderNumber,
+        submissionId: submission.id,
+        storeName: cartItems[0]?.storeName || '',
+        totalAmount: safeGrandTotal,
+      });
     } catch (err) {
       console.error(err);
       showToast('❌ 送出失敗，請重試或檢查網路連線');
@@ -477,6 +495,15 @@ function CheckoutContent() {
           </>
         )}
       </main>
+
+      {/* 🎉 訂單送出成功精緻可愛動態轉場視窗 (自動平滑導航至訂單狀態頁) */}
+      <OrderSuccessModal
+        isOpen={successModalData.isOpen}
+        orderNumber={successModalData.orderNumber}
+        submissionId={successModalData.submissionId}
+        storeName={successModalData.storeName}
+        totalAmount={successModalData.totalAmount}
+      />
     </div>
   );
 }
