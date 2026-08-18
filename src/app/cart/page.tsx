@@ -217,7 +217,7 @@ export default function MultiCartPage() {
                         : 'bg-white dark:bg-[#131B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-[#182338]'
                     }`}
                   >
-                    <span>🥤 {group.storeName}</span>
+                    <span>{group.storeName}</span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
                         isActive
@@ -238,7 +238,7 @@ export default function MultiCartPage() {
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div>
                     <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                      <span>🥤 {currentGroup.storeName}</span>
+                      <span>{currentGroup.storeName}</span>
                     </h3>
                     <p className="text-[11px] text-slate-400 dark:text-slate-400">一店一車，獨立選購與結帳送單</p>
                   </div>
