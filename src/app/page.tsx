@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { Store, Category } from '@/types/database';
 import { useDebounce } from '@/lib/useDebounce';
 import { useTheme } from '@/lib/theme';
+import FloatingCartButton from '@/components/FloatingCartButton';
 
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -219,6 +220,9 @@ export default function HomePage() {
           <span>{theme === 'dark' ? '亮色模式' : '暗色模式'}</span>
         </button>
       </footer>
+
+      {/* 🛒 首頁右下角浮動購物車按鈕 (有餐點時自動出現，平常隱藏) */}
+      <FloatingCartButton />
     </div>
   );
 }
