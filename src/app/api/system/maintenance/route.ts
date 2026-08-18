@@ -7,12 +7,13 @@ import { verifyAdminToken } from '@/lib/auth-util';
 const configFilePath = path.join(process.cwd(), 'src', 'data', 'maintenance.json');
 const tmpFilePath = path.join('/tmp', 'meinu_maintenance.json');
 
-interface MaintenanceConfig {
+export interface MaintenanceConfig {
   is_maintenance: boolean;
   title: string;
   message: string;
   estimated_end_time?: string;
   reason?: string;
+  custom_image_url?: string;
   updated_at: string;
 }
 
@@ -22,6 +23,7 @@ const defaultConfig: MaintenanceConfig = {
   message: '為了提供更好的揪團點餐體驗，網站目前正在進行例行升級維護。暫停點餐服務，請稍後再下單，感謝您的耐心等候。',
   estimated_end_time: '預計 15-30 分鐘內完成',
   reason: '系統例行升級',
+  custom_image_url: '',
   updated_at: new Date().toISOString(),
 };
 
@@ -123,6 +125,7 @@ export async function POST(req: NextRequest) {
         ? body.estimated_end_time.trim().slice(0, 60)
         : current.estimated_end_time;
     const rawReason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 50) : current.reason;
+    const rawCustomImage = typeof body.custom_image_url === 'string' ? body.custom_image_url.trim() : (current.custom_image_url || '');
 
     const updatedConfig: MaintenanceConfig = {
       is_maintenance: typeof body.is_maintenance === 'boolean' ? body.is_maintenance : current.is_maintenance,
@@ -130,6 +133,7 @@ export async function POST(req: NextRequest) {
       message: rawMessage,
       estimated_end_time: rawEstimated,
       reason: rawReason,
+      custom_image_url: rawCustomImage,
       updated_at: new Date().toISOString(),
     };
 

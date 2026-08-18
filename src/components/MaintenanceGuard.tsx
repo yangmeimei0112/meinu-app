@@ -10,6 +10,7 @@ export interface MaintenanceData {
   message: string;
   estimated_end_time?: string;
   reason?: string;
+  custom_image_url?: string;
   updated_at: string;
   build_id?: string;
 }
@@ -124,75 +125,38 @@ function IconMove({ className = 'w-3.5 h-3.5' }: { className?: string }) {
 }
 
 // ----------------------------------------------------
-// ⚙️ 精緻多重齒輪組與幾何雷射環 SVG 動畫組件 (無任何 Emoji)
+// ⚙️ 單一精緻旋轉維修齒輪 SVG 動畫組件 (無任何 Emoji)
 // ----------------------------------------------------
-function VectorPrecisionGears() {
+function SingleMaintenanceGear() {
   return (
-    <div className="relative w-40 h-40 mx-auto flex items-center justify-center select-none">
-      {/* 1. 背景科技霓虹脈衝光暈 */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/20 via-blue-500/20 to-amber-500/15 rounded-full blur-2xl animate-pulse-glow" />
+    <div className="relative w-36 h-36 mx-auto flex items-center justify-center select-none">
+      {/* 背景柔和脈衝光暈 */}
+      <div className="absolute inset-0 bg-gradient-to-tr from-sky-500/20 via-blue-500/20 to-sky-400/10 rounded-full blur-2xl animate-pulse-glow" />
 
-      {/* 2. 外部軌道虛線雷射環 */}
-      <svg className="absolute inset-0 w-full h-full animate-spin-slow opacity-40 text-sky-500 dark:text-sky-400" viewBox="0 0 160 160">
-        <circle cx="80" cy="80" r="72" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="6 8" />
-        <circle cx="80" cy="80" r="66" fill="none" stroke="currentColor" strokeWidth="0.75" strokeOpacity="0.5" />
-      </svg>
-
-      {/* 3. 反向精密科技輔助環 */}
-      <svg className="absolute w-32 h-32 animate-spin-reverse opacity-30 text-blue-600 dark:text-blue-400" viewBox="0 0 130 130">
-        <circle cx="65" cy="65" r="58" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="3 12" />
-        <path d="M65 5 L65 15 M65 115 L65 125 M5 65 L15 65 M115 65 L125 65" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-
-      {/* 4. 主齒輪 (大)：順時針精密咬合齒輪 */}
-      <div className="absolute w-24 h-24 text-sky-600 dark:text-sky-400 animate-spin-slow">
+      {/* 單一平滑旋轉維修齒輪 */}
+      <div className="relative w-28 h-28 text-sky-500 dark:text-sky-400 animate-spin-slow">
         <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
+          {/* 齒輪主體輪廓 */}
           <path
             fill="currentColor"
-            fillOpacity="0.15"
+            fillOpacity="0.18"
             stroke="currentColor"
             strokeWidth="3.5"
             strokeLinejoin="round"
             d="M50 15 
                L53 15 L55 22 L62 25 L68 20 L73 24 L70 31 L76 36 L83 34 L85 41 L80 47 L82 53 L89 57 L87 64 L80 66 L78 73 L83 79 L78 84 L72 80 L66 84 L65 91 L58 91 L55 84 L48 84 L45 91 L38 91 L37 84 L31 80 L25 84 L20 79 L25 73 L23 66 L16 64 L14 57 L21 53 L23 47 L18 41 L20 34 L27 36 L33 31 L30 24 L35 20 L41 25 L48 22 Z"
           />
+          {/* 齒輪內同心圓刻度 */}
           <circle cx="50" cy="50" r="18" fill="none" stroke="currentColor" strokeWidth="3" />
           <circle cx="50" cy="50" r="6" fill="currentColor" />
         </svg>
-      </div>
-
-      {/* 5. 次齒輪 (小)：逆時針咬合輔助齒輪 */}
-      <div className="absolute -top-1 -right-1 w-14 h-14 text-amber-500 dark:text-amber-400 animate-spin-reverse">
-        <svg viewBox="0 0 60 60" className="w-full h-full drop-shadow-sm">
-          <path
-            fill="currentColor"
-            fillOpacity="0.2"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeLinejoin="round"
-            d="M30 8 L33 8 L35 14 L40 16 L45 13 L48 16 L46 21 L50 25 L55 24 L56 29 L51 33 L52 38 L57 41 L55 46 L49 46 L47 51 L50 55 L46 58 L42 55 L38 58 L37 63 L32 63 L30 58 Z"
-          />
-          <circle cx="30" cy="30" r="10" fill="none" stroke="currentColor" strokeWidth="2.5" />
-          <circle cx="30" cy="30" r="3.5" fill="currentColor" />
-        </svg>
-      </div>
-
-      {/* 6. 中心核心晶片徽章 (科技浮動) */}
-      <div className="relative z-10 w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 p-0.5 shadow-lg animate-bounce-gentle">
-        <div className="w-full h-full bg-slate-900/90 rounded-[14px] flex items-center justify-center text-sky-400">
-          <svg className="w-6 h-6 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="4" y="4" width="16" height="16" rx="2" />
-            <rect x="9" y="9" width="6" height="6" />
-            <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3" />
-          </svg>
-        </div>
       </div>
     </div>
   );
 }
 
 // ----------------------------------------------------
-// 🖼️ 細緻維護全螢幕檢視畫面（100% 向量化，無 Emoji）
+// 🖼️ 細緻維護全螢幕檢視畫面（支援自訂圖片/GIF 或單一旋轉齒輪）
 // ----------------------------------------------------
 export function MaintenanceScreen({
   data,
@@ -239,10 +203,22 @@ export function MaintenanceScreen({
         )}
       </div>
 
-      {/* 主體精美向量維護卡片 */}
+      {/* 主體精美維護卡片 */}
       <div className="max-w-md mx-auto w-full my-auto py-6 space-y-6 text-center">
-        {/* 精緻多重齒輪組動畫 */}
-        <VectorPrecisionGears />
+        {/* 中心視覺：若有上傳照片/GIF 則顯示，否則預設顯示單一旋轉維修齒輪 */}
+        {data.custom_image_url ? (
+          <div className="relative w-36 h-36 mx-auto flex items-center justify-center">
+            <div className="absolute inset-0 bg-sky-500/15 dark:bg-sky-400/20 rounded-3xl blur-xl" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={data.custom_image_url}
+              alt="維護公告自訂圖片"
+              className="relative w-32 h-32 object-contain rounded-2xl shadow-md border border-slate-200/80 dark:border-slate-700/80 bg-white/50 dark:bg-slate-800/50 backdrop-blur-xs"
+            />
+          </div>
+        ) : (
+          <SingleMaintenanceGear />
+        )}
 
         {/* 標題與維護公告內容 */}
         <div className="space-y-3">
