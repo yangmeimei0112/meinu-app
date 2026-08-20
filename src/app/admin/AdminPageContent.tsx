@@ -1,19 +1,20 @@
 'use client';
 
-import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
-import { supabase } from '@/lib/supabase';
-import { Store, MenuItem, Category, CustomGroup, PaymentMethod, SoldOutOption } from '@/types/database';
+import { Store, MenuItem, Category } from '@/types/database';
 import { AdminArchiveSection } from './AdminArchiveSection';
 import { AdminCrudSection } from './AdminCrudSection';
 import { AdminDashboardSection } from './AdminDashboardSection';
-import { GroupOrderAdmin, OrderSubmissionAdmin, AdminViewMode } from './admin-types';
-import { compressImageToWebP } from '@/lib/image-compress';
+import { AdminViewMode, AdminTabType, AdminConfirmModalState } from './admin-types';
 import { useTheme } from '@/lib/theme';
 import { useAdminSound } from './hooks/useAdminSound';
+import { useAdminData } from './hooks/useAdminData';
+import { useAdminStoreCrud } from './hooks/useAdminStoreCrud';
+import { useAdminOrderActions } from './hooks/useAdminOrderActions';
 
 // 子元件與彈窗
 import AdminAuthLock from './components/AdminAuthLock';
@@ -23,7 +24,7 @@ import AdminProductModal from './components/AdminProductModal';
 import AdminChangeModal from './components/AdminChangeModal';
 import { AdminMaintenanceSection } from './components/AdminMaintenanceSection';
 
-// 🚀 隨選動態加載重型彈窗，顯著降低初始頁面 JS 傳輸大小 (Code Splitting)
+// 🚀 隨選動態加載重型彈窗 (Code Splitting)
 const AdminPrintModal = dynamic(() => import('./AdminPrintModal'), { ssr: false });
 const AdminManualOrderModal = dynamic(() => import('./AdminManualOrderModal'), { ssr: false });
 const AdminBatchImportModal = dynamic(() => import('./AdminBatchImportModal'), { ssr: false });
@@ -36,27 +37,8 @@ export default function AdminPageContent() {
   const { isSoundEnabled, playChimeSound, initAudio, toggleSound } = useAdminSound();
 
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive' | 'maintenance'>('active');
+  const [activeTab, setActiveTab] = useState<AdminTabType>('active');
   const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
-
-  const selectedActiveGroupIdRef = useRef<string>('all');
-  const knownOrderIdsRef = useRef<Set<string>>(new Set());
-  const processedNotificationIdsRef = useRef<Set<string>>(new Set());
-  const isInitialLoadRef = useRef<boolean>(true);
-  const sessionMountTimeRef = useRef<number>(Date.now());
-
-  // 初始化時讀取 sessionStorage 中已通知過的訂單 ID
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem('menu_app_processed_notifications');
-      if (stored) {
-        const list = JSON.parse(stored);
-        if (Array.isArray(list)) {
-          list.forEach((id: string) => processedNotificationIdsRef.current.add(id));
-        }
-      }
-    } catch {}
-  }, []);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const showToast = useCallback((msg: string) => {
@@ -64,15 +46,7 @@ export default function AdminPageContent() {
     setTimeout(() => setToastMessage(null), 2500);
   }, []);
 
-  const [adminConfirmModal, setAdminConfirmModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    confirmText: string;
-    cancelText: string;
-    isDanger: boolean;
-    onConfirm: () => void;
-  }>({
+  const [adminConfirmModal, setAdminConfirmModal] = useState<AdminConfirmModalState>({
     isOpen: false,
     title: '',
     message: '',
@@ -82,57 +56,191 @@ export default function AdminPageContent() {
     onConfirm: () => {},
   });
 
-  const notifyNewOrder = useCallback(
-    (orderId: string, nickname: string, orderCreatedAt?: string | number) => {
-      // 🛡️ 防線 1：檢查是否已在通知集合中（一筆訂單終身僅響鈴一次）
-      if (processedNotificationIdsRef.current.has(orderId)) return;
+  const openAdminConfirmModal = useCallback((modal: AdminConfirmModalState) => {
+    setAdminConfirmModal({
+      ...modal,
+      confirmText: modal.confirmText || '確定',
+      cancelText: modal.cancelText || '取消',
+      isDanger: modal.isDanger ?? false,
+    });
+  }, []);
 
-      // 🛡️ 防線 2：時間戳過濾（若訂單建立時間早於進入後台的時間，一律視為歷史訂單直接登記，絕不響鈴）
-      if (orderCreatedAt) {
-        const orderTime = typeof orderCreatedAt === 'number' ? orderCreatedAt : new Date(orderCreatedAt).getTime();
-        if (!isNaN(orderTime) && orderTime < sessionMountTimeRef.current - 3000) {
-          processedNotificationIdsRef.current.add(orderId);
-          return;
-        }
-      }
+  const closeAdminConfirmModal = useCallback(() => {
+    setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
+  }, []);
 
-      processedNotificationIdsRef.current.add(orderId);
-      knownOrderIdsRef.current.add(orderId);
+  // 1. 後台核心資料與 Realtime Hook
+  const {
+    activeGroup,
+    setActiveGroup,
+    activeGroups,
+    setActiveGroups,
+    selectedActiveGroupId,
+    setSelectedActiveGroupId,
+    selectedActiveGroupIdRef,
+    archivedGroups,
+    stores,
+    setStores,
+    categories,
+    setCategories,
+    paymentMethods,
+    setPaymentMethods,
+    soldOutOptions,
+    setSoldOutOptions,
+    allMenuItems,
+    setAllMenuItems,
+    allSubmissions,
+    setAllSubmissions,
+    submissions,
+    loading,
+    fetchAdminData,
+    inputDeliveryFee,
+    setInputDeliveryFee,
+    inputDiscount,
+    setInputDiscount,
+    roundingRule,
+    setRoundingRule,
+  } = useAdminData({
+    isUnlocked,
+    playChimeSound,
+    showToast,
+  });
 
-      try {
-        const arr = Array.from(processedNotificationIdsRef.current).slice(-300);
-        sessionStorage.setItem('menu_app_processed_notifications', JSON.stringify(arr));
-      } catch {}
+  // 計算餐點彙總與全團金額
+  const itemSummary = useMemo(() => {
+    const summary: Record<string, number> = {};
+    submissions.forEach((sub) => {
+      sub.order_items?.forEach((item) => {
+        summary[item.item_name] = (summary[item.item_name] || 0) + item.quantity;
+      });
+    });
+    return summary;
+  }, [submissions]);
 
-      playChimeSound();
-      showToast(`🔔 叮咚！收到 ${nickname || '團員'} 的新訂單！`);
-    },
-    [playChimeSound, showToast]
-  );
+  const grandTotal = useMemo(() => {
+    return submissions.reduce((sum, sub) => sum + sub.final_amount, 0);
+  }, [submissions]);
 
-  const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
-  const [activeGroups, setActiveGroups] = useState<GroupOrderAdmin[]>([]);
-  const [selectedActiveGroupId, setSelectedActiveGroupId] = useState<string>('all');
+  const paidTotal = useMemo(() => {
+    return submissions.filter((s) => s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
+  }, [submissions]);
 
-  useEffect(() => {
-    selectedActiveGroupIdRef.current = selectedActiveGroupId;
-  }, [selectedActiveGroupId]);
+  // 2. 店家、分類、餐點品項 CRUD 操作 Hook
+  const {
+    isStoreModalOpen,
+    setIsStoreModalOpen,
+    editingStore,
+    setEditingStore,
+    storeForm,
+    setStoreForm,
+    storeImageFile,
+    setStoreImageFile,
+    storeImagePreview,
+    setStoreImagePreview,
+    uploadingImage,
+    handleStoreImageChange,
+    handleSaveStore,
+    handleDeleteStore,
+    isCatModalOpen,
+    setIsCatModalOpen,
+    editingCat,
+    setEditingCat,
+    catNameInput,
+    setCatNameInput,
+    handleSaveCategory,
+    handleDeleteCategory,
+    handleMoveCategory,
+    handleCreatePaymentMethod,
+    handleSavePaymentMethod,
+    handleDeletePaymentMethod,
+    handleTogglePaymentMethodActive,
+    handleCreateSoldOutOption,
+    handleSaveSoldOutOption,
+    handleDeleteSoldOutOption,
+    handleMoveSoldOutOption,
+    selectedCrudStoreId,
+    setSelectedCrudStoreId,
+    isProductModalOpen,
+    setIsProductModalOpen,
+    editingProduct,
+    setEditingProduct,
+    productForm,
+    setProductForm,
+    productCustomGroups,
+    setProductCustomGroups,
+    handleAddCustomGroup,
+    handleRemoveCustomGroup,
+    handleAddOptionToGroup,
+    handleRemoveOptionFromGroup,
+    handleSaveProduct,
+    handleDeleteProduct,
+    handleToggleProductStatus,
+  } = useAdminStoreCrud({
+    categories,
+    paymentMethods,
+    soldOutOptions,
+    allMenuItems,
+    fetchAdminData,
+    showToast,
+    openAdminConfirmModal,
+    closeAdminConfirmModal,
+  });
 
-  const [archivedGroups, setArchivedGroups] = useState<GroupOrderAdmin[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [soldOutOptions, setSoldOutOptions] = useState<SoldOutOption[]>([]);
-  const [allSubmissions, setAllSubmissions] = useState<OrderSubmissionAdmin[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  // ⚡ 根據選中的店家/活動在記憶體中即時過濾訂單，0ms 切換無重整或閃爍
-  const submissions = useMemo(() => {
-    if (!selectedActiveGroupId || selectedActiveGroupId === 'all') {
-      return allSubmissions;
-    }
-    return allSubmissions.filter((s) => s.group_order_id === selectedActiveGroupId);
-  }, [allSubmissions, selectedActiveGroupId]);
+  // 3. 訂單對帳、平攤、簽名與匯出 Hook
+  const {
+    isPrintModalOpen,
+    setIsPrintModalOpen,
+    isManualOrderModalOpen,
+    setIsManualOrderModalOpen,
+    isBatchImportModalOpen,
+    setIsBatchImportModalOpen,
+    isGroupSettingsModalOpen,
+    setIsGroupSettingsModalOpen,
+    signatureTarget,
+    setSignatureTarget,
+    changeModalTarget,
+    setChangeModalTarget,
+    receivedCash,
+    setReceivedCash,
+    selectedSubmissionIds,
+    setSelectedSubmissionIds,
+    selectedArchivedGroupId,
+    setSelectedArchivedGroupId,
+    calculateAdjustedAmount,
+    handleApplyFeeSplit,
+    handleSaveSignature,
+    handleArchiveGroup,
+    handleReopenGroup,
+    handleDeleteArchivedGroup,
+    handleBatchDeleteArchivedGroups,
+    handleSaveGroupSettings,
+    handleToggleGroupStatus,
+    handleTogglePaid,
+    handleBatchMarkPaid,
+    handleDeleteOrder,
+    handleBatchDeleteOrders,
+    handleCopyPersonalReceipt,
+    handleCopyStoreOrderText,
+    handleCopyUnpaidReminder,
+    handleExportOrdersCSV,
+  } = useAdminOrderActions({
+    activeGroup,
+    setActiveGroup,
+    submissions,
+    allSubmissions,
+    setAllSubmissions,
+    itemSummary,
+    grandTotal,
+    inputDeliveryFee,
+    inputDiscount,
+    roundingRule,
+    selectedActiveGroupIdRef,
+    fetchAdminData,
+    showToast,
+    openAdminConfirmModal,
+    closeAdminConfirmModal,
+    setActiveTab,
+  });
 
   // 初始化視圖模式偏好
   useEffect(() => {
@@ -162,47 +270,6 @@ export default function AdminPageContent() {
     showToast(next ? '🔔 已開啟新訂單叮咚提醒（試聽播放）' : '🔕 已靜音新訂單提示音效');
   };
 
-  // 彈窗狀態管理
-  const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
-  const [editingStore, setEditingStore] = useState<Store | null>(null);
-  const [storeForm, setStoreForm] = useState({ name: '', category_id: '' });
-  const [storeImageFile, setStoreImageFile] = useState<File | null>(null);
-  const [storeImagePreview, setStoreImagePreview] = useState<string>('');
-  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
-
-  const [isCatModalOpen, setIsCatModalOpen] = useState<boolean>(false);
-  const [editingCat, setEditingCat] = useState<Category | null>(null);
-  const [catNameInput, setCatNameInput] = useState<string>('');
-
-  const [selectedCrudStoreId, setSelectedCrudStoreId] = useState<string | null>(null);
-  const [allMenuItems, setAllMenuItems] = useState<MenuItem[]>([]);
-  const [isProductModalOpen, setIsProductModalOpen] = useState<boolean>(false);
-  const [editingProduct, setEditingProduct] = useState<MenuItem | null>(null);
-  const [productForm, setProductForm] = useState({
-    name: '',
-    price: '',
-    description: '',
-    stock_quantity: '',
-    is_sold_out: false,
-  });
-  const [productCustomGroups, setProductCustomGroups] = useState<CustomGroup[]>([]);
-
-  // 額外彈窗控制
-  const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
-  const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState<boolean>(false);
-  const [isBatchImportModalOpen, setIsBatchImportModalOpen] = useState<boolean>(false);
-  const [isGroupSettingsModalOpen, setIsGroupSettingsModalOpen] = useState<boolean>(false);
-
-  const [signatureTarget, setSignatureTarget] = useState<OrderSubmissionAdmin | null>(null);
-  const [changeModalTarget, setChangeModalTarget] = useState<{ nickname: string; amount: number } | null>(null);
-  const [receivedCash, setReceivedCash] = useState<string>('');
-  const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
-  const [selectedArchivedGroupId, setSelectedArchivedGroupId] = useState<string | null>(null);
-
-  const [inputDeliveryFee, setInputDeliveryFee] = useState<number>(0);
-  const [inputDiscount, setInputDiscount] = useState<number>(0);
-  const [roundingRule, setRoundingRule] = useState<'floor' | 'ceil' | 'round'>('floor');
-
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/logout', { method: 'POST' });
@@ -211,1202 +278,158 @@ export default function AdminPageContent() {
     showToast('🔒 已安全登出團長後台');
   };
 
-  const fetchAdminData = useCallback(async (targetGroupId?: string, isSilent: boolean = true) => {
-    if (!isSilent) {
-      setLoading(true);
-    }
-    try {
-      const [gRes, sRes, cRes, pRes, soRes, mRes] = await Promise.all([
-        supabase.from('group_orders').select(`*, stores (*)`).order('created_at', { ascending: false }),
-        supabase.from('stores').select('*').order('name', { ascending: true }),
-        supabase.from('categories').select('*').order('sort_order', { ascending: true }),
-        supabase.from('payment_methods').select('*').order('name', { ascending: true }),
-        supabase.from('sold_out_options').select('*').order('sort_order', { ascending: true }),
-        supabase.from('menu_items').select('*').order('name', { ascending: true }),
-      ]);
-
-      setStores((sRes.data as Store[]) || []);
-      setCategories((cRes.data as Category[]) || []);
-      setPaymentMethods((pRes.data as PaymentMethod[]) || []);
-      setSoldOutOptions((soRes.data as SoldOutOption[]) || []);
-      setAllMenuItems((mRes.data as MenuItem[]) || []);
-
-      if (gRes.data) {
-        const allG = gRes.data;
-        const openGroups = allG.filter((g) => g.status === 'open');
-        const completedList = allG.filter((g) => g.status === 'completed');
-
-        setArchivedGroups(completedList as GroupOrderAdmin[]);
-
-        const effectiveGroupId = targetGroupId !== undefined ? targetGroupId : selectedActiveGroupIdRef.current;
-        const openGroupIds = openGroups.map((g) => g.id);
-
-        if (openGroupIds.length > 0) {
-          const { data: allSubList, error: subErr } = await supabase
-            .from('order_submissions')
-            .select(`
-              id, order_number, user_nickname, payment_method_name, sold_out_option,
-              total_amount, final_amount, is_paid, signature_data, created_at, group_order_id,
-              group_orders (title, stores (name)),
-              order_items (id, item_name, quantity, unit_price, custom_notes)
-            `)
-            .in('group_order_id', openGroupIds)
-            .order('created_at', { ascending: false });
-
-          if (subErr) console.error('抓取訂單失敗:', subErr);
-
-          const formattedSubs: OrderSubmissionAdmin[] = (allSubList || []).map((s: any) => ({
-            ...s,
-            store_name: s.group_orders?.stores?.name || s.group_orders?.title || '',
-            order_items: s.order_items || [],
-          }));
-
-          (allSubList || []).forEach((s: any) => {
-            knownOrderIdsRef.current.add(s.id);
-            processedNotificationIdsRef.current.add(s.id);
-          });
-
-          if (isInitialLoadRef.current) {
-            isInitialLoadRef.current = false;
-          }
-
-          const groupsWithStats: GroupOrderAdmin[] = openGroups.map((g: any) => {
-            const gSubs = formattedSubs.filter((s) => s.group_order_id === g.id);
-            return {
-              ...g,
-              order_count: gSubs.length,
-              total_sales: gSubs.reduce((sum, s) => sum + s.final_amount, 0),
-            };
-          });
-
-          setActiveGroups(groupsWithStats);
-
-          let currentGroup: GroupOrderAdmin | null = null;
-          if (effectiveGroupId && effectiveGroupId !== 'all') {
-            currentGroup = groupsWithStats.find((g) => g.id === effectiveGroupId) || groupsWithStats[0];
-          } else {
-            currentGroup = groupsWithStats.find((g) => (g.order_count || 0) > 0) || groupsWithStats[0];
-          }
-
-          if (currentGroup) {
-            setActiveGroup(currentGroup);
-            setInputDeliveryFee(currentGroup.delivery_fee || 0);
-            setInputDiscount(currentGroup.discount_amount || 0);
-            setRoundingRule((currentGroup.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
-          }
-
-          setAllSubmissions(formattedSubs);
-        } else {
-          setActiveGroups([]);
-          setActiveGroup(null);
-          setAllSubmissions([]);
-        }
-      }
-    } catch (err) {
-      console.error('抓取資料失敗:', err);
-    } finally {
-      if (!isSilent) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isUnlocked) fetchAdminData(undefined, false);
-  }, [isUnlocked, fetchAdminData]);
-
-  // Realtime 與 3 秒智慧雙保險輪詢
-  useEffect(() => {
-    if (!isUnlocked) return;
-
-    const channelName = `admin-rt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'order_submissions' },
-        (payload) => {
-          const newSub = payload.new as { id?: string; user_nickname?: string; created_at?: string };
-          if (newSub?.id) {
-            notifyNewOrder(newSub.id, newSub.user_nickname || '團員', newSub.created_at);
-          }
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-          setTimeout(() => {
-            fetchAdminData(selectedActiveGroupIdRef.current, true);
-          }, 500);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'order_submissions' },
-        (payload) => {
-          const updatedSub = payload.new as any;
-          if (updatedSub?.id) {
-            setAllSubmissions((prev) =>
-              prev.map((s) =>
-                s.id === updatedSub.id
-                  ? {
-                      ...s,
-                      ...updatedSub,
-                      order_items: s.order_items,
-                      store_name: s.store_name,
-                    }
-                  : s
-              )
-            );
-            fetchAdminData(selectedActiveGroupIdRef.current, true);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'order_submissions' },
-        (payload) => {
-          const deletedId = (payload.old as any)?.id;
-          if (deletedId) {
-            setAllSubmissions((prev) => prev.filter((s) => s.id !== deletedId));
-            setSelectedSubmissionIds((prev) => prev.filter((id) => id !== deletedId));
-            knownOrderIdsRef.current.delete(deletedId);
-          }
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'order_items' },
-        () => {
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'group_orders' },
-        () => {
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        }
-      )
-      .subscribe();
-
-    const pollingTimer = setInterval(async () => {
-      try {
-        const { data: latestSubs } = await supabase
-          .from('order_submissions')
-          .select('id, user_nickname, created_at, group_order_id')
-          .order('created_at', { ascending: false });
-
-        if (latestSubs && !isInitialLoadRef.current) {
-          const currentIdSet = new Set(latestSubs.map((s) => s.id));
-          let hasNew = false;
-          let hasDeleted = false;
-
-          for (const sub of latestSubs) {
-            const orderTime = sub.created_at ? new Date(sub.created_at).getTime() : 0;
-            if (orderTime < sessionMountTimeRef.current - 3000) {
-              processedNotificationIdsRef.current.add(sub.id);
-              continue;
-            }
-
-            if (!processedNotificationIdsRef.current.has(sub.id)) {
-              hasNew = true;
-              notifyNewOrder(sub.id, sub.user_nickname, orderTime);
-            }
-          }
-
-          for (const knownId of Array.from(knownOrderIdsRef.current)) {
-            if (!currentIdSet.has(knownId)) {
-              hasDeleted = true;
-              knownOrderIdsRef.current.delete(knownId);
-            }
-          }
-
-          if (hasNew || hasDeleted) {
-            fetchAdminData(selectedActiveGroupIdRef.current, true);
-          }
-        }
-      } catch (err) {
-        console.error('智慧輪詢更新失敗:', err);
-      }
-    }, 3000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(pollingTimer);
-    };
-  }, [isUnlocked, fetchAdminData, notifyNewOrder]);
-
-  const handleStoreImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const compressedWebPDataUrl = await compressImageToWebP(file);
-        setStoreImagePreview(compressedWebPDataUrl);
-        const res = await fetch(compressedWebPDataUrl);
-        const blob = await res.blob();
-        const compressedFile = new File([blob], `${file.name.replace(/\.[^/.]+$/, '')}.webp`, {
-          type: 'image/webp',
-        });
-        setStoreImageFile(compressedFile);
-      } catch (err) {
-        console.error('WebP 壓縮失敗，使用原始檔案', err);
-        setStoreImageFile(file);
-        setStoreImagePreview(URL.createObjectURL(file));
-      }
-    }
-  };
-
   const handleOpenStoreModal = (store?: Store) => {
     if (store) {
       setEditingStore(store);
       setStoreForm({ name: store.name, category_id: store.category_id || '' });
       setStoreImagePreview(store.image_url || '');
-      setStoreImageFile(null);
     } else {
       setEditingStore(null);
-      setStoreForm({ name: '', category_id: categories[0]?.id || '' });
+      setStoreForm({ name: '', category_id: '' });
       setStoreImagePreview('');
-      setStoreImageFile(null);
     }
+    setStoreImageFile(null);
     setIsStoreModalOpen(true);
   };
 
-  const handleSaveStore = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setUploadingImage(true);
-      let imageUrl = editingStore?.image_url || null;
-
-      if (storeImageFile) {
-        const fileExt = storeImageFile.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage.from('stores').upload(fileName, storeImageFile);
-        if (uploadError) {
-          console.error('上傳圖片錯誤:', uploadError);
-          showToast('❌ 圖片上傳失敗，請確認 Storage 設定');
-          setUploadingImage(false);
-          return;
-        }
-
-        const { data: urlData } = supabase.storage.from('stores').getPublicUrl(fileName);
-        imageUrl = urlData.publicUrl;
-      }
-
-      const payload = {
-        name: storeForm.name,
-        image_url: imageUrl,
-        category_id: storeForm.category_id || null,
-        is_active: true,
-      };
-
-      if (editingStore) {
-        const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id);
-        if (error) throw error;
-        showToast('✅ 店家資訊與照片已更新！');
-      } else {
-        const { error } = await supabase.from('stores').insert([payload]);
-        if (error) throw error;
-        showToast('🎉 新增店家成功！');
-      }
-
-      setIsStoreModalOpen(false);
-      setEditingStore(null);
-      setStoreForm({ name: '', category_id: '' });
-      setStoreImageFile(null);
-      setStoreImagePreview('');
-      fetchAdminData();
-    } catch (err: any) {
-      console.error('儲存店家失敗:', err);
-      showToast(`❌ 儲存店家失敗: ${err?.message || '請稍後重試'}`);
-    } finally {
-      setUploadingImage(false);
-    }
-  };
-
-  const handleDeleteStore = (storeId: string) => {
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '⚠️ 刪除合作店家',
-      message: '確定要刪除此店家嗎？此動作將一併影響相關菜單且無法復原！',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        try {
-          const { error } = await supabase.from('stores').delete().eq('id', storeId);
-          if (error) throw error;
-          showToast('🗑️ 店家已刪除');
-          fetchAdminData();
-        } catch (err) {
-          console.error('刪除店家失敗:', err);
-          showToast('❌ 刪除店家失敗');
-        }
-      },
-    });
-  };
-
-  const handleSaveCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!catNameInput.trim()) return;
-    try {
-      if (editingCat) {
-        const { error } = await supabase.from('categories').update({ name: catNameInput.trim() }).eq('id', editingCat.id);
-        if (error) throw error;
-        showToast('✅ 類別名稱已修改！');
-      } else {
-        const { error } = await supabase.from('categories').insert([{ name: catNameInput.trim(), sort_order: categories.length + 1 }]);
-        if (error) throw error;
-        showToast('➕ 已新增類別！');
-      }
-      setIsCatModalOpen(false);
-      setEditingCat(null);
-      setCatNameInput('');
-      fetchAdminData();
-    } catch (err) {
-      console.error('儲存類別失敗:', err);
-    }
-  };
-
-  const handleDeleteCategory = (catId: string) => {
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '⚠️ 刪除商品分類',
-      message: '確定要刪除此商品分類嗎？',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        try {
-          const { error } = await supabase.from('categories').delete().eq('id', catId);
-          if (error) throw error;
-          showToast('🗑️ 類別已刪除');
-          fetchAdminData();
-        } catch (err) {
-          console.error('刪除類別失敗:', err);
-          showToast('❌ 刪除分類失敗');
-        }
-      },
-    });
-  };
-
-  const handleMoveCategory = async (cat: Category, direction: 'up' | 'down') => {
-    const index = categories.findIndex((c) => c.id === cat.id);
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= categories.length) return;
-
-    const targetCat = categories[targetIndex];
-    await supabase.from('categories').update({ sort_order: targetCat.sort_order }).eq('id', cat.id);
-    await supabase.from('categories').update({ sort_order: cat.sort_order }).eq('id', targetCat.id);
-    fetchAdminData();
-  };
-
-  const handleCreatePaymentMethod = async () => {
-    const payload = {
-      name: `新付款方式 ${paymentMethods.length + 1}`,
-      account_info: null,
-      is_active: true,
-    };
-    const { error } = await supabase.from('payment_methods').insert([payload]);
-    if (error) {
-      showToast('❌ 新增付款方式失敗');
-      return;
-    }
-    showToast('➕ 已新增付款方式');
-    fetchAdminData();
-  };
-
-  const handleSavePaymentMethod = async (id: string, payload: { name: string; account_info: string | null }) => {
-    const { error } = await supabase.from('payment_methods').update(payload).eq('id', id);
-    if (error) {
-      showToast('❌ 儲存付款方式失敗');
-      return;
-    }
-    showToast('✅ 付款方式已更新');
-    fetchAdminData();
-  };
-
-  const handleDeletePaymentMethod = (id: string) => {
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '⚠️ 刪除付款方式',
-      message: '確定要刪除此付款方式嗎？',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        const { error } = await supabase.from('payment_methods').delete().eq('id', id);
-        if (error) {
-          showToast('❌ 刪除付款方式失敗');
-          return;
-        }
-        showToast('🗑️ 付款方式已刪除');
-        fetchAdminData();
-      },
-    });
-  };
-
-  const handleTogglePaymentMethodActive = async (id: string, currentStatus: boolean) => {
-    const { error } = await supabase.from('payment_methods').update({ is_active: !currentStatus }).eq('id', id);
-    if (error) {
-      showToast('❌ 切換付款方式狀態失敗');
-      return;
-    }
-    showToast(!currentStatus ? '✅ 已啟用付款方式' : '⏸️ 已停用付款方式');
-    fetchAdminData();
-  };
-
-  const handleCreateSoldOutOption = async () => {
-    const nextOrder = soldOutOptions.length > 0 ? Math.max(...soldOutOptions.map((x) => x.sort_order)) + 1 : 1;
-    const payload = { title: '請團長聯繫我', sort_order: nextOrder };
-    const { error } = await supabase.from('sold_out_options').insert([payload]);
-    if (error) {
-      showToast('❌ 新增缺貨備案失敗');
-      return;
-    }
-    showToast('➕ 已新增缺貨備案');
-    fetchAdminData();
-  };
-
-  const handleSaveSoldOutOption = async (id: string, title: string) => {
-    const { error } = await supabase.from('sold_out_options').update({ title: title.trim() }).eq('id', id);
-    if (error) {
-      showToast('❌ 儲存缺貨備案失敗');
-      return;
-    }
-    showToast('✅ 缺貨備案已更新');
-    fetchAdminData();
-  };
-
-  const handleDeleteSoldOutOption = (id: string) => {
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '⚠️ 刪除缺貨備案',
-      message: '確定要刪除此缺貨備案嗎？',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        const { error } = await supabase.from('sold_out_options').delete().eq('id', id);
-        if (error) {
-          showToast('❌ 刪除缺貨備案失敗');
-          return;
-        }
-        showToast('🗑️ 缺貨備案已刪除');
-        fetchAdminData();
-      },
-    });
-  };
-
-  const handleMoveSoldOutOption = async (id: string, direction: 'up' | 'down') => {
-    const sorted = [...soldOutOptions].sort((a, b) => a.sort_order - b.sort_order);
-    const index = sorted.findIndex((x) => x.id === id);
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (index < 0 || targetIndex < 0 || targetIndex >= sorted.length) return;
-
-    const current = sorted[index];
-    const target = sorted[targetIndex];
-
-    await supabase.from('sold_out_options').update({ sort_order: target.sort_order }).eq('id', current.id);
-    await supabase.from('sold_out_options').update({ sort_order: current.sort_order }).eq('id', target.id);
-    fetchAdminData();
-  };
-
   const handleOpenItemModal = (item?: MenuItem, storeId?: string) => {
-    if (storeId) {
-      setSelectedCrudStoreId(storeId);
-    }
     if (item) {
-      setSelectedCrudStoreId(item.store_id);
       setEditingProduct(item);
       setProductForm({
         name: item.name,
         price: item.price.toString(),
         description: item.description || '',
-        stock_quantity: item.stock_quantity?.toString() || '',
-        is_sold_out: item.is_sold_out,
+        stock_quantity: item.stock_quantity ? item.stock_quantity.toString() : '',
+        is_sold_out: item.is_sold_out || false,
       });
       setProductCustomGroups(item.custom_groups || []);
+      setSelectedCrudStoreId(item.store_id);
     } else {
       setEditingProduct(null);
-      setProductForm({ name: '', price: '', description: '', stock_quantity: '', is_sold_out: false });
+      setProductForm({
+        name: '',
+        price: '',
+        description: '',
+        stock_quantity: '',
+        is_sold_out: false,
+      });
       setProductCustomGroups([]);
+      if (storeId) setSelectedCrudStoreId(storeId);
     }
     setIsProductModalOpen(true);
   };
 
-  const handleAddCustomGroup = () => {
-    const newGroup: CustomGroup = {
-      id: Date.now().toString(),
-      title: '',
-      type: 'single',
-      options: [{ id: Date.now().toString() + '_1', name: '', price_adjustment: 0 }],
-    };
-    setProductCustomGroups([...productCustomGroups, newGroup]);
-  };
+  const isDesktop = viewMode === 'desktop';
 
-  const handleRemoveCustomGroup = (groupId: string) => {
-    setProductCustomGroups(productCustomGroups.filter((g) => g.id !== groupId));
-  };
-
-  const handleAddOptionToGroup = (groupId: string) => {
-    setProductCustomGroups(
-      productCustomGroups.map((g) =>
-        g.id === groupId
-          ? { ...g, options: [...g.options, { id: Date.now().toString(), name: '', price_adjustment: 0 }] }
-          : g
-      )
-    );
-  };
-
-  const handleRemoveOptionFromGroup = (groupId: string, optionId: string) => {
-    setProductCustomGroups(
-      productCustomGroups.map((g) =>
-        g.id === groupId ? { ...g, options: g.options.filter((o) => o.id !== optionId) } : g
-      )
-    );
-  };
-
-  const handleSaveProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const targetStoreId = selectedCrudStoreId || editingProduct?.store_id;
-    if (!targetStoreId || !productForm.name.trim()) {
-      showToast('⚠️ 請確認已選擇店家並填寫餐點名稱！');
-      return;
-    }
-    try {
-      const payload = {
-        store_id: targetStoreId,
-        name: productForm.name.trim(),
-        price: parseFloat(productForm.price) || 0,
-        description: productForm.description.trim() || null,
-        stock_quantity: productForm.stock_quantity ? parseInt(productForm.stock_quantity) : null,
-        is_sold_out: productForm.is_sold_out,
-        custom_groups: productCustomGroups,
-      };
-
-      if (editingProduct) {
-        const { error } = await supabase.from('menu_items').update(payload).eq('id', editingProduct.id);
-        if (error) throw error;
-        showToast('✅ 餐點與客製化選項已更新！');
-      } else {
-        const { error } = await supabase.from('menu_items').insert([payload]);
-        if (error) throw error;
-        showToast('🎉 新增餐點成功！');
-      }
-      setIsProductModalOpen(false);
-      fetchAdminData();
-    } catch (err: any) {
-      console.error('儲存餐點失敗:', err);
-      showToast(`❌ 儲存餐點失敗: ${err?.message || '請檢查格式'}`);
-    }
-  };
-
-  const handleDeleteProduct = (productId: string) => {
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '⚠️ 刪除餐點品項',
-      message: '確定要刪除此餐點品項嗎？此動作無法復原！',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        try {
-          const { error } = await supabase.from('menu_items').delete().eq('id', productId);
-          if (error) throw error;
-          showToast('🗑️ 品項已刪除');
-          fetchAdminData();
-        } catch (err) {
-          console.error('刪除品項失敗:', err);
-          showToast('❌ 刪除品項失敗');
-        }
-      },
-    });
-  };
-
-  const handleToggleProductStatus = async (productId: string) => {
-    try {
-      const item = allMenuItems.find((m) => m.id === productId);
-      if (!item) return;
-      const { error } = await supabase.from('menu_items').update({ is_sold_out: !item.is_sold_out }).eq('id', productId);
-      if (error) throw error;
-      fetchAdminData();
-    } catch (err) {
-      console.error('切換狀態失敗:', err);
-    }
-  };
-
-  const calculateAdjustedAmount = (baseAmount: number) => {
-    if (!submissions.length) return baseAmount;
-    const netAdjustment = inputDeliveryFee - inputDiscount;
-    const perPersonShare = netAdjustment / submissions.length;
-
-    let roundedShare = 0;
-    if (roundingRule === 'floor') roundedShare = Math.floor(perPersonShare);
-    else if (roundingRule === 'ceil') roundedShare = Math.ceil(perPersonShare);
-    else roundedShare = Math.round(perPersonShare);
-
-    return Math.max(0, baseAmount + roundedShare);
-  };
-
-  const handleApplyFeeSplit = async () => {
-    if (!activeGroup || submissions.length === 0) return;
-
-    for (const sub of submissions) {
-      const adjustedFinal = calculateAdjustedAmount(sub.total_amount);
-      await supabase.from('order_submissions').update({ final_amount: adjustedFinal }).eq('id', sub.id);
-    }
-
-    await supabase
-      .from('group_orders')
-      .update({
-        delivery_fee: inputDeliveryFee,
-        discount_amount: inputDiscount,
-        rounding_rule: roundingRule,
-      })
-      .eq('id', activeGroup.id);
-
-    showToast(`🔢 平攤設定已更新！已重新試算全團個人金額。`);
-    fetchAdminData();
-  };
-
-  const handleSaveSignature = async (signatureData: string) => {
-    if (!signatureTarget) return;
-    const targetId = signatureTarget.id;
-    const targetNickname = signatureTarget.user_nickname;
-    setSignatureTarget(null);
-
-    setAllSubmissions((prev) =>
-      prev.map((s) => (s.id === targetId ? { ...s, signature_data: signatureData, is_paid: true } : s))
-    );
-    showToast(`✍️ 已存入 ${targetNickname} 的對帳手繪簽名！`);
-
-    const { error } = await supabase
-      .from('order_submissions')
-      .update({ signature_data: signatureData, is_paid: true })
-      .eq('id', targetId);
-
-    if (error) {
-      console.error('儲存簽名失敗:', error);
-      fetchAdminData(selectedActiveGroupIdRef.current);
-      showToast('❌ 儲存簽名失敗');
-    }
-  };
-
-  const handleArchiveGroup = () => {
-    if (!activeGroup) return;
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '📦 歸檔團購活動',
-      message: '確定要歸檔此團購活動嗎？歸檔後可隨時一鍵重開新團。',
-      confirmText: '確定歸檔',
-      cancelText: '取消',
-      isDanger: false,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        await supabase.from('group_orders').update({ status: 'completed' }).eq('id', activeGroup.id);
-        showToast('📦 團購活動已移入歷史歸檔！');
-        fetchAdminData();
-      },
-    });
-  };
-
-  const handleReopenGroup = async (group: GroupOrderAdmin) => {
-    const { data: newGroup, error } = await supabase
-      .from('group_orders')
-      .insert({
-        title: `${group.title} (新開團)`,
-        store_id: group.store_id,
-        status: 'open',
-        announcement: group.announcement,
-        delivery_fee: group.delivery_fee,
-        discount_amount: group.discount_amount,
-        rounding_rule: group.rounding_rule,
-        enable_min_threshold: group.enable_min_threshold,
-        min_threshold_amount: group.min_threshold_amount,
-        enable_countdown: group.enable_countdown,
-        enable_budget_limit: group.enable_budget_limit,
-        budget_limit_amount: group.budget_limit_amount,
-      })
-      .select('*')
-      .single();
-
-    if (!error && newGroup) {
-      showToast('🔄 已成功一鍵發起新團購活動！');
-      setActiveTab('active');
-      fetchAdminData();
-    } else {
-      showToast('❌ 建立新團購活動失敗');
-    }
-  };
-
-  const handleDeleteArchivedGroup = (groupId: string, title: string) => {
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '🗑️ 刪除歷史活動',
-      message: `確定要刪除歷史活動「${title}」嗎？此動作將一併清除該活動底下的所有歷史訂單紀錄，且無法復原。`,
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        try {
-          // 1. 取得該活動所有訂單 ID
-          const { data: subs } = await supabase
-            .from('order_submissions')
-            .select('id')
-            .eq('group_order_id', groupId);
-
-          if (subs && subs.length > 0) {
-            const subIds = subs.map((s) => s.id);
-            await supabase.from('order_items').delete().in('submission_id', subIds);
-            await supabase.from('order_submissions').delete().in('id', subIds);
-          }
-
-          const { error } = await supabase.from('group_orders').delete().eq('id', groupId);
-          if (error) throw error;
-
-          showToast(`🗑️ 已刪除歷史活動「${title}」`);
-          fetchAdminData();
-        } catch (err: any) {
-          console.error('刪除歷史活動失敗:', err);
-          showToast(`❌ 刪除失敗：${err?.message || err}`);
-        }
-      },
-    });
-  };
-
-  const handleBatchDeleteArchivedGroups = (groupIds: string[]) => {
-    if (!groupIds.length) return;
-    const count = groupIds.length;
-
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '🗑️ 批次刪除歷史活動',
-      message: `確定要批次刪除選取的 ${count} 個歷史活動嗎？此動作將一併清除這些活動底下的所有歷史訂單紀錄，且無法復原。`,
-      confirmText: '確定批次刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        try {
-          // 1. 取得所有選取活動的訂單 ID
-          const { data: subs } = await supabase
-            .from('order_submissions')
-            .select('id')
-            .in('group_order_id', groupIds);
-
-          if (subs && subs.length > 0) {
-            const subIds = subs.map((s) => s.id);
-            await supabase.from('order_items').delete().in('submission_id', subIds);
-            await supabase.from('order_submissions').delete().in('id', subIds);
-          }
-
-          const { error } = await supabase.from('group_orders').delete().in('id', groupIds);
-          if (error) throw error;
-
-          showToast(`🗑️ 已批次刪除 ${count} 個歷史活動`);
-          fetchAdminData();
-        } catch (err: any) {
-          console.error('批次刪除歷史活動失敗:', err);
-          showToast(`❌ 批次刪除失敗：${err?.message || err}`);
-        }
-      },
-    });
-  };
-
-  const handleSaveGroupSettings = async (updatedData: {
-    title: string;
-    store_id: string;
-    announcement: string | null;
-    enable_min_threshold: boolean;
-    min_threshold_amount: number;
-    enable_countdown: boolean;
-    cutoff_time: string | null;
-    enable_budget_limit: boolean;
-    budget_limit_amount: number;
-  }) => {
-    if (activeGroup) {
-      const { error } = await supabase.from('group_orders').update(updatedData).eq('id', activeGroup.id);
-      if (error) throw error;
-      showToast('✅ 團購活動設定與公告已更新！');
-    } else {
-      const { error } = await supabase.from('group_orders').insert([{ ...updatedData, status: 'open' }]);
-      if (error) throw error;
-      showToast('🎉 新團購活動已成功發起！');
-    }
-    fetchAdminData();
-  };
-
-  const handleToggleGroupStatus = async (newStatus: 'open' | 'closed') => {
-    if (!activeGroup) return;
-    const { error } = await supabase.from('group_orders').update({ status: newStatus }).eq('id', activeGroup.id);
-
-    if (!error) {
-      setActiveGroup({ ...activeGroup, status: newStatus });
-      showToast(`活動已切換為：${newStatus === 'closed' ? '🔒 已截單 (停止收單)' : '🟢 開放收單中'}`);
-    }
-  };
-
-  const handleTogglePaid = async (subId: string, currentStatus: boolean) => {
-    const newStatus = !currentStatus;
-
-    setAllSubmissions((prev) => prev.map((s) => (s.id === subId ? { ...s, is_paid: newStatus } : s)));
-    showToast(newStatus ? '✅ 標記為已付款' : '⏳ 標記為未付款');
-
-    const { error } = await supabase.from('order_submissions').update({ is_paid: newStatus }).eq('id', subId);
-
-    if (error) {
-      console.error('更新付款狀態失敗:', error);
-      setAllSubmissions((prev) => prev.map((s) => (s.id === subId ? { ...s, is_paid: currentStatus } : s)));
-      showToast('❌ 更新付款狀態失敗，已復原狀態');
-    }
-  };
-
-  const handleBatchMarkPaid = async () => {
-    if (!selectedSubmissionIds.length) return;
-    const idsToUpdate = [...selectedSubmissionIds];
-    setSelectedSubmissionIds([]);
-
-    setAllSubmissions((prev) => prev.map((s) => (idsToUpdate.includes(s.id) ? { ...s, is_paid: true } : s)));
-    showToast(`✅ 已批次標記 ${idsToUpdate.length} 筆訂單為已付款！`);
-
-    const { error } = await supabase.from('order_submissions').update({ is_paid: true }).in('id', idsToUpdate);
-
-    if (error) {
-      console.error('批次標記失敗:', error);
-      fetchAdminData(selectedActiveGroupIdRef.current);
-      showToast('❌ 批次更新付款狀態失敗');
-    }
-  };
-
-  const handleDeleteOrder = (subId: string, nickname: string, orderNumber: string) => {
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '🗑️ 刪除訂單',
-      message: `確定要刪除「${nickname}」的訂單 #${orderNumber} 嗎？此動作將一併刪除該訂單的所有餐點明細，且無法復原。`,
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        setAllSubmissions((prev) => prev.filter((s) => s.id !== subId));
-        setSelectedSubmissionIds((prev) => prev.filter((id) => id !== subId));
-        showToast(`🗑️ 已刪除 ${nickname} 的訂單`);
-
-        try {
-          await supabase.from('order_items').delete().eq('submission_id', subId);
-          const { error } = await supabase.from('order_submissions').delete().eq('id', subId);
-          if (error) throw error;
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        } catch (err) {
-          console.error('刪除訂單失敗:', err);
-          showToast('❌ 刪除訂單失敗，正在重新同步...');
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        }
-      },
-    });
-  };
-
-  const handleBatchDeleteOrders = () => {
-    if (!selectedSubmissionIds.length) return;
-    const idsToDelete = [...selectedSubmissionIds];
-    const count = idsToDelete.length;
-
-    setAdminConfirmModal({
-      isOpen: true,
-      title: '🗑️ 批次刪除訂單',
-      message: `確定要批次刪除選取的 ${count} 筆訂單嗎？此動作將一併刪除這些訂單的所有餐點明細，且無法復原。`,
-      confirmText: '確定批次刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        setAllSubmissions((prev) => prev.filter((s) => !idsToDelete.includes(s.id)));
-        setSelectedSubmissionIds([]);
-        showToast(`🗑️ 已批次刪除 ${count} 筆訂單`);
-
-        try {
-          await supabase.from('order_items').delete().in('submission_id', idsToDelete);
-          const { error } = await supabase.from('order_submissions').delete().in('id', idsToDelete);
-          if (error) throw error;
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        } catch (err) {
-          console.error('批次刪除訂單失敗:', err);
-          showToast('❌ 批次刪除失敗，正在重新同步...');
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        }
-      },
-    });
-  };
-
-  const handleCopyPersonalReceipt = async (sub: OrderSubmissionAdmin) => {
-    let text = `📢【咩nu 團購金額對帳】\n${sub.user_nickname} 你好！你點了：\n---\n`;
-    (sub.order_items || []).forEach((item) => {
-      text += `• ${item.item_name} x ${item.quantity} ($${item.unit_price * item.quantity})\n`;
-      if (item.custom_notes) text += `   備註：${item.custom_notes}\n`;
-    });
-    text += `---\n💰 個人小計：$${sub.final_amount} 元 (${sub.payment_method_name})\n`;
-    text += `💳 付款狀態：${sub.is_paid ? '✅ 已收到款項' : '⏳ 待轉帳/付清'}\n感謝配合！🙏🙏`;
-
-    try {
-      if (navigator.clipboard && document.hasFocus()) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-      }
-      showToast(`📋 已複製 ${sub.user_nickname} 的個人對帳單！`);
-    } catch (err) {
-      console.error('複製失敗:', err);
-      showToast('⚠️ 複製失敗，請手動選擇文字複製');
-    }
-  };
-
-  const handleCopyStoreOrderText = async () => {
-    const storeName = stores.find((s) => s.id === activeGroup?.store_id)?.name || '店家';
-    let text = `【${storeName} 團購訂單明細】\n---\n`;
-    const totalCount = Object.values(itemSummary).reduce((a, b) => a + b, 0);
-    Object.entries(itemSummary).forEach(([name, qty], idx) => {
-      text += `${idx + 1}. ${name} x ${qty}\n`;
-    });
-    text += `---\n總計：${submissions.length} 人點餐，共 ${totalCount} 份，總金額 $${grandTotal} 元。\n謝謝！`;
-
-    try {
-      if (navigator.clipboard && document.hasFocus()) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-      }
-      showToast('📋 已複製店家下單格式文字！');
-    } catch (err) {
-      console.error(err);
-      showToast('⚠️ 複製失敗');
-    }
-  };
-
-  const handleCopyUnpaidReminder = async () => {
-    const unpaidList = submissions.filter((s) => !s.is_paid);
-    if (unpaidList.length === 0) {
-      showToast('🎉 全員皆已付款完成，無需催款！');
-      return;
-    }
-
-    let text = `📢【團購付款提醒】餐點已訂好/抵達囉！請以下朋友記得轉帳或付款給團長：\n---\n`;
-    unpaidList.forEach((sub) => {
-      text += `❌ ${sub.user_nickname}：$${sub.final_amount} 元 (${sub.payment_method_name})\n`;
-    });
-    const defaultPayment = paymentMethods[0];
-    if (defaultPayment?.account_info) {
-      text += `---\n💳 團長收款帳號：${defaultPayment.name} - ${defaultPayment.account_info}\n`;
-    }
-    text += `轉帳後請通知團長核對，感謝各位配合！🙏🙏`;
-
-    try {
-      if (navigator.clipboard && document.hasFocus()) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        textArea.style.position = 'fixed';
-        textArea.style.left = '-9999px';
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-      }
-      showToast('📢 已複製群組未付款催款文字！');
-    } catch (err) {
-      console.error(err);
-      showToast('⚠️ 複製失敗');
-    }
-  };
-
-  const handleExportOrdersCSV = () => {
-    if (submissions.length === 0) {
-      showToast('⚠️ 目前沒有任何訂單可匯出');
-      return;
-    }
-
-    let csvContent = '單號,訂購人,點餐明細,付款方式,缺貨備案,金額,付款狀態,送單時間\n';
-    submissions.forEach((sub) => {
-      const itemsText = (sub.order_items || [])
-        .map((i) => `${i.item_name} x ${i.quantity}${i.custom_notes ? ` (${i.custom_notes})` : ''}`)
-        .join('; ');
-      const isPaidText = sub.is_paid ? '已付款' : '未付款';
-      const dateText = new Date(sub.created_at).toLocaleString('zh-TW');
-      csvContent += `"${sub.order_number}","${sub.user_nickname}","${itemsText}","${sub.payment_method_name}","${sub.sold_out_option || ''}","${sub.final_amount}","${isPaidText}","${dateText}"\n`;
-    });
-
-    const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csvContent], {
-      type: 'text/csv;charset=utf-8;',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `meinu_orders_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showToast('📊 訂單 CSV 表格已成功下載！');
-  };
-
-  const itemSummary: Record<string, number> = {};
-  let grandTotal = 0;
-  let paidTotal = 0;
-
-  for (let i = 0; i < submissions.length; i++) {
-    const sub = submissions[i];
-    grandTotal += sub.final_amount;
-    if (sub.is_paid) paidTotal += sub.final_amount;
-
-    const items = sub.order_items || [];
-    for (let j = 0; j < items.length; j++) {
-      const item = items[j];
-      const key = `${item.item_name} ${item.custom_notes ? `(${item.custom_notes})` : ''}`;
-      itemSummary[key] = (itemSummary[key] || 0) + item.quantity;
-    }
-  }
-
-  // 🔒 密碼鎖定畫面
+  // 🔒 若尚未解鎖後台密碼，渲染安全驗證卡片
   if (!isUnlocked) {
     return (
-      <AdminAuthLock
-        onUnlockSuccess={() => {
-          sessionMountTimeRef.current = Date.now();
-          isInitialLoadRef.current = true;
-          setIsUnlocked(true);
-        }}
-        onInitAudio={initAudio}
-      />
+      <div className="min-h-screen bg-slate-50 dark:bg-[#080D1A] flex flex-col justify-between">
+        <Header />
+        <OfflineBanner />
+        <AdminAuthLock onUnlockSuccess={() => setIsUnlocked(true)} onInitAudio={initAudio} />
+        <div className="p-4 text-center text-xs text-slate-400">
+          咩nu 團購點餐平台 &bull; 團長專用安全後台
+        </div>
+      </div>
     );
   }
-
-  const isDesktop = viewMode === 'desktop';
 
   return (
     <div
-      className={`min-h-screen pb-20 transition-colors duration-200 ${
-        isDesktop ? 'bg-slate-100/70 dark:bg-[#0B0F17]' : 'bg-slate-200/60 dark:bg-[#06090E]'
-      }`}
+      onClick={initAudio}
+      className="min-h-screen bg-slate-50 dark:bg-[#080D1A] text-slate-800 dark:text-slate-100 flex flex-col pb-20 select-none transition-colors duration-200"
     >
-      <OfflineBanner />
       <Header />
+      <OfflineBanner />
 
+      {/* 浮動提示 Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/90 dark:bg-slate-800/95 text-white text-xs font-bold px-4 py-3 rounded-2xl shadow-xl border border-slate-700/50 backdrop-blur-xs flex items-center gap-2 animate-in slide-in-from-bottom-3 duration-200">
-          <span>{toastMessage}</span>
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] bg-slate-900/95 dark:bg-slate-800/95 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-2xl border border-slate-700/80 backdrop-blur-md animate-in fade-in zoom-in duration-200">
+          {toastMessage}
         </div>
       )}
 
-      {/* 頂部管理工具列 */}
-      <div className="bg-white/80 dark:bg-[#131B2B]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-40 px-4 py-2.5 transition-colors">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Link
-              href="/"
-              className="text-xs font-black text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 transition"
-            >
-              ‹ 返回點餐大廳
-            </Link>
-            <span className="text-slate-300 dark:text-slate-700">|</span>
-            <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
-              {activeGroup?.title || '咩nu 團購活動後台'}
+      {/* 團長控制台頂部功能列 */}
+      <div className="bg-white/80 dark:bg-[#131B2B]/80 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 sticky top-0 z-40 px-4 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
+          {/* 左側標題 */}
+          <div className="flex items-center gap-3">
+            <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+              <span>團長主控台</span>
+            </h1>
+            <span className="text-[10px] bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-extrabold px-2 py-0.5 rounded-full border border-sky-200/70 dark:border-sky-800/60">
+              即時連線中
             </span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* 音效開關與試聽按鈕 */}
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handleToggleSound}
-                className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1 border ${
-                  isSoundEnabled
-                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-900/60 hover:bg-amber-100 dark:hover:bg-amber-900/80'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-                title={isSoundEnabled ? '新訂單音效提醒：已開啟（點擊靜意）' : '新訂單音效提醒：已靜音（點擊開啟）'}
-              >
-                <span>{isSoundEnabled ? '🔔 叮咚提醒: 開' : '🔕 叮咚提醒: 關'}</span>
-              </button>
+          {/* 右側工具操作區 (音效切換、版面切換、主題切換、登出) */}
+          <div className="flex items-center gap-2">
+            {/* 新訂單叮咚提醒開關 */}
+            <button
+              type="button"
+              onClick={handleToggleSound}
+              className={`p-2 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+                isSoundEnabled
+                  ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 border-sky-200 dark:border-sky-800/60 shadow-2xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
+              }`}
+              title={isSoundEnabled ? '已開啟新訂單叮咚音效 (點擊關閉)' : '已靜音新訂單提示音 (點擊開啟)'}
+            >
+              <span>{isSoundEnabled ? '🔔' : '🔕'}</span>
+              <span className="hidden sm:inline">{isSoundEnabled ? '音效開啟' : '靜音中'}</span>
+            </button>
 
-              {isSoundEnabled && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    initAudio();
-                    playChimeSound(true);
-                    showToast('🔔 正在試聽新訂單提示音效...');
-                  }}
-                  className="text-xs px-2.5 py-1.5 rounded-xl font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-amber-700 dark:hover:text-amber-300 border border-slate-200 dark:border-slate-700 hover:border-amber-300 transition cursor-pointer"
-                  title="點擊測試播放新訂單叮咚鈴聲"
-                >
-                  🔊 試聽
-                </button>
-              )}
-            </div>
-
-            {/* 視圖切換 (手機比例 / 電腦比例) */}
-            <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex items-center gap-1 border border-slate-200 dark:border-slate-700 text-xs font-bold">
+            {/* 版面檢視切換 (電腦版雙欄 / 手機版單欄) */}
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => handleToggleViewMode('desktop')}
-                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                  isDesktop
+                className={`p-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  viewMode === 'desktop'
                     ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-2xs'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    : 'text-slate-400 hover:text-slate-600'
                 }`}
+                title="寬螢幕雙欄檢視 (推薦電腦使用)"
               >
-                💻 電腦比例
+                💻
               </button>
               <button
                 type="button"
                 onClick={() => handleToggleViewMode('mobile')}
-                className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                  !isDesktop
+                className={`p-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  viewMode === 'mobile'
                     ? 'bg-white dark:bg-slate-700 text-sky-600 dark:text-sky-300 shadow-2xs'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    : 'text-slate-400 hover:text-slate-600'
                 }`}
+                title="單欄緊湊檢視 (推薦手機使用)"
               >
-                📱 手機比例
+                📱
               </button>
             </div>
 
-            {/* 暗色/亮色主題切換按鈕 */}
+            {/* 深淺色主題切換 */}
             <button
               type="button"
               onClick={toggleTheme}
-              className="text-xs px-3 py-1.5 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-300 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-              title={theme === 'dark' ? '點擊切換為亮色主題' : '點擊切換為暗色主題'}
+              className="p-2 rounded-xl font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
             >
-              <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
-              <span>{theme === 'dark' ? '暗色主題' : '亮色主題'}</span>
+              {theme === 'dark' ? '☀️' : '🌙'}
             </button>
 
+            {/* 前台大廳入口 */}
+            <Link
+              href="/"
+              className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3 py-1.5 rounded-xl font-extrabold text-xs transition active:scale-95"
+            >
+              🏪 前台大廳
+            </Link>
+
+            {/* 安全登出 */}
             <button
               type="button"
               onClick={handleLogout}
-              className="text-xs px-3 py-1.5 rounded-xl font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
+              className="bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 text-rose-600 dark:text-rose-300 border border-rose-200/60 dark:border-rose-900/60 px-3 py-1.5 rounded-xl font-extrabold text-xs transition active:scale-95 cursor-pointer"
             >
               🔒 登出
             </button>
@@ -1414,9 +437,9 @@ export default function AdminPageContent() {
         </div>
       </div>
 
-      {/* 主頁籤切換 */}
-      <div className="max-w-7xl mx-auto px-4 pt-4">
-        <div className="flex flex-wrap bg-slate-200/80 dark:bg-[#131B2B] p-1.5 rounded-2xl max-w-xl mx-auto sm:mx-0 shadow-inner border border-transparent dark:border-slate-800 gap-1 sm:gap-0">
+      {/* 分頁 Tab 導覽切換 (即時對帳 / 店家菜單 / 歷史歸檔 / 系統維護) */}
+      <div className="max-w-7xl mx-auto w-full px-4 pt-4">
+        <div className="flex items-center gap-1.5 bg-slate-200/70 dark:bg-slate-900/80 p-1 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('active')}
@@ -1426,9 +449,9 @@ export default function AdminPageContent() {
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <span>👑 進行中團購</span>
+            <span>📊 即時對帳</span>
             {submissions.length > 0 && (
-              <span className="bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+              <span className="bg-sky-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
                 {submissions.length}
               </span>
             )}
@@ -1437,13 +460,13 @@ export default function AdminPageContent() {
           <button
             type="button"
             onClick={() => setActiveTab('crud')}
-            className={`flex-1 min-w-[120px] py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 min-w-[110px] py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'crud'
                 ? 'bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-sm'
                 : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
             }`}
           >
-            <span>🏪 店家與菜單管理</span>
+            <span>🏪 店家菜單設計</span>
           </button>
 
           <button
@@ -1624,7 +647,7 @@ export default function AdminPageContent() {
         )}
       </main>
 
-      {/* 友善列印檢視 Modal (動態加載) */}
+      {/* 友善列印檢視 Modal */}
       {isPrintModalOpen && (
         <AdminPrintModal
           isOpen={isPrintModalOpen}
@@ -1636,7 +659,7 @@ export default function AdminPageContent() {
         />
       )}
 
-      {/* 團長代點餐 Modal (動態加載) */}
+      {/* 團長代點餐 Modal */}
       {isManualOrderModalOpen && (
         <AdminManualOrderModal
           isOpen={isManualOrderModalOpen}
@@ -1649,7 +672,7 @@ export default function AdminPageContent() {
         />
       )}
 
-      {/* 菜單 CSV 批量匯入 Modal (動態加載) */}
+      {/* 菜單 CSV 批量匯入 Modal */}
       {isBatchImportModalOpen && (
         <AdminBatchImportModal
           isOpen={isBatchImportModalOpen}
@@ -1660,7 +683,7 @@ export default function AdminPageContent() {
         />
       )}
 
-      {/* 團購活動與公告進階設定 Modal (動態加載) */}
+      {/* 團購活動與公告進階設定 Modal */}
       {isGroupSettingsModalOpen && (
         <AdminGroupSettingsModal
           isOpen={isGroupSettingsModalOpen}
@@ -1711,7 +734,7 @@ export default function AdminPageContent() {
         onRemoveOptionFromGroup={handleRemoveOptionFromGroup}
       />
 
-      {/* 簽名預覽 Modal (動態加載) */}
+      {/* 簽名預覽 Modal */}
       {signatureTarget && (
         <SignatureModal
           nickname={signatureTarget.user_nickname}
@@ -1740,7 +763,7 @@ export default function AdminPageContent() {
         cancelText={adminConfirmModal.cancelText}
         isDanger={adminConfirmModal.isDanger}
         onConfirm={adminConfirmModal.onConfirm}
-        onCancel={() => setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }))}
+        onCancel={closeAdminConfirmModal}
       />
     </div>
   );

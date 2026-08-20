@@ -44,4 +44,16 @@ export interface GroupOrderAdmin {
 
 export type AdminViewMode = 'desktop' | 'mobile';
 
+export type AdminTabType = 'active' | 'crud' | 'archive' | 'maintenance';
+
+export interface AdminConfirmModalState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  isDanger?: boolean;
+  onConfirm: () => void;
+}
+
 export type { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';

@@ -1,9 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MenuItem, CustomGroup } from '@/types/database';
 import { CartItem, SelectedOption } from '@/types/cart';
+import { useCustomModalDraft } from './custom-modal/useCustomModalDraft';
+import { CustomModalOptionGroup } from './custom-modal/CustomModalOptionGroup';
 
 interface CustomModalProps {
   item: MenuItem | null;
@@ -15,22 +17,6 @@ interface CustomModalProps {
   onUpdateCartItem?: (updatedItem: CartItem) => void;
 }
 
-interface StoredDraftData {
-  itemId: string;
-  selectedOptions: Record<string, string[]>;
-  quantity: number;
-  customNotes: string;
-  savedAt: number;
-}
-
-interface ValidatedDraft {
-  data: StoredDraftData;
-  summaryText: string;
-}
-
-// ----------------------------------------------------
-// 🎨 純 SVG 精緻圖示（無 Emoji）
-// ----------------------------------------------------
 function IconHistory({ className = 'w-4 h-4' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -68,7 +54,6 @@ export default function CustomModal({
   onAddToCart,
   onUpdateCartItem,
 }: CustomModalProps) {
-  // ⚡ 優先直接讀取 item 內已預載的 custom_groups（進入商店時已在背景載入完畢，0ms 瞬開）
   const initialGroups = useMemo<CustomGroup[]>(() => {
     if (item?.custom_groups && Array.isArray(item.custom_groups)) {
       return item.custom_groups;
@@ -83,12 +68,30 @@ export default function CustomModal({
   const [customNotes, setCustomNotes] = useState<string>(existingCartItem?.customNotes || '');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // 📋 草稿系統狀態管理
-  const [detectedDraft, setDetectedDraft] = useState<ValidatedDraft | null>(null);
-  const [restoredToast, setRestoredToast] = useState<boolean>(false);
-  const hasUserInteractedRef = useRef<boolean>(false);
+  const {
+    detectedDraft,
+    setDetectedDraft,
+    restoredToast,
+    setRestoredToast,
+    checkForDraft,
+    handleRestoreDraft,
+    handleDiscardDraft,
+    clearDraft,
+    markInteracted,
+  } = useCustomModalDraft({
+    itemId: item?.id,
+    isEditMode: !!existingCartItem,
+    customGroups,
+    selectedOptions,
+    quantity,
+    customNotes,
+    setSelectedOptions,
+    setQuantity,
+    setCustomNotes,
+    setErrorMsg,
+  });
 
-  // 🛡️ 若 item.id 改變，於渲染期同步重置狀態，防止不同商品間的殘影
+  // 🛡️ 若 item.id 改變，於渲染期同步重置狀態
   if (item && prevItemId !== item.id) {
     setPrevItemId(item.id);
     setCustomGroups(initialGroups);
@@ -98,85 +101,13 @@ export default function CustomModal({
     setErrorMsg(null);
     setDetectedDraft(null);
     setRestoredToast(false);
-    hasUserInteractedRef.current = false;
   }
 
-  // ----------------------------------------------------
-  // 🔍 嚴謹的草稿驗證與摘要建構函式
-  // ----------------------------------------------------
-  const validateDraft = useCallback(
-    (rawJson: string, groups: CustomGroup[]): ValidatedDraft | null => {
-      try {
-        const parsed = JSON.parse(rawJson);
-        if (!parsed || typeof parsed !== 'object') return null;
-
-        // 1. 檢查草稿時效 (有效期限 7 天)
-        const savedAt = typeof parsed.savedAt === 'number' ? parsed.savedAt : 0;
-        if (Date.now() - savedAt > 7 * 86400000) {
-          return null;
-        }
-
-        // 2. 清洗並校驗選項：確認所選 optionId 依然存在於現有群組中
-        const validSelections: Record<string, string[]> = {};
-        const summaryParts: string[] = [];
-
-        groups.forEach((group) => {
-          const rawSelected = parsed.selectedOptions?.[group.id];
-          if (Array.isArray(rawSelected)) {
-            const validOptionIds = rawSelected.filter((id: string) =>
-              group.options.some((opt) => opt.id === id)
-            );
-            if (validOptionIds.length > 0) {
-              validSelections[group.id] = validOptionIds;
-              const optionNames = group.options
-                .filter((opt) => validOptionIds.includes(opt.id))
-                .map((opt) => opt.name);
-              summaryParts.push(optionNames.join('、'));
-            }
-          }
-        });
-
-        const validQuantity =
-          typeof parsed.quantity === 'number' && parsed.quantity >= 1 ? parsed.quantity : 1;
-        const validNotes = typeof parsed.customNotes === 'string' ? parsed.customNotes.trim() : '';
-
-        if (validQuantity > 1) {
-          summaryParts.push(`數量 ${validQuantity}`);
-        }
-        if (validNotes) {
-          summaryParts.push(`備註: ${validNotes}`);
-        }
-
-        // 3. 必須至少有一項實質自訂（選項、備註或數量變更）
-        if (summaryParts.length === 0) {
-          return null;
-        }
-
-        return {
-          data: {
-            itemId: item?.id || '',
-            selectedOptions: validSelections,
-            quantity: validQuantity,
-            customNotes: validNotes,
-            savedAt,
-          },
-          summaryText: summaryParts.join(' / '),
-        };
-      } catch (e) {
-        console.error('草稿解析失敗:', e);
-        return null;
-      }
-    },
-    [item?.id]
-  );
-
-  // ----------------------------------------------------
   // 1. 規格初始化與草稿偵測
-  // ----------------------------------------------------
   useEffect(() => {
     if (!item) return;
 
-    let groups = item.custom_groups && Array.isArray(item.custom_groups) ? item.custom_groups : [];
+    const groups = item.custom_groups && Array.isArray(item.custom_groups) ? item.custom_groups : [];
 
     if (groups.length === 0) {
       supabase
@@ -228,123 +159,27 @@ export default function CustomModal({
     }
 
     function initializeStateAndDraft(currentGroups: CustomGroup[]) {
-      // 若為「修改購物車品項」模式，直接套用現有品項設定，不載入亦不覆蓋草稿
       if (existingCartItem && existingCartItem.rawCustomSelections) {
         setSelectedOptions(existingCartItem.rawCustomSelections);
         setDetectedDraft(null);
         return;
       }
 
-      // ✨ 新增模式：預設留空所有選項
       const initialSelections: Record<string, string[]> = {};
       currentGroups.forEach((g) => {
         initialSelections[g.id] = [];
       });
       setSelectedOptions(initialSelections);
-
-      // 檢查是否存在有效草稿
-      const draftKey = `menu_app_draft_${item?.id}`;
-      const rawDraft = localStorage.getItem(draftKey);
-      if (rawDraft && currentGroups.length > 0) {
-        const validated = validateDraft(rawDraft, currentGroups);
-        if (validated) {
-          setDetectedDraft(validated);
-        } else {
-          localStorage.removeItem(draftKey);
-          setDetectedDraft(null);
-        }
-      } else {
-        setDetectedDraft(null);
-      }
+      checkForDraft(currentGroups);
     }
-  }, [item, existingCartItem, validateDraft]);
-
-  // ----------------------------------------------------
-  // 2. 使用者實質操作時的自動儲存 (Auto-Save on Interaction)
-  // ----------------------------------------------------
-  useEffect(() => {
-    // 僅在使用者已有明確互動、非購物車編輯模式、且商品有客製化群組時進行儲存
-    if (!item || existingCartItem || !hasUserInteractedRef.current || customGroups.length === 0) {
-      return;
-    }
-
-    const draftKey = `menu_app_draft_${item.id}`;
-    const hasSelections = Object.values(selectedOptions).some(
-      (arr) => Array.isArray(arr) && arr.length > 0
-    );
-    const hasNotes = customNotes.trim().length > 0;
-    const hasChangedQty = quantity > 1;
-
-    if (hasSelections || hasNotes || hasChangedQty) {
-      const draftPayload: StoredDraftData = {
-        itemId: item.id,
-        selectedOptions,
-        quantity,
-        customNotes,
-        savedAt: Date.now(),
-      };
-      localStorage.setItem(draftKey, JSON.stringify(draftPayload));
-    } else {
-      localStorage.removeItem(draftKey);
-    }
-  }, [selectedOptions, quantity, customNotes, item, existingCartItem, customGroups.length]);
-
-  // ----------------------------------------------------
-  // 3. 草稿操作：恢復草稿
-  // ----------------------------------------------------
-  const handleRestoreDraft = () => {
-    if (!detectedDraft) return;
-
-    hasUserInteractedRef.current = true;
-    const { selectedOptions: draftOptions, quantity: draftQty, customNotes: draftNotes } = detectedDraft.data;
-
-    // 將現有群組補齊預設值
-    const mergedSelections: Record<string, string[]> = {};
-    customGroups.forEach((g) => {
-      mergedSelections[g.id] = draftOptions[g.id] || [];
-    });
-
-    setSelectedOptions(mergedSelections);
-    setQuantity(draftQty);
-    setCustomNotes(draftNotes);
-    setDetectedDraft(null);
-    setErrorMsg(null);
-
-    // 顯示恢復成功的短暫提示
-    setRestoredToast(true);
-    setTimeout(() => setRestoredToast(false), 2200);
-  };
-
-  // ----------------------------------------------------
-  // 4. 草稿操作：捨棄草稿
-  // ----------------------------------------------------
-  const handleDiscardDraft = () => {
-    if (!item) return;
-    const draftKey = `menu_app_draft_${item.id}`;
-    localStorage.removeItem(draftKey);
-    setDetectedDraft(null);
-    hasUserInteractedRef.current = true;
-
-    // 重置所有選項為空
-    const resetSelections: Record<string, string[]> = {};
-    customGroups.forEach((g) => {
-      resetSelections[g.id] = [];
-    });
-    setSelectedOptions(resetSelections);
-    setQuantity(1);
-    setCustomNotes('');
-    setErrorMsg(null);
-  };
+  }, [item, existingCartItem, checkForDraft, setDetectedDraft]);
 
   if (!item) return null;
 
-  // ----------------------------------------------------
-  // 5. 處理選項點擊
-  // ----------------------------------------------------
   const handleSelectOption = (group: CustomGroup, optionId: string) => {
-    hasUserInteractedRef.current = true;
+    markInteracted();
     setErrorMsg(null);
-    if (detectedDraft) setDetectedDraft(null); // 使用者開始自選新規格時淡出草稿提示
+    if (detectedDraft) setDetectedDraft(null);
 
     const currentList = selectedOptions[group.id] || [];
 
@@ -396,11 +231,7 @@ export default function CustomModal({
   const singleUnitPrice = item.price + totalExtraPrice;
   const itemTotalPrice = singleUnitPrice * quantity;
 
-  // ----------------------------------------------------
-  // 6. 確認加入購物車或更新購物車
-  // ----------------------------------------------------
   const handleConfirm = () => {
-    // 驗證必選規則
     for (const group of customGroups) {
       const selected = selectedOptions[group.id] || [];
       if (group.type === 'single' && selected.length === 0) {
@@ -431,8 +262,7 @@ export default function CustomModal({
       onUpdateCartItem(cartItemPayload);
     } else {
       onAddToCart(cartItemPayload);
-      // 送入購物車後，徹底清除此商品的草稿紀錄
-      localStorage.removeItem(`menu_app_draft_${item.id}`);
+      clearDraft();
     }
 
     onClose();
@@ -465,7 +295,7 @@ export default function CustomModal({
           </button>
         </div>
 
-        {/* 📋 精緻草稿恢復提示條 (附帶上次選擇內容摘要) */}
+        {/* 📋 草稿恢復提示條 */}
         {detectedDraft && (
           <div className="bg-amber-50 dark:bg-amber-950/50 border-b border-amber-200 dark:border-amber-900/60 px-4 py-2.5 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 animate-in fade-in slide-in-from-top-2 duration-200 gap-3">
             <div className="min-w-0 space-y-0.5">
@@ -497,7 +327,7 @@ export default function CustomModal({
           </div>
         )}
 
-        {/* ✅ 草稿已恢復成功提示 */}
+        {/* ✅ 草稿恢復成功提示 */}
         {restoredToast && (
           <div className="bg-emerald-50 dark:bg-emerald-950/50 border-b border-emerald-200 dark:border-emerald-900/60 px-4 py-2 flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300 font-bold animate-in fade-in duration-150">
             <IconCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -513,64 +343,17 @@ export default function CustomModal({
           </div>
         )}
 
-        {/* 客製選項主體 (即時呈現，零延遲) */}
+        {/* 客製選項主體 */}
         <div className="p-4 overflow-y-auto space-y-4 flex-1 text-slate-700 dark:text-slate-200 divide-y divide-slate-100 dark:divide-slate-800">
           {customGroups.length > 0 &&
-            customGroups.map((group) => {
-              const currentSelected = selectedOptions[group.id] || [];
-              return (
-                <div key={group.id} className="pt-3 first:pt-0 space-y-2">
-                  <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-200">
-                    <span className="flex items-center gap-1">
-                      <span>{group.title}</span>
-                      {group.type === 'single' && <span className="text-sky-500">*</span>}
-                    </span>
-                    <span className="text-[10px] text-slate-400 dark:text-slate-400 font-medium">
-                      {group.type === 'single' && '必選 1 個'}
-                      {group.type === 'any' && '可多選或不選'}
-                      {group.type === 'limit' && `最多選 ${group.limit_number || 1} 個`}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {group.options.map((opt) => {
-                      const isChecked = currentSelected.includes(opt.id);
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => handleSelectOption(group, opt.id)}
-                          className={`p-2.5 rounded-2xl text-xs font-bold border text-left transition flex items-center justify-between active:scale-[0.98] cursor-pointer ${
-                            isChecked
-                              ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
-                              : 'bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100/80 dark:hover:bg-slate-700'
-                          }`}
-                        >
-                          <span className="truncate mr-1">{opt.name}</span>
-                          {opt.price_adjustment > 0 ? (
-                            <span
-                              className={`text-[10px] font-extrabold shrink-0 ${
-                                isChecked ? 'text-white' : 'text-sky-600 dark:text-sky-400'
-                              }`}
-                            >
-                              +${opt.price_adjustment}
-                            </span>
-                          ) : (
-                            <span
-                              className={`text-[10px] ${
-                                isChecked ? 'text-sky-100' : 'text-slate-400 dark:text-slate-400'
-                              }`}
-                            >
-                              +0
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+            customGroups.map((group) => (
+              <CustomModalOptionGroup
+                key={group.id}
+                group={group}
+                selectedOptionIds={selectedOptions[group.id] || []}
+                onSelectOption={handleSelectOption}
+              />
+            ))}
 
           {/* 特製備註輸入框 */}
           <div className="pt-3 space-y-1.5">
@@ -584,7 +367,7 @@ export default function CustomModal({
               placeholder="有其他個人需求嗎？填寫備註..."
               value={customNotes}
               onChange={(e) => {
-                hasUserInteractedRef.current = true;
+                markInteracted();
                 setCustomNotes(e.target.value);
               }}
               className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
@@ -598,8 +381,8 @@ export default function CustomModal({
               <button
                 type="button"
                 onClick={() => {
-                  hasUserInteractedRef.current = true;
-                  setQuantity((q) => Math.max(1, q - 1));
+                  markInteracted();
+                  setQuantity(Math.max(1, quantity - 1));
                 }}
                 className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center cursor-pointer"
               >
@@ -609,8 +392,8 @@ export default function CustomModal({
               <button
                 type="button"
                 onClick={() => {
-                  hasUserInteractedRef.current = true;
-                  setQuantity((q) => q + 1);
+                  markInteracted();
+                  setQuantity(quantity + 1);
                 }}
                 className="w-7 h-7 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-sm flex items-center justify-center cursor-pointer"
               >
