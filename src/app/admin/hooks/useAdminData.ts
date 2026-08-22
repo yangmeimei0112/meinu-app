@@ -4,16 +4,23 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { GroupOrderAdmin, OrderSubmissionAdmin } from '../admin-types';
+import { SpeechOrderItem, SpeechOrderPayload } from './useAdminSpeech';
 
 interface UseAdminDataProps {
   isUnlocked: boolean;
   playChimeSound: () => void;
+  isSoundEnabled: boolean;
+  speakOrder: (order: SpeechOrderPayload, immediate?: boolean) => void;
+  isSpeechEnabled: boolean;
   showToast: (msg: string) => void;
 }
 
 export function useAdminData({
   isUnlocked,
   playChimeSound,
+  isSoundEnabled,
+  speakOrder,
+  isSpeechEnabled,
   showToast,
 }: UseAdminDataProps) {
   const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
@@ -43,9 +50,9 @@ export function useAdminData({
   const isInitialLoadRef = useRef<boolean>(true);
   const sessionMountTimeRef = useRef<number>(Date.now());
 
-  // 🔔 叮咚新訂單響鈴與通知通知防重複邏輯
+  // 🔔 叮咚新訂單響鈴與 🗣️ 語音報單智慧分流
   const notifyNewOrder = useCallback(
-    (orderId: string, nickname: string, orderCreatedAt?: string | number) => {
+    async (orderId: string, nickname: string, orderCreatedAt?: string | number, initialAmount?: number) => {
       if (processedNotificationIdsRef.current.has(orderId)) return;
 
       if (orderCreatedAt) {
@@ -64,10 +71,71 @@ export function useAdminData({
         sessionStorage.setItem('menu_app_processed_notifications', JSON.stringify(arr));
       } catch {}
 
-      playChimeSound();
-      showToast(`🔔 叮咚！收到 ${nickname || '團員'} 的新訂單！`);
+      // 1. 若接單音效開啟：立即播放接單叮咚鈴聲
+      if (isSoundEnabled) {
+        playChimeSound();
+      }
+
+      showToast(`🔔 收到 ${nickname || '團員'} 的新訂單！`);
+
+      // 2. 若語音報單開啟：抓取訂單明細並依音效狀態分流播報
+      if (isSpeechEnabled) {
+        (async () => {
+          try {
+            // 嘗試取得該筆訂單的品項清單（含微重試以防結帳品項寫入微小延遲）
+            let itemRows: any[] = [];
+            for (let attempt = 0; attempt < 3; attempt++) {
+              const { data } = await supabase
+                .from('order_items')
+                .select('item_name, quantity, custom_notes, unit_price')
+                .eq('submission_id', orderId);
+              if (data && data.length > 0) {
+                itemRows = data;
+                break;
+              }
+              await new Promise((res) => setTimeout(res, 180));
+            }
+
+            let items: SpeechOrderItem[] = [];
+            let totalAmount = initialAmount || 0;
+
+            if (itemRows && itemRows.length > 0) {
+              items = itemRows.map((r: any) => ({
+                name: r.item_name,
+                quantity: r.quantity,
+                notes: r.custom_notes,
+              }));
+              if (!totalAmount) {
+                totalAmount = itemRows.reduce((sum: number, r: any) => sum + (r.unit_price * r.quantity), 0);
+              }
+            }
+
+            // ⚡ 核心分流：若音效沒開，immediate = true (0ms 立即直接語音朗讀)；若音效有開，immediate = false (延遲 750ms 等鈴聲結束)
+            speakOrder(
+              {
+                orderId,
+                nickname,
+                total_amount: totalAmount,
+                items,
+              },
+              !isSoundEnabled
+            );
+          } catch (err) {
+            console.warn('語音報單抓取明細失敗，執行摘要播報:', err);
+            speakOrder(
+              {
+                orderId,
+                nickname,
+                total_amount: initialAmount || 0,
+                items: [],
+              },
+              !isSoundEnabled
+            );
+          }
+        })();
+      }
     },
-    [playChimeSound, showToast]
+    [isSoundEnabled, isSpeechEnabled, playChimeSound, speakOrder, showToast]
   );
 
   // ⚡ 根據選中的店家/活動在記憶體中即時過濾訂單，0ms 切換無重整或閃爍
@@ -194,9 +262,9 @@ export function useAdminData({
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'order_submissions' },
         (payload) => {
-          const newSub = payload.new as { id?: string; user_nickname?: string; created_at?: string };
+          const newSub = payload.new as { id?: string; user_nickname?: string; created_at?: string; total_amount?: number };
           if (newSub?.id) {
-            notifyNewOrder(newSub.id, newSub.user_nickname || '團員', newSub.created_at);
+            notifyNewOrder(newSub.id, newSub.user_nickname || '團員', newSub.created_at, newSub.total_amount);
           }
           fetchAdminData(selectedActiveGroupIdRef.current, true);
           setTimeout(() => {
@@ -258,7 +326,7 @@ export function useAdminData({
       try {
         const { data: latestSubs } = await supabase
           .from('order_submissions')
-          .select('id, user_nickname, created_at, group_order_id')
+          .select('id, user_nickname, created_at, group_order_id, total_amount')
           .order('created_at', { ascending: false });
 
         if (latestSubs && !isInitialLoadRef.current) {
@@ -275,7 +343,7 @@ export function useAdminData({
 
             if (!processedNotificationIdsRef.current.has(sub.id)) {
               hasNew = true;
-              notifyNewOrder(sub.id, sub.user_nickname, orderTime);
+              notifyNewOrder(sub.id, sub.user_nickname, orderTime, sub.total_amount);
             }
           }
 

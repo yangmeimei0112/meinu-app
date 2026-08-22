@@ -12,6 +12,7 @@ import { AdminDashboardSection } from './AdminDashboardSection';
 import { AdminViewMode, AdminTabType, AdminConfirmModalState } from './admin-types';
 import { useTheme } from '@/lib/theme';
 import { useAdminSound } from './hooks/useAdminSound';
+import { useAdminSpeech } from './hooks/useAdminSpeech';
 import { useAdminData } from './hooks/useAdminData';
 import { useAdminStoreCrud } from './hooks/useAdminStoreCrud';
 import { useAdminOrderActions } from './hooks/useAdminOrderActions';
@@ -35,10 +36,22 @@ const DoubleConfirmModal = dynamic(() => import('@/components/DoubleConfirmModal
 export default function AdminPageContent() {
   const { theme, toggleTheme } = useTheme();
   const { isSoundEnabled, playChimeSound, initAudio, toggleSound } = useAdminSound();
+  const {
+    isSpeechEnabled,
+    speechMode,
+    speechRate,
+    isSpeaking,
+    speakOrder,
+    playTestSpeech,
+    toggleSpeech,
+    setSpeechMode,
+    setSpeechRate,
+  } = useAdminSpeech();
 
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<AdminTabType>('active');
   const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
+  const [showVoiceSettingsModal, setShowVoiceSettingsModal] = useState<boolean>(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const showToast = useCallback((msg: string) => {
@@ -69,7 +82,7 @@ export default function AdminPageContent() {
     setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
-  // 1. 後台核心資料與 Realtime Hook
+  // 1. 後台核心資料與 Realtime Hook (傳入音效與語音獨立分流狀態)
   const {
     activeGroup,
     setActiveGroup,
@@ -103,6 +116,9 @@ export default function AdminPageContent() {
   } = useAdminData({
     isUnlocked,
     playChimeSound,
+    isSoundEnabled,
+    speakOrder,
+    isSpeechEnabled,
     showToast,
   });
 
@@ -364,9 +380,9 @@ export default function AdminPageContent() {
             </span>
           </div>
 
-          {/* 右側工具操作區 (音效切換、版面切換、主題切換、登出) - 膠囊群組化排版 */}
+          {/* 右側工具操作區 (音效切換、語音報單切換、版面切換、主題切換、登出) - 膠囊群組化排版 */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* 新訂單叮咚提醒開關 */}
+            {/* 1. 🔔 新訂單接單叮咚音效開關 */}
             <button
               type="button"
               onClick={handleToggleSound}
@@ -375,13 +391,42 @@ export default function AdminPageContent() {
                   ? 'bg-sky-50 dark:bg-sky-950/70 text-sky-600 dark:text-sky-300 border-sky-200 dark:border-sky-800/70 shadow-sky-500/10'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'
               }`}
-              title={isSoundEnabled ? '已開啟新訂單叮咚音效 (點擊關閉)' : '已靜音新訂單提示音 (點擊開啟)'}
+              title={isSoundEnabled ? '已開啟接單叮咚音效 (點擊關閉)' : '已關閉接單叮咚音效 (點擊開啟)'}
             >
               <span>{isSoundEnabled ? '🔔' : '🔕'}</span>
-              <span className="hidden sm:inline font-black">{isSoundEnabled ? '音效開啟' : '靜音中'}</span>
+              <span className="hidden sm:inline font-black">{isSoundEnabled ? '音效開啟' : '音效關閉'}</span>
             </button>
 
-            {/* 版面檢視切換 (電腦版雙欄 / 手機版單欄) */}
+            {/* 2. 🗣️ 新訂單語音詳細報單開關 + ⚙️ 設定選單 */}
+            <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-0.5 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = toggleSpeech();
+                  showToast(next ? '🗣️ 已開啟新訂單語音報單' : '🤐 已關閉新訂單語音報單');
+                }}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  isSpeechEnabled
+                    ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-300 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                }`}
+                title={isSpeechEnabled ? '已開啟新訂單語音詳細報單 (點擊關閉)' : '已關閉語音報單 (點擊開啟)'}
+              >
+                <span>{isSpeechEnabled ? '🗣️' : '🤐'}</span>
+                <span className="hidden sm:inline font-black">{isSpeechEnabled ? '語音報單' : '語音關閉'}</span>
+                {isSpeaking && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowVoiceSettingsModal(true)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg transition cursor-pointer"
+                title="語音報單進階設定與試聽"
+              >
+                ⚙️
+              </button>
+            </div>
+
+            {/* 3. 版面檢視切換 (電腦版雙欄 / 手機版單欄) */}
             <div className="flex items-center bg-slate-100/90 dark:bg-slate-800/90 p-1 rounded-2xl border border-slate-200 dark:border-slate-700/80 shadow-2xs">
               <button
                 type="button"
@@ -409,7 +454,7 @@ export default function AdminPageContent() {
               </button>
             </div>
 
-            {/* 深淺色主題切換 */}
+            {/* 4. 深淺色主題切換 */}
             <button
               type="button"
               onClick={toggleTheme}
@@ -418,7 +463,7 @@ export default function AdminPageContent() {
               {theme === 'dark' ? '☀️' : '🌙'}
             </button>
 
-            {/* 前台大廳入口 */}
+            {/* 5. 前台大廳入口 */}
             <Link
               href="/"
               className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-2xl font-black text-xs transition active:scale-95 shadow-2xs"
@@ -426,7 +471,7 @@ export default function AdminPageContent() {
               🏪 前台大廳
             </Link>
 
-            {/* 安全登出 */}
+            {/* 6. 安全登出 */}
             <button
               type="button"
               onClick={handleLogout}
@@ -766,6 +811,133 @@ export default function AdminPageContent() {
         onConfirm={adminConfirmModal.onConfirm}
         onCancel={closeAdminConfirmModal}
       />
+
+      {/* 🗣️ 新訂單語音詳細播報設定與試聽 Modal */}
+      {showVoiceSettingsModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🗣️</span>
+                <h3 className="font-black text-slate-900 dark:text-slate-100 text-base">
+                  新訂單語音播報設定
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowVoiceSettingsModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm bg-slate-100 dark:bg-slate-800 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* 語音開關 */}
+            <div className="flex items-center justify-between bg-slate-50 dark:bg-[#152033] p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
+              <div>
+                <p className="text-xs font-black text-slate-800 dark:text-slate-200">新訂單語音自動報單</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5">
+                  收到新訂單時自動以臺灣國語朗讀內容
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={toggleSpeech}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  isSpeechEnabled
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xs'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                }`}
+              >
+                {isSpeechEnabled ? '🟢 已開啟' : '⚪ 已關閉'}
+              </button>
+            </div>
+
+            {/* 播報內容詳細度 */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-700 dark:text-slate-300 block">
+                播報詳細度模式
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSpeechMode('full')}
+                  className={`p-3 rounded-2xl text-left border transition cursor-pointer ${
+                    speechMode === 'full'
+                      ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-400/30'
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <p className="font-black text-xs">📋 完整明細模式 (推薦)</p>
+                  <p className="text-[10px] mt-1 opacity-80 leading-relaxed">
+                    報出姓名、餐點品項、數量與客製備註
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSpeechMode('summary')}
+                  className={`p-3 rounded-2xl text-left border transition cursor-pointer ${
+                    speechMode === 'summary'
+                      ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-400/30'
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <p className="font-black text-xs">⚡ 簡明摘要模式</p>
+                  <p className="text-[10px] mt-1 opacity-80 leading-relaxed">
+                    僅報出姓名、總份數與總金額
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* 語速調整 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-700 dark:text-slate-300">
+                  播報語速：<span className="text-emerald-600 dark:text-emerald-400 font-mono font-black">{speechRate.toFixed(1)}x</span>
+                </label>
+                <span className="text-[10px] text-slate-400">
+                  {speechRate <= 0.9 ? '沉穩清晰' : speechRate === 1.1 ? '推薦標準' : '俐落快速'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl">
+                {[0.9, 1.0, 1.1, 1.2, 1.3].map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => setSpeechRate(rate)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-black transition cursor-pointer font-mono ${
+                      speechRate === rate
+                        ? 'bg-white dark:bg-emerald-600 text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    {rate.toFixed(1)}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 試聽與確認完成 */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={playTestSpeech}
+                className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs py-2.5 rounded-2xl transition active:scale-95 flex items-center justify-center gap-1.5 border border-slate-200/80 dark:border-slate-700 cursor-pointer shadow-2xs"
+              >
+                <span>🔊 立即試聽效果</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowVoiceSettingsModal(false)}
+                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs py-2.5 rounded-2xl transition active:scale-95 shadow-md shadow-emerald-500/20 cursor-pointer text-center"
+              >
+                確認完成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
