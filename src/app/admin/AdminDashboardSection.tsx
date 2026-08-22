@@ -87,34 +87,21 @@ export function AdminDashboardSection({
   // 防抖搜尋
   const debouncedSearch = useDebounce(searchQuery, 180);
 
-  // 記憶化各金流分類實收與待收
-  const { cashPaid, cashUnpaid, linePayPaid, linePayUnpaid, transferPaid, transferUnpaid } = useMemo(() => {
-    let cPaid = 0, cUnpaid = 0;
-    let lPaid = 0, lUnpaid = 0;
-    let tPaid = 0, tUnpaid = 0;
-
+  // 💡 動態金流統計：根據所有訂單動態聚合各金流已收、待收與總計，免除硬編碼綁定
+  const paymentBreakdown = useMemo(() => {
+    const map = new Map<string, { name: string; paid: number; unpaid: number; total: number }>();
     submissions.forEach((s) => {
-      const name = s.payment_method_name.toLowerCase();
-      if (name.includes('現金')) {
-        if (s.is_paid) cPaid += s.final_amount;
-        else cUnpaid += s.final_amount;
-      } else if (name.includes('line')) {
-        if (s.is_paid) lPaid += s.final_amount;
-        else lUnpaid += s.final_amount;
+      const pmName = (s.payment_method_name || '自訂付款').trim();
+      const existing = map.get(pmName) || { name: pmName, paid: 0, unpaid: 0, total: 0 };
+      if (s.is_paid) {
+        existing.paid += s.final_amount;
       } else {
-        if (s.is_paid) tPaid += s.final_amount;
-        else tUnpaid += s.final_amount;
+        existing.unpaid += s.final_amount;
       }
+      existing.total += s.final_amount;
+      map.set(pmName, existing);
     });
-
-    return {
-      cashPaid: cPaid,
-      cashUnpaid: cUnpaid,
-      linePayPaid: lPaid,
-      linePayUnpaid: lUnpaid,
-      transferPaid: tPaid,
-      transferUnpaid: tUnpaid,
-    };
+    return Array.from(map.values());
   }, [submissions]);
 
   const totalItemCount = useMemo(() => Object.values(itemSummary).reduce((a, b) => a + b, 0), [itemSummary]);
@@ -157,7 +144,7 @@ export function AdminDashboardSection({
 
   return (
     <div className="space-y-6">
-      {/* 頂部指標與活動卡片 */}
+      {/* 👑 頂部指標與活動卡片 (Commander Banner + Bento Metrics + Dynamic Payment Cards) */}
       <AdminDashboardMetrics
         groupOrder={groupOrder}
         activeGroups={activeGroups}
@@ -168,12 +155,7 @@ export function AdminDashboardSection({
         submissionsCount={submissions.length}
         totalItemCount={totalItemCount}
         unpaidSubmissionsCount={unpaidSubmissionsCount}
-        cashPaid={cashPaid}
-        cashUnpaid={cashUnpaid}
-        linePayPaid={linePayPaid}
-        linePayUnpaid={linePayUnpaid}
-        transferPaid={transferPaid}
-        transferUnpaid={transferUnpaid}
+        paymentBreakdown={paymentBreakdown}
         handleToggleGroupStatus={handleToggleGroupStatus}
         handleOpenGroupSettingsModal={handleOpenGroupSettingsModal}
         handleArchiveGroup={handleArchiveGroup}
@@ -183,9 +165,9 @@ export function AdminDashboardSection({
         handleOpenManualOrderModal={handleOpenManualOrderModal}
       />
 
-      {/* 依版面模式呈現雙欄或單欄 (Desktop: 左報單/平攤 + 右訂單卡片; Mobile: 單欄) */}
+      {/* 依版面模式呈現雙欄或單欄 (Desktop: 左 5 叫餐/平攤 + 右 7 訂單卡片; Mobile: 單欄) */}
       <div className={`grid gap-6 ${isDesktop ? 'grid-cols-12' : 'grid-cols-1'}`}>
-        {/* 左側欄：店家報單總表 + 運費平攤試算器 */}
+        {/* 👈 左側欄：店家報單總表 (暖拿鐵調) + 運費平攤試算器 (科技藍紫調) */}
         <div className={isDesktop ? 'col-span-5 space-y-6' : 'space-y-6'}>
           <AdminDashboardFeeSplit
             totalItemCount={totalItemCount}
@@ -203,10 +185,10 @@ export function AdminDashboardSection({
           />
         </div>
 
-        {/* 右側欄：團員訂單對帳清單 */}
+        {/* 👉 右側欄：團員訂單對帳流水席清單 */}
         <div className={isDesktop ? 'col-span-7 space-y-4' : 'space-y-4'}>
           {submissions.length === 0 ? (
-            <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 sm:p-12 text-center text-slate-400 dark:text-slate-500 text-xs border border-slate-100 dark:border-slate-800 shadow-xs space-y-3">
+            <div className="bg-white/90 dark:bg-[#0E1726]/90 rounded-3xl p-8 sm:p-12 text-center text-slate-400 dark:text-slate-500 text-xs border border-dashed border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
               <div className="text-4xl">📭</div>
               <h4 className="text-sm font-extrabold text-slate-700 dark:text-slate-200">目前尚無團員送單</h4>
               <p className="text-slate-400 dark:text-slate-400 max-w-xs mx-auto">
@@ -216,7 +198,7 @@ export function AdminDashboardSection({
                 <button
                   type="button"
                   onClick={handleOpenManualOrderModal}
-                  className="bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>➕ 幫朋友代點</span>
                 </button>
@@ -263,7 +245,7 @@ export function AdminDashboardSection({
                 ))}
 
                 {filteredSubmissions.length === 0 && (
-                  <div className="text-center py-10 text-xs text-slate-400 dark:text-slate-500 bg-white dark:bg-[#131B2B] rounded-3xl border border-slate-100 dark:border-slate-800">
+                  <div className="text-center py-10 text-xs text-slate-400 dark:text-slate-500 bg-white/80 dark:bg-[#0E1726]/80 rounded-3xl border border-slate-200/80 dark:border-slate-800">
                     沒有符合「{searchQuery}」篩選條件的訂單
                   </div>
                 )}

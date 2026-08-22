@@ -126,74 +126,77 @@ export function AdminArchiveSection({
   };
 
   return (
-    <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs space-y-4">
-      {/* 頂部標題列與操作列 */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3.5">
-        <div>
-          <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <span>🗂️ 歷史團購活動歸檔</span>
-            <span className="text-xs font-bold text-slate-400 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-transparent dark:border-slate-700">
-              共 {archivedGroups.length} 個歷史活動
-            </span>
-          </h3>
-          <p className="text-[11px] text-slate-400 dark:text-slate-400 mt-0.5">
-            過去發起並已結案的團購活動，點擊可展開查看歷史訂單名單，亦可一鍵複製開新團或清理舊紀錄
-          </p>
-        </div>
+    <div className="space-y-5">
+      {/* 👑 頂部標題列與操作列 (Archive Commander Header) */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-slate-100/90 via-white/95 to-sky-50/80 dark:from-[#0B1324] dark:via-[#0D172E] dark:to-[#111A38] rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-sky-500/30 shadow-[0_4px_25px_-4px_rgba(0,0,0,0.06)] space-y-4">
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-slate-400 via-sky-500 to-indigo-500" />
 
-        {/* 搜尋與全選/批次刪除工具列 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {archivedGroups.length > 0 && (
-            <>
-              {/* 搜尋輸入框 */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="搜尋歷史活動或店家..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-7 pr-3 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400"
-                />
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                  🔍
-                </span>
-              </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pl-2">
+          <div>
+            <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+              <span>🗂️ 歷史團購活動歸檔</span>
+              <span className="text-xs font-black text-slate-700 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-800 px-3 py-0.5 rounded-full border border-slate-300 dark:border-slate-700 shadow-2xs">
+                共 {archivedGroups.length} 個歷史活動
+              </span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
+              過去已結案的歷史團購活動紀錄，點擊可展開查看歷史訂單明細，亦可一鍵複製重開新團或清理過期紀錄。
+            </p>
+          </div>
 
-              <button
-                type="button"
-                onClick={handleToggleSelectAll}
-                className={`text-xs px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 border active:scale-95 cursor-pointer ${
-                  isAllSelected
-                    ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                <span>{isAllSelected ? '☑️' : '⬜'}</span>
-                <span>{isAllSelected ? '取消全選' : '全選'}</span>
-              </button>
+          {/* 搜尋與全選/批次刪除工具列 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {archivedGroups.length > 0 && (
+              <>
+                {/* 搜尋輸入框 */}
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="搜尋歷史活動或店家..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="bg-white dark:bg-[#152033] border border-slate-200 dark:border-slate-700 rounded-2xl py-2 pl-8 pr-3 text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400 shadow-2xs"
+                  />
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                    🔍
+                  </span>
+                </div>
 
-              {selectedGroupIds.length > 0 && (
                 <button
                   type="button"
-                  onClick={handleExecuteBatchDelete}
-                  className="bg-rose-500 hover:bg-rose-600 text-white text-xs px-3.5 py-1.5 rounded-xl font-bold transition shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer animate-in fade-in duration-150"
+                  onClick={handleToggleSelectAll}
+                  className={`text-xs px-3.5 py-2 rounded-2xl font-black transition flex items-center gap-1.5 border active:scale-95 cursor-pointer shadow-2xs ${
+                    isAllSelected
+                      ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white border-sky-500'
+                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                  }`}
                 >
-                  <span>🗑️ 批次刪除 ({selectedGroupIds.length})</span>
+                  <span>{isAllSelected ? '☑️ 取消全選' : '⬜ 全選'}</span>
                 </button>
-              )}
-            </>
-          )}
+
+                {selectedGroupIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteBatchDelete}
+                    className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs px-4 py-2 rounded-2xl font-black transition shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer animate-in fade-in duration-150"
+                  >
+                    <span>🗑️ 批次刪除 ({selectedGroupIds.length})</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
       {archivedGroups.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#182234] p-12 text-center text-xs text-slate-400 dark:text-slate-500 space-y-2">
+        <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-[#0E1726]/90 p-12 text-center text-xs text-slate-400 dark:text-slate-500 space-y-2">
           <div className="text-3xl">🗂️</div>
-          <p className="font-bold text-slate-600 dark:text-slate-300">目前尚無已結案的封存團購活動</p>
+          <p className="font-extrabold text-slate-700 dark:text-slate-200 text-sm">目前尚無已結案的封存團購活動</p>
           <p>當進行中的團購活動結案歸檔後，將會在此處保存備查。</p>
         </div>
       ) : filteredGroups.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#182234] p-8 text-center text-xs text-slate-400">
+        <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-[#0E1726]/90 p-8 text-center text-xs text-slate-400">
           找不到符合「{searchQuery}」的歷史活動紀錄
         </div>
       ) : (
@@ -212,24 +215,24 @@ export function AdminArchiveSection({
             return (
               <div
                 key={group.id}
-                className={`rounded-3xl border transition overflow-hidden shadow-xs ${
+                className={`rounded-3xl border transition-all duration-200 overflow-hidden shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] backdrop-blur-md ${
                   isChecked
-                    ? 'border-sky-400 dark:border-sky-500 bg-sky-50/40 dark:bg-sky-950/30 ring-2 ring-sky-300 dark:ring-sky-700/60'
+                    ? 'border-sky-400 dark:border-sky-500 bg-sky-50/50 dark:bg-sky-950/40 ring-2 ring-sky-300 dark:ring-sky-700/60'
                     : selectedArchivedGroupId === group.id
-                    ? 'border-sky-300 dark:border-sky-500 bg-white dark:bg-[#141E30]'
-                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-[#131B2B]'
+                    ? 'border-sky-300 dark:border-sky-500 bg-white/95 dark:bg-[#0E1726]/95'
+                    : 'border-slate-200/90 dark:border-slate-800 bg-white/95 dark:bg-[#0E1726]/95 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
               >
-                {/* 歷史團購活動卡片頭部資訊 (清晰辨識) */}
-                <div className="p-4 sm:p-5 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                {/* 歷史團購活動卡片頭部資訊 */}
+                <div className="p-5 space-y-3.5">
+                  <div className="flex items-start justify-between gap-3.5">
+                    <div className="flex items-start gap-3.5 min-w-0 flex-1">
                       {/* 核取方塊 */}
                       <button
                         type="button"
                         aria-label={`選取歷史活動 ${group.title}`}
                         onClick={(e) => handleToggleSelectItem(group.id, e)}
-                        className={`w-5 h-5 mt-0.5 rounded-lg border flex items-center justify-center text-[10px] font-bold transition shrink-0 cursor-pointer ${
+                        className={`w-5 h-5 mt-1 rounded-lg border flex items-center justify-center text-[10px] font-black transition shrink-0 cursor-pointer ${
                           isChecked
                             ? 'bg-sky-500 text-white border-sky-500'
                             : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-sky-400'
@@ -238,212 +241,126 @@ export function AdminArchiveSection({
                         {isChecked && '✓'}
                       </button>
 
-                      <div className="min-w-0 flex-1 space-y-1">
+                      <div className="min-w-0 flex-1 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           {/* 店家標籤 */}
-                          <span className="text-[11px] font-extrabold bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 px-2.5 py-0.5 rounded-full border border-sky-100 dark:border-sky-800/60">
+                          <span className="text-[11px] font-black bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 px-3 py-0.5 rounded-full border border-sky-200 dark:border-sky-800/60">
                             🏪 {group.stores?.name || '合作門市'}
                           </span>
 
                           {/* 狀態標籤 */}
-                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
                             📦 已結案歸檔
                           </span>
-
-                          {/* 建立日期時間 */}
-                          {(group as any).created_at && (
-                            <span className="text-[10px] text-slate-400 dark:text-slate-400 font-medium">
-                              🕒 {formatDateTime((group as any).created_at)}
-                            </span>
-                          )}
                         </div>
 
-                        {/* 團購活動主標題 */}
-                        <h4 className="font-black text-slate-800 dark:text-slate-100 text-base leading-tight">
+                        {/* 活動標題 */}
+                        <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">
                           {group.title}
                         </h4>
+
+                        {/* 公告 */}
+                        {group.announcement && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 italic">
+                            📢 {group.announcement}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {/* 右側操作按鈕群 */}
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {/* 操作功能按鈕群 */}
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      {/* 重開此團 */}
                       <button
                         type="button"
                         onClick={() => handleReopenGroup(group)}
-                        className="bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition active:scale-95 flex items-center gap-1 cursor-pointer"
-                        title="一鍵以此設定複製開新團"
+                        className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1 cursor-pointer"
                       >
-                        <span>🔄</span>
-                        <span className="hidden sm:inline">開新團</span>
+                        <span>🔄 一鍵重開新團</span>
                       </button>
 
+                      {/* 展開明細按鈕 */}
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleExpandOrders(group.id, e)}
+                        className={`text-xs px-3.5 py-1.5 rounded-xl font-black border transition flex items-center gap-1 cursor-pointer shadow-2xs ${
+                          isExpanded
+                            ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent'
+                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{isExpanded ? '收合名單 ▲' : '查看訂單 ▼'}</span>
+                      </button>
+
+                      {/* 單筆刪除 */}
                       <button
                         type="button"
                         onClick={() => handleDeleteArchivedGroup(group.id, group.title)}
-                        className="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-bold p-2 rounded-xl border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer"
-                        title="刪除此歸檔活動紀錄"
+                        className="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 font-black text-xs px-2.5 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
+                        title="刪除此活動紀錄"
                       >
                         🗑️
                       </button>
                     </div>
                   </div>
-
-                  {/* 公告文字 (若有) */}
-                  {group.announcement && (
-                    <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-[#182234] p-2.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/80 leading-relaxed">
-                      📢 <span className="font-medium">{group.announcement}</span>
-                    </p>
-                  )}
-
-                  {/* 參數設定摘要欄 */}
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 text-[11px] bg-slate-50 dark:bg-[#182234] p-2.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/80 text-center">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">外送費</span>
-                      <span className="font-extrabold text-slate-700 dark:text-slate-200">
-                        ${group.delivery_fee}
-                      </span>
-                    </div>
-                    <div className="border-x border-slate-200/60 dark:border-slate-700/80">
-                      <span className="text-[10px] text-slate-400 font-bold block">折扣金額</span>
-                      <span className="font-extrabold text-slate-700 dark:text-slate-200">
-                        ${group.discount_amount}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">取整分攤</span>
-                      <span className="font-extrabold text-slate-700 dark:text-slate-200">
-                        {group.rounding_rule === 'ceil'
-                          ? '進位'
-                          : group.rounding_rule === 'round'
-                          ? '四捨五入'
-                          : '捨去'}
-                      </span>
-                    </div>
-                    <div className="hidden sm:block border-l border-slate-200/60 dark:border-slate-700/80">
-                      <span className="text-[10px] text-slate-400 font-bold block">門檻限制</span>
-                      <span className="font-extrabold text-slate-700 dark:text-slate-200">
-                        {group.enable_min_threshold ? `$${group.min_threshold_amount} 起送` : '無門檻'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 展開/收合訂單明細按鈕 */}
-                  <div className="pt-1 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleExpandOrders(group.id, e)}
-                      className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 flex items-center gap-1.5 cursor-pointer py-1"
-                    >
-                      <span>{isExpanded ? '▲ 收合訂單明細' : '▼ 查看歷史訂單名單與餐點明細'}</span>
-                      {orders.length > 0 && (
-                        <span className="bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 text-[10px] px-2 py-0.2 rounded-full font-extrabold">
-                          共 {orders.length} 筆
-                        </span>
-                      )}
-                    </button>
-
-                    {isExpanded && orders.length > 0 && (
-                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-                        總額 <span className="text-sky-600 dark:text-sky-400 font-extrabold">${totalSales}</span> 元 (
-                        {paidCount}/{totalOrders} 已付)
-                      </span>
-                    )}
-                  </div>
                 </div>
 
-                {/* 展開後的各筆訂單清單 (清晰呈現個別團員、品項、客製備註、金額與付款方式) */}
+                {/* 展開之歷史訂單流水席 */}
                 {isExpanded && (
-                  <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-[#0E1522] p-4 sm:p-5 space-y-3 animate-in slide-in-from-top-2 duration-150">
-                    <h5 className="text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center justify-between">
-                      <span>📋 歷史訂單詳細清單</span>
-                      {isLoadingOrders && (
-                        <span className="text-slate-400 font-normal animate-pulse">正在載入訂單中...</span>
-                      )}
-                    </h5>
-
+                  <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-[#152033]/80 p-4 sm:p-5 space-y-4">
                     {isLoadingOrders ? (
                       <div className="text-center py-6 text-xs text-slate-400 animate-pulse">
-                        正在同步此團購歷史訂單...
+                        正在載入歷史訂單名單...
                       </div>
                     ) : orders.length === 0 ? (
-                      <div className="text-center py-6 text-xs text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                        此活動結案時無任何下單紀錄。
+                      <div className="text-center py-6 text-xs text-slate-400">
+                        此活動當時無任何送單紀錄
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {orders.map((order, idx) => (
-                          <div
-                            key={order.id}
-                            className="bg-white dark:bg-[#131B2B] p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs space-y-2.5"
-                          >
-                            {/* 訂單頂部：序號、團員暱稱、付款狀態 */}
-                            <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className="bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 font-mono text-[10px] px-2 py-0.5 rounded-md font-black">
-                                  #{idx + 1}
-                                </span>
-                                <span className="font-black text-slate-800 dark:text-slate-100 text-xs">
-                                  👤 {order.user_nickname}
-                                </span>
-                              </div>
-
-                              <div className="flex items-center gap-1.5">
-                                <span
-                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                                    order.is_paid
-                                      ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/60'
-                                      : 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/60'
-                                  }`}
-                                >
-                                  {order.is_paid ? '✅ 已付款' : '⏳ 待付款'}
-                                </span>
-                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
-                                  {order.payment_method_name}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* 訂單餐點品項清單 */}
-                            <div className="space-y-1 text-xs">
-                              {order.order_items.map((item) => (
-                                <div
-                                  key={item.id}
-                                  className="flex items-start justify-between gap-2 text-slate-700 dark:text-slate-200"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <span className="font-bold">{item.item_name}</span>
-                                    <span className="text-slate-400 font-bold ml-1.5">x{item.quantity}</span>
-                                    {item.custom_notes && (
-                                      <p className="text-[10px] text-sky-600 dark:text-sky-400 font-medium pl-2">
-                                        ↳ {item.custom_notes}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <span className="font-extrabold shrink-0 text-slate-800 dark:text-slate-100">
-                                    ${item.unit_price * item.quantity}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-xs font-black text-slate-600 dark:text-slate-300 border-b border-slate-200/70 dark:border-slate-700 pb-2">
+                          <span>歷史訂單清單 (共 {totalOrders} 筆 • ${totalSales} 元 • {paidCount} 筆已付)</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto pr-1">
+                          {orders.map((sub) => (
+                            <div
+                              key={sub.id}
+                              className="bg-white dark:bg-[#0E1726] p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2 shadow-2xs"
+                            >
+                              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                                <div>
+                                  <span className="font-black text-slate-900 dark:text-slate-100 text-xs">
+                                    {sub.user_nickname}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 font-mono ml-2">
+                                    #{sub.order_number}
                                   </span>
                                 </div>
-                              ))}
-                            </div>
-
-                            {/* 訂單底部：缺貨備案、下單時間與實付總額 */}
-                            <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 dark:border-slate-800 text-[11px]">
-                              <div className="text-slate-400 text-[10px] space-y-0.5">
-                                {order.sold_out_option && (
-                                  <div>📞 缺貨：{order.sold_out_option}</div>
-                                )}
-                                <div>🕒 {formatDateTime(order.created_at)}</div>
-                              </div>
-
-                              <div className="text-right">
-                                <span className="text-[10px] text-slate-400 font-bold block">實付金額</span>
-                                <span className="text-sm font-black text-sky-600 dark:text-sky-400">
-                                  ${order.final_amount} 元
+                                <span
+                                  className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                    sub.is_paid
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
+                                      : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300'
+                                  }`}
+                                >
+                                  {sub.is_paid ? '已付款' : '未付款'}
                                 </span>
                               </div>
+                              <div className="space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+                                {(sub.order_items || []).map((item) => (
+                                  <div key={item.id} className="flex justify-between">
+                                    <span>• {item.item_name} x {item.quantity}</span>
+                                    <span className="font-mono font-bold">${item.unit_price * item.quantity}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-xs font-black">
+                                <span className="text-slate-400 text-[10px]">{formatDateTime(sub.created_at)}</span>
+                                <span className="text-sky-600 dark:text-sky-400 font-mono">${sub.final_amount} 元</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
