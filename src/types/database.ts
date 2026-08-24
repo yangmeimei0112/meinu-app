@@ -35,6 +35,7 @@ export interface MenuItem {
   is_sold_out: boolean;
   stock_quantity: number | null;
   custom_groups?: CustomGroup[] | null;
+  sort_order?: number;
 }
 
 export interface PaymentMethod {

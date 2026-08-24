@@ -191,6 +191,7 @@ export default function AdminPageContent() {
     handleSaveProduct,
     handleDeleteProduct,
     handleToggleProductStatus,
+    handleReorderMenuItems,
   } = useAdminStoreCrud({
     categories,
     paymentMethods,
@@ -643,6 +644,7 @@ export default function AdminPageContent() {
                 }}
                 onDeleteMenuItem={handleDeleteProduct}
                 onToggleMenuItemActive={(id: string) => handleToggleProductStatus(id)}
+                onReorderMenuItems={handleReorderMenuItems}
                 onCreatePaymentMethod={handleCreatePaymentMethod}
                 onDeletePaymentMethod={handleDeletePaymentMethod}
                 onTogglePaymentMethodActive={handleTogglePaymentMethodActive}
@@ -890,31 +892,45 @@ export default function AdminPageContent() {
               </div>
             </div>
 
-            {/* 語速調整 */}
-            <div className="space-y-2">
+            {/* 語速調整橫式控制桿 (0.5x ~ 2.0x，間隔 0.1) */}
+            <div className="space-y-3 bg-slate-50 dark:bg-[#152033] p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-700 dark:text-slate-300">
-                  播報語速：<span className="text-emerald-600 dark:text-emerald-400 font-mono font-black">{speechRate.toFixed(1)}x</span>
+                <label htmlFor="voice-speed-slider" className="text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer">
+                  <span>🎚️ 播報語速調節</span>
                 </label>
-                <span className="text-[10px] text-slate-400">
-                  {speechRate <= 0.9 ? '沉穩清晰' : speechRate === 1.1 ? '推薦標準' : '俐落快速'}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-emerald-600 dark:text-emerald-400 font-mono font-black text-sm px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/80 rounded-lg border border-emerald-200/80 dark:border-emerald-800/60 shadow-2xs">
+                    {speechRate.toFixed(1)}x
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-bold">
+                    {speechRate <= 0.7
+                      ? '慢速清晰'
+                      : speechRate <= 1.2
+                      ? '標準自然'
+                      : speechRate <= 1.6
+                      ? '俐落快速'
+                      : '極速報單'}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl">
-                {[0.9, 1.0, 1.1, 1.2, 1.3].map((rate) => (
-                  <button
-                    key={rate}
-                    type="button"
-                    onClick={() => setSpeechRate(rate)}
-                    className={`flex-1 py-1.5 rounded-lg text-xs font-black transition cursor-pointer font-mono ${
-                      speechRate === rate
-                        ? 'bg-white dark:bg-emerald-600 text-slate-900 dark:text-white shadow-xs'
-                        : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    {rate.toFixed(1)}x
-                  </button>
-                ))}
+
+              <div className="space-y-1.5">
+                <input
+                  id="voice-speed-slider"
+                  type="range"
+                  min="0.5"
+                  max="2.0"
+                  step="0.1"
+                  value={speechRate}
+                  onChange={(e) => setSpeechRate(parseFloat(e.target.value))}
+                  className="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500 hover:accent-emerald-600 transition shadow-inner"
+                />
+                <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500 font-mono font-bold px-0.5">
+                  <span>0.5x (慢速)</span>
+                  <span>1.0x (原速)</span>
+                  <span>1.5x (快速)</span>
+                  <span>2.0x (極速)</span>
+                </div>
               </div>
             </div>
 

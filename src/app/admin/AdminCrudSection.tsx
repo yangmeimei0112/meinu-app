@@ -26,6 +26,7 @@ interface AdminCrudSectionProps {
   onOpenBatchImportModal?: (storeId?: string) => void;
   onDeleteMenuItem: (id: string) => void;
   onToggleMenuItemActive: (id: string) => void;
+  onReorderMenuItems?: (storeId: string, orderedItemIds: string[]) => void;
   onCreatePaymentMethod: () => void;
   onDeletePaymentMethod: (id: string) => void;
   onTogglePaymentMethodActive: (id: string, currentStatus: boolean) => void;
@@ -59,6 +60,7 @@ export function AdminCrudSection({
   onOpenBatchImportModal,
   onDeleteMenuItem,
   onToggleMenuItemActive,
+  onReorderMenuItems,
   onCreatePaymentMethod,
   onDeletePaymentMethod,
   onTogglePaymentMethodActive,
@@ -94,6 +96,7 @@ export function AdminCrudSection({
         }
         onDeleteMenuItem={onDeleteMenuItem}
         onToggleMenuItemActive={onToggleMenuItemActive}
+        onReorderMenuItems={onReorderMenuItems}
       />
     );
   }

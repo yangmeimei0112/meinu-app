@@ -433,6 +433,25 @@ export function useAdminStoreCrud({
     }
   };
 
+  // 11. 重新排列菜單品項順序
+  const handleReorderMenuItems = async (storeId: string, orderedItemIds: string[]) => {
+    try {
+      const res = await fetch('/api/menu/sort-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId, itemIds: orderedItemIds }),
+      });
+      if (!res.ok) {
+        throw new Error('伺服器儲存排序失敗');
+      }
+      showToast('✅ 菜單順序已更新！');
+      fetchAdminData(undefined, true);
+    } catch (err: any) {
+      console.error('儲存菜單排序失敗:', err);
+      showToast(`❌ 儲存順序失敗: ${err?.message || '未知錯誤'}`);
+    }
+  };
+
   return {
     isStoreModalOpen,
     setIsStoreModalOpen,
@@ -482,5 +501,6 @@ export function useAdminStoreCrud({
     handleSaveProduct,
     handleDeleteProduct,
     handleToggleProductStatus,
+    handleReorderMenuItems,
   };
 }

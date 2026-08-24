@@ -51,7 +51,7 @@ export function useAdminSpeech() {
       const savedRate = localStorage.getItem(STORAGE_KEY_RATE);
       if (savedRate) {
         const num = parseFloat(savedRate);
-        if (!isNaN(num) && num >= 0.7 && num <= 1.8) {
+        if (!isNaN(num) && num >= 0.5 && num <= 2.0) {
           setSpeechRateState(num);
           speechRateRef.current = num;
         }

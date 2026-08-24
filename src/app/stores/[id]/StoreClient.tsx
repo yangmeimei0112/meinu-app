@@ -57,7 +57,7 @@ export default function StoreClient({ storeId }: { storeId: string }) {
       setLoading(true);
 
       // 並行發送查詢，消除網路請求瀑布流
-      const [storeRes, menuRes, groupRes] = await Promise.all([
+      const [storeRes, menuRes, groupRes, sortRes] = await Promise.all([
         supabase
           .from('stores')
           .select('id, name, image_url, category_id, is_active')
@@ -74,12 +74,28 @@ export default function StoreClient({ storeId }: { storeId: string }) {
           .neq('status', 'completed')
           .order('created_at', { ascending: false })
           .limit(1),
+        fetch(`/api/menu/sort-order?storeId=${storeId}`, { cache: 'no-store' })
+          .then((r) => r.json())
+          .catch(() => null),
       ]);
 
       if (storeRes.data) setStore(storeRes.data as Store);
       
       if (menuRes.data) {
         let items = menuRes.data as MenuItem[];
+
+        // 🌟 套用團長後台排定的自訂順序
+        const customOrder: string[] = sortRes?.itemIds || [];
+        if (customOrder.length > 0) {
+          items.sort((a, b) => {
+            const indexA = customOrder.indexOf(a.id);
+            const indexB = customOrder.indexOf(b.id);
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            return a.name.localeCompare(b.name, 'zh-TW');
+          });
+        }
         // 🚀 在背景預先載入並合併所有品項的客製化規格選項，確保使用者點擊餐點時 0ms 瞬間開啟，無需等待
         const itemsNeedingFallback = items.filter((i) => !i.custom_groups || i.custom_groups.length === 0);
         if (itemsNeedingFallback.length > 0) {

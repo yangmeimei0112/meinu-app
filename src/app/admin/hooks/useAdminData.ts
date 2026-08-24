@@ -152,20 +152,36 @@ export function useAdminData({
       setLoading(true);
     }
     try {
-      const [gRes, sRes, cRes, pRes, soRes, mRes] = await Promise.all([
+      const [gRes, sRes, cRes, pRes, soRes, mRes, sortRes] = await Promise.all([
         supabase.from('group_orders').select(`*, stores (*)`).order('created_at', { ascending: false }),
         supabase.from('stores').select('*').order('name', { ascending: true }),
         supabase.from('categories').select('*').order('sort_order', { ascending: true }),
         supabase.from('payment_methods').select('*').order('name', { ascending: true }),
         supabase.from('sold_out_options').select('*').order('sort_order', { ascending: true }),
         supabase.from('menu_items').select('*').order('name', { ascending: true }),
+        fetch('/api/menu/sort-order', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
       ]);
 
       setStores((sRes.data as Store[]) || []);
       setCategories((cRes.data as Category[]) || []);
       setPaymentMethods((pRes.data as PaymentMethod[]) || []);
       setSoldOutOptions((soRes.data as SoldOutOption[]) || []);
-      setAllMenuItems((mRes.data as MenuItem[]) || []);
+
+      const rawMenuItems = (mRes.data as MenuItem[]) || [];
+      const orderMap: Record<string, string[]> = sortRes?.orderMap || {};
+
+      const sortedMenuItems = [...rawMenuItems].sort((a, b) => {
+        if (a.store_id !== b.store_id) return 0;
+        const storeOrder = orderMap[a.store_id] || [];
+        const indexA = storeOrder.indexOf(a.id);
+        const indexB = storeOrder.indexOf(b.id);
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return a.name.localeCompare(b.name, 'zh-TW');
+      });
+
+      setAllMenuItems(sortedMenuItems);
 
       if (gRes.data) {
         const allG = gRes.data;
