@@ -104,16 +104,17 @@ export default function AdminMenuStudio({
       ghostClass: 'menu-sortable-ghost', // 目標預覽佔位空槽樣式
       chosenClass: 'menu-sortable-chosen', // 選中提起樣式
       dragClass: 'menu-sortable-drag', // 懸浮拖曳跟隨樣式
-      handle: '.drag-card-handle', // 支援專屬手柄或整張卡片拖動
-      delay: 120, // 手機觸控延遲 120ms 防誤觸
-      delayOnTouchOnly: true, // 電腦滑鼠 0ms 立即拖曳，手機觸控 120ms
-      touchStartThreshold: 5, // 允許 5px 滾動容差，徹底隔離手機頁面滾動與拖曳
+      filter: 'button, input, textarea, a, .no-drag', // 按鈕與輸入框不觸發拖曳，讓點擊正常響應
+      preventOnFilter: false, // 確保按鈕點擊事件正常傳遞
+      delay: 150, // 手機觸控長按卡片 150ms 即可拖動
+      delayOnTouchOnly: true, // 電腦滑鼠 0ms 點按即拖曳，手機觸控 150ms 長按防誤觸
+      touchStartThreshold: 6, // 允許 6px 滾動容差，手機正常上下滑動瀏覽絕不誤觸
       swapThreshold: 0.65, // 靈敏交換閾值
       direction: 'vertical',
       onStart: () => {
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
           try {
-            navigator.vibrate(30);
+            navigator.vibrate(35);
           } catch {}
         }
       },
@@ -233,8 +234,11 @@ export default function AdminMenuStudio({
                 )}
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 flex-wrap">
                   <span>{activeStudioStore.name}</span>
+                  <span className="text-xs bg-slate-900 text-white dark:bg-sky-500 font-mono font-black px-2.5 py-0.5 rounded-full shadow-2xs">
+                    {activeStudioStore.code || 'S-001'}
+                  </span>
                   <span className="text-xs bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 font-black px-2.5 py-0.5 rounded-full border border-sky-200 dark:border-sky-800/60">
                     {categoryName}
                   </span>
@@ -341,7 +345,7 @@ export default function AdminMenuStudio({
           </div>
 
           <div className="flex items-center gap-2 text-[11px] text-sky-700 dark:text-sky-300 font-bold bg-sky-50/80 dark:bg-sky-950/60 p-2.5 rounded-2xl border border-sky-100 dark:border-sky-900/50">
-            <span>✨ 頂級物理位移提示：按住卡片「⋮⋮」或手指長按餐點即可上下拖曳，周圍品項將自動以 60fps 平滑位移騰出發光預覽空槽！</span>
+            <span>✨ 智慧排序提示：按住餐點卡片任一處（或手機手指長按品項模塊）即可自由上下拖曳挪動順序，周圍品項將自動以 60fps 平滑位移騰出發光預覽空槽！</span>
           </div>
         </div>
       </div>

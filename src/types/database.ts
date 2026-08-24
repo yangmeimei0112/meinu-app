@@ -10,6 +10,7 @@ export interface Store {
   name: string;
   image_url: string | null;
   is_active: boolean;
+  code?: string;
 }
 
 export interface CustomOption {

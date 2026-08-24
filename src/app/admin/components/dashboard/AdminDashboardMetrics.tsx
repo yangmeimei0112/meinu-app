@@ -201,8 +201,13 @@ export function AdminDashboardMetrics({
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold flex items-center gap-2">
                 <span>🏪 合作店家：</span>
-                <span className="bg-white/80 dark:bg-slate-800/90 text-sky-700 dark:text-sky-300 px-2.5 py-0.5 rounded-lg border border-sky-100 dark:border-sky-900/60 font-bold">
-                  {groupOrder.stores?.name || '未指定門市'}
+                <span className="bg-white/80 dark:bg-slate-800/90 text-sky-700 dark:text-sky-300 px-2.5 py-0.5 rounded-lg border border-sky-100 dark:border-sky-900/60 font-bold flex items-center gap-1.5">
+                  {groupOrder.stores?.code && (
+                    <span className="bg-slate-900 text-white dark:bg-sky-500 font-mono font-black text-[10px] px-1.5 py-0.5 rounded">
+                      {groupOrder.stores.code}
+                    </span>
+                  )}
+                  <span>{groupOrder.stores?.name || '未指定門市'}</span>
                 </span>
               </p>
             </div>

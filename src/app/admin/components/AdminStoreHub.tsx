@@ -379,6 +379,10 @@ export default function AdminStoreHub({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* 🏷️ S-??? 商家專屬編號徽章 */}
+                        <span className="text-[10px] font-black font-mono bg-slate-900 text-white dark:bg-sky-500 dark:text-white px-2.5 py-0.5 rounded-full shadow-2xs">
+                          {store.code || 'S-001'}
+                        </span>
                         <span className="text-[10px] font-black bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 px-2.5 py-0.5 rounded-full border border-sky-200 dark:border-sky-800/60">
                           {catName}
                         </span>

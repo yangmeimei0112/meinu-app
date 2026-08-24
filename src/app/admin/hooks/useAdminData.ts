@@ -152,7 +152,7 @@ export function useAdminData({
       setLoading(true);
     }
     try {
-      const [gRes, sRes, cRes, pRes, soRes, mRes, sortRes] = await Promise.all([
+      const [gRes, sRes, cRes, pRes, soRes, mRes, sortRes, storeCodeRes] = await Promise.all([
         supabase.from('group_orders').select(`*, stores (*)`).order('created_at', { ascending: false }),
         supabase.from('stores').select('*').order('name', { ascending: true }),
         supabase.from('categories').select('*').order('sort_order', { ascending: true }),
@@ -160,9 +160,33 @@ export function useAdminData({
         supabase.from('sold_out_options').select('*').order('sort_order', { ascending: true }),
         supabase.from('menu_items').select('*').order('name', { ascending: true }),
         fetch('/api/menu/sort-order', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+        fetch('/api/stores/code', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
       ]);
 
-      setStores((sRes.data as Store[]) || []);
+      const rawStores = (sRes.data as Store[]) || [];
+      const codeMap: Record<string, string> = storeCodeRes?.codeMap || {};
+
+      // 智慧指派與綁定 S-??? 商家編號
+      const existingUsedNumbers = new Set<number>();
+      Object.values(codeMap).forEach((c) => {
+        const num = parseInt(String(c).replace(/\D/g, ''), 10);
+        if (!isNaN(num) && num > 0) existingUsedNumbers.add(num);
+      });
+
+      let nextAutoNum = 1;
+      const formattedStores = rawStores.map((store) => {
+        let code = codeMap[store.id];
+        if (!code) {
+          while (existingUsedNumbers.has(nextAutoNum)) {
+            nextAutoNum++;
+          }
+          code = `S-${String(nextAutoNum).padStart(3, '0')}`;
+          existingUsedNumbers.add(nextAutoNum);
+        }
+        return { ...store, code };
+      });
+
+      setStores(formattedStores);
       setCategories((cRes.data as Category[]) || []);
       setPaymentMethods((pRes.data as PaymentMethod[]) || []);
       setSoldOutOptions((soRes.data as SoldOutOption[]) || []);
@@ -224,8 +248,12 @@ export function useAdminData({
 
           const groupsWithStats: GroupOrderAdmin[] = openGroups.map((g: any) => {
             const gSubs = formattedSubs.filter((s) => s.group_order_id === g.id);
+            const storeObj = g.stores
+              ? { ...g.stores, code: codeMap[g.store_id] || 'S-001' }
+              : null;
             return {
               ...g,
+              stores: storeObj,
               order_count: gSubs.length,
               total_sales: gSubs.reduce((sum, s) => sum + s.final_amount, 0),
             };

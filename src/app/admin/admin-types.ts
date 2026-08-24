@@ -37,7 +37,7 @@ export interface GroupOrderAdmin {
   cutoff_time?: string | null;
   enable_budget_limit?: boolean;
   budget_limit_amount?: number;
-  stores?: { name: string } | null;
+  stores?: { name: string; code?: string } | null;
   order_count?: number;
   total_sales?: number;
 }

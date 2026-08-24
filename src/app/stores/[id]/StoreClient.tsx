@@ -57,7 +57,7 @@ export default function StoreClient({ storeId }: { storeId: string }) {
       setLoading(true);
 
       // 並行發送查詢，消除網路請求瀑布流
-      const [storeRes, menuRes, groupRes, sortRes] = await Promise.all([
+      const [storeRes, menuRes, groupRes, sortRes, codeRes] = await Promise.all([
         supabase
           .from('stores')
           .select('id, name, image_url, category_id, is_active')
@@ -77,9 +77,18 @@ export default function StoreClient({ storeId }: { storeId: string }) {
         fetch(`/api/menu/sort-order?storeId=${storeId}`, { cache: 'no-store' })
           .then((r) => r.json())
           .catch(() => null),
+        fetch(`/api/stores/code?storeId=${storeId}`, { cache: 'no-store' })
+          .then((r) => r.json())
+          .catch(() => null),
       ]);
 
-      if (storeRes.data) setStore(storeRes.data as Store);
+      if (storeRes.data) {
+        const storeData = storeRes.data as Store;
+        if (codeRes?.code) {
+          storeData.code = codeRes.code;
+        }
+        setStore(storeData);
+      }
       
       if (menuRes.data) {
         let items = menuRes.data as MenuItem[];
@@ -394,9 +403,16 @@ export default function StoreClient({ storeId }: { storeId: string }) {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 truncate">
-                    {store.name}
-                  </h2>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                      {store.name}
+                    </h2>
+                    {store.code && (
+                      <span className="bg-slate-900 text-white dark:bg-sky-500 font-mono font-black text-[10px] px-2 py-0.5 rounded-md shadow-2xs">
+                        {store.code}
+                      </span>
+                    )}
+                  </div>
                   <span className="inline-block mt-1 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">
                     🟢 開放揪團中
                   </span>

@@ -65,7 +65,7 @@ export default function HomePage() {
       setLoading(true);
 
       // 並行發送查詢，消除網路請求瀑布流延遲
-      const [catRes, storeRes] = await Promise.all([
+      const [catRes, storeRes, codeRes] = await Promise.all([
         supabase
           .from('categories')
           .select('id, name, sort_order')
@@ -74,10 +74,19 @@ export default function HomePage() {
           .from('stores')
           .select('id, name, image_url, category_id, is_active')
           .eq('is_active', true),
+        fetch('/api/stores/code', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
       ]);
 
       if (catRes.data) setCategories(catRes.data as Category[]);
-      if (storeRes.data) setStores(storeRes.data as Store[]);
+      if (storeRes.data) {
+        const rawStores = storeRes.data as Store[];
+        const codeMap: Record<string, string> = codeRes?.codeMap || {};
+        const formatted = rawStores.map((s) => ({
+          ...s,
+          code: codeMap[s.id] || 'S-001',
+        }));
+        setStores(formatted);
+      }
 
       setLoading(false);
     }
@@ -85,13 +94,17 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  // 記憶化店家篩選結果
+  // 記憶化店家篩選結果 (支援店名與 S-??? 編號即時搜尋)
   const filteredStores = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
     return stores.filter((store: Store) => {
       const matchesCategory =
         selectedCategory === 'all' || store.category_id === selectedCategory;
-      const matchesSearch = !query || store.name.toLowerCase().includes(query);
+      const matchesSearch =
+        !query ||
+        store.name.toLowerCase().includes(query) ||
+        (store.code && store.code.toLowerCase().includes(query)) ||
+        (store.code && store.code.replace(/\D/g, '').includes(query));
       return matchesCategory && matchesSearch;
     });
   }, [stores, selectedCategory, debouncedSearch]);
@@ -198,9 +211,16 @@ export default function HomePage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate">
-                      {store.name}
-                    </h4>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate">
+                        {store.name}
+                      </h4>
+                      {store.code && (
+                        <span className="bg-slate-900 text-white dark:bg-sky-500 font-mono font-black text-[10px] px-2 py-0.5 rounded-md shadow-2xs">
+                          {store.code}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">點擊瀏覽完整菜單與選購</p>
                     <div className="mt-2 flex items-center gap-2">
                       <span className="inline-block bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">

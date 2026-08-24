@@ -7,6 +7,7 @@ import { compressImageToWebP } from '@/lib/image-compress';
 import { AdminConfirmModalState } from '../admin-types';
 
 interface UseAdminStoreCrudProps {
+  stores: Store[];
   categories: Category[];
   paymentMethods: PaymentMethod[];
   soldOutOptions: SoldOutOption[];
@@ -18,6 +19,7 @@ interface UseAdminStoreCrudProps {
 }
 
 export function useAdminStoreCrud({
+  stores,
   categories,
   paymentMethods,
   soldOutOptions,
@@ -30,7 +32,7 @@ export function useAdminStoreCrud({
   // 店家 Modal 狀態
   const [isStoreModalOpen, setIsStoreModalOpen] = useState<boolean>(false);
   const [editingStore, setEditingStore] = useState<Store | null>(null);
-  const [storeForm, setStoreForm] = useState({ name: '', category_id: '' });
+  const [storeForm, setStoreForm] = useState({ name: '', category_id: '', code_number: '001' });
   const [storeImageFile, setStoreImageFile] = useState<File | null>(null);
   const [storeImagePreview, setStoreImagePreview] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
@@ -78,7 +80,7 @@ export function useAdminStoreCrud({
     }
   };
 
-  // 2. 儲存店家
+  // 2. 儲存店家（含 S-??? 專屬編號保存與防重檢驗）
   const handleSaveStore = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -102,25 +104,44 @@ export function useAdminStoreCrud({
       }
 
       const payload = {
-        name: storeForm.name,
+        name: storeForm.name.trim(),
         image_url: imageUrl,
         category_id: storeForm.category_id || null,
         is_active: true,
       };
 
+      let targetStoreId = editingStore?.id;
+
       if (editingStore) {
         const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id);
         if (error) throw error;
-        showToast('✅ 店家資訊與照片已更新！');
       } else {
-        const { error } = await supabase.from('stores').insert([payload]);
+        const { data, error } = await supabase.from('stores').insert([payload]).select('id').single();
         if (error) throw error;
-        showToast('🎉 新增店家成功！');
+        targetStoreId = data.id;
       }
 
+      // 儲存 S-??? 商家編號
+      if (targetStoreId) {
+        const codeRes = await fetch('/api/stores/code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storeId: targetStoreId,
+            codeNumber: storeForm.code_number || '001',
+          }),
+        });
+
+        const codeJson = await codeRes.json();
+        if (!codeRes.ok) {
+          throw new Error(codeJson?.message || '儲存商家編號失敗');
+        }
+      }
+
+      showToast(editingStore ? '✅ 店家資訊與編號已更新！' : '🎉 新增合作店家成功！');
       setIsStoreModalOpen(false);
       setEditingStore(null);
-      setStoreForm({ name: '', category_id: '' });
+      setStoreForm({ name: '', category_id: '', code_number: '001' });
       setStoreImageFile(null);
       setStoreImagePreview('');
       fetchAdminData();

@@ -193,6 +193,7 @@ export default function AdminPageContent() {
     handleToggleProductStatus,
     handleReorderMenuItems,
   } = useAdminStoreCrud({
+    stores,
     categories,
     paymentMethods,
     soldOutOptions,
@@ -298,11 +299,30 @@ export default function AdminPageContent() {
   const handleOpenStoreModal = (store?: Store) => {
     if (store) {
       setEditingStore(store);
-      setStoreForm({ name: store.name, category_id: store.category_id || '' });
+      const currentCodeNumber = store.code ? store.code.replace(/\D/g, '') : '001';
+      setStoreForm({
+        name: store.name,
+        category_id: store.category_id || '',
+        code_number: currentCodeNumber,
+      });
       setStoreImagePreview(store.image_url || '');
     } else {
       setEditingStore(null);
-      setStoreForm({ name: '', category_id: '' });
+      // 智慧推薦最小可用正整數 (Min Available Gap)
+      const usedNumbers = new Set<number>();
+      stores.forEach((s) => {
+        if (s.code) {
+          const num = parseInt(s.code.replace(/\D/g, ''), 10);
+          if (!isNaN(num) && num > 0) usedNumbers.add(num);
+        }
+      });
+      let minAvail = 1;
+      while (usedNumbers.has(minAvail)) minAvail++;
+      setStoreForm({
+        name: '',
+        category_id: '',
+        code_number: String(minAvail).padStart(3, '0'),
+      });
       setStoreImagePreview('');
     }
     setStoreImageFile(null);
@@ -747,6 +767,7 @@ export default function AdminPageContent() {
         isOpen={isStoreModalOpen}
         editingStore={editingStore}
         categories={categories}
+        stores={stores}
         storeForm={storeForm}
         setStoreForm={setStoreForm}
         storeImagePreview={storeImagePreview}

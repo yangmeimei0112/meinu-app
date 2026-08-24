@@ -165,7 +165,7 @@ export default function AdminGroupSettingsModal({
             >
               {stores.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name}
+                  [{s.code || 'S-001'}] {s.name}
                 </option>
               ))}
             </select>
