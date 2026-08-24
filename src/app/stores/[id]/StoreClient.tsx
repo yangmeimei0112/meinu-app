@@ -416,16 +416,9 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 truncate">
-                      {store.name}
-                    </h2>
-                    {store.code && (
-                      <span className="bg-slate-900 text-white dark:bg-sky-500 font-mono font-black text-[10px] px-2 py-0.5 rounded-md shadow-2xs">
-                        {store.code}
-                      </span>
-                    )}
-                  </div>
+                  <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                    {store.name}
+                  </h2>
                   <span className="inline-block mt-1 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">
                     🟢 開放揪團中
                   </span>
@@ -472,6 +465,15 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
                   onSelect={(selected) => setSelectedMenuItem(selected)}
                 />
               ))}
+
+              {/* 🌿 頁面最底部低調精緻門市代碼標示 (不突兀) */}
+              {store.code && (
+                <div className="pt-6 pb-2 text-center select-none">
+                  <span className="text-[11px] font-medium text-slate-300 dark:text-slate-600 tracking-wider font-mono">
+                    門市代碼：{store.code}
+                  </span>
+                </div>
+              )}
             </div>
           </>
         )}

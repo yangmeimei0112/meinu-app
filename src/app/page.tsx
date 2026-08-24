@@ -211,16 +211,9 @@ export default function HomePage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate">
-                        {store.name}
-                      </h4>
-                      {store.code && (
-                        <span className="bg-slate-900 text-white dark:bg-sky-500 font-mono font-black text-[10px] px-2 py-0.5 rounded-md shadow-2xs">
-                          {store.code}
-                        </span>
-                      )}
-                    </div>
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate">
+                      {store.name}
+                    </h4>
                     <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">點擊瀏覽完整菜單與選購</p>
                     <div className="mt-2 flex items-center gap-2">
                       <span className="inline-block bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">
