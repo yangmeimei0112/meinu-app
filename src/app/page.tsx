@@ -194,7 +194,7 @@ export default function HomePage() {
               filteredStores.map((store: Store) => (
                 <Link
                   key={store.id}
-                  href={`/stores/${store.id}`}
+                  href={`/stores/${store.code || store.id}`}
                   className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs hover:border-sky-200 dark:hover:border-sky-500/40 hover:shadow-md transition cursor-pointer flex items-center gap-3.5 active:scale-[0.99] block content-auto"
                 >
                   <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-2xl shrink-0 overflow-hidden border border-sky-100 dark:border-sky-900/60">

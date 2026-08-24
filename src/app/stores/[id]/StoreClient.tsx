@@ -27,7 +27,12 @@ interface GroupOrderMeta {
   budget_limit_amount?: number;
 }
 
-export default function StoreClient({ storeId }: { storeId: string }) {
+interface StoreClientProps {
+  storeId: string;
+  initialStoreCode?: string;
+}
+
+export default function StoreClient({ storeId, initialStoreCode }: StoreClientProps) {
   const [store, setStore] = useState<Store | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [groupMeta, setGroupMeta] = useState<GroupOrderMeta | null>(null);
@@ -84,8 +89,13 @@ export default function StoreClient({ storeId }: { storeId: string }) {
 
       if (storeRes.data) {
         const storeData = storeRes.data as Store;
-        if (codeRes?.code) {
-          storeData.code = codeRes.code;
+        const activeCode = codeRes?.code || initialStoreCode || storeData.code;
+        if (activeCode) {
+          storeData.code = activeCode;
+          // 🌐 前端即時將網址列標準化為 /stores/S-001
+          if (typeof window !== 'undefined' && !window.location.pathname.includes(activeCode)) {
+            window.history.replaceState(null, '', `/stores/${activeCode}`);
+          }
         }
         setStore(storeData);
       }
@@ -205,7 +215,10 @@ export default function StoreClient({ storeId }: { storeId: string }) {
   // 🔗 2. 指定店家專屬「揪團分享」按鈕動作
   const handleShareStore = async () => {
     if (!store) return;
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    const storeCodeSlug = store.code || initialStoreCode || storeId;
+    const shareUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/stores/${storeCodeSlug}`
+      : '';
     const shareData = {
       title: `【咩nu】大家揪團點「${store.name}」！`,
       text: `點擊進入「${store.name}」的菜單選購餐點，填寫暱稱即可送單！`,
