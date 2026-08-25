@@ -125,7 +125,7 @@ export default function OrderStatusPage({
         const isMine = historyList.includes(submissionId) || lastId === submissionId;
         setIsOrderOwner(isMine);
       } catch {
-        setIsOrderOwner(true);
+        setIsOrderOwner(false);
       }
     }
   }, [submissionId]);
