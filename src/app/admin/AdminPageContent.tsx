@@ -360,16 +360,7 @@ export default function AdminPageContent() {
 
   // 🔒 若尚未解鎖後台密碼，渲染安全驗證卡片
   if (!isUnlocked) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#080D1A] flex flex-col justify-between">
-        <Header />
-        <OfflineBanner />
-        <AdminAuthLock onUnlockSuccess={() => setIsUnlocked(true)} onInitAudio={initAudio} />
-        <div className="p-4 text-center text-xs text-slate-400">
-          咩nu 團購點餐平台 &bull; 團長專用安全後台
-        </div>
-      </div>
-    );
+    return <AdminAuthLock onUnlockSuccess={() => setIsUnlocked(true)} onInitAudio={initAudio} />;
   }
 
   return (

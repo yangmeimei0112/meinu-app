@@ -231,7 +231,9 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
           )}
         </div>
       </main>
-      <div />
+      <footer className="p-4 text-center text-xs text-slate-400 dark:text-slate-500">
+        咩nu 團購點餐平台 &bull; 團長專用安全後台
+      </footer>
     </div>
   );
 }
