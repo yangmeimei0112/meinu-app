@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://meinu-app.vercel.app';
   const storeName = store?.name || '熱門店家';
   const displayCode = storeCode ? ` [${storeCode}]` : '';
-  const title = `【咩nu】大家揪團點「${storeName}」${displayCode}！`;
+  const title = `【咩nu】大家揪團點「${storeName}」！`;
   const description = `今天大家想吃這個，不知道有咩有你想要點的呢?`;
   const imageUrl =
     store?.image_url || 'https://images.unsplash.com/photo-1541658016709-82535e94bc69?w=800';
