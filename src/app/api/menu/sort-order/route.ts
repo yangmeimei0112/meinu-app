@@ -89,9 +89,20 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST: 儲存指定店家的菜單品項排序清單
+import { verifyAdminToken } from '@/lib/auth-util';
+
+// POST: 儲存指定店家的菜單品項排序清單（具備團長身分鑑權保護）
 export async function POST(request: NextRequest) {
   try {
+    // 🛡️ 資安防護：僅限已認證登入之團長修改菜單排序
+    const token = request.cookies.get('meinu_admin_token')?.value;
+    if (!verifyAdminToken(token)) {
+      return NextResponse.json(
+        { success: false, message: '🔒 存取被拒：未經授權的操作，請先解鎖團長管理後台！' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { storeId, itemIds } = body as { storeId?: string; itemIds?: string[] };
 
