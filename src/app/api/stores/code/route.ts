@@ -103,6 +103,15 @@ import { verifyAdminToken } from '@/lib/auth-util';
 // POST: 儲存指定店家的編號（具備純數字正則檢驗、絕對唯一性檢查與團長安全鑑權）
 export async function POST(request: NextRequest) {
   try {
+    // 🛡️ DoS / 大型 Payload 炸彈防禦
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength > 16384) {
+      return NextResponse.json(
+        { success: false, message: '🚫 請求資料過大，拒絕處理 (Payload Too Large)' },
+        { status: 413 }
+      );
+    }
+
     // 🛡️ 資安防護：僅限已認證登入之團長修改商家編號
     const token = request.cookies.get('meinu_admin_token')?.value;
     if (!verifyAdminToken(token)) {
