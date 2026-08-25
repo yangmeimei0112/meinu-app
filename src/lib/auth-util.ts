@@ -22,9 +22,15 @@ export function verifyAdminToken(token: string | undefined | null): boolean {
       expectedBuffer.length === actualBuffer.length &&
       crypto.timingSafeEqual(expectedBuffer, actualBuffer);
 
-    const isNotExpired = Date.now() - Number(timestamp) < 7 * 24 * 60 * 60 * 1000;
+    const tokenTime = Number(timestamp);
+    if (isNaN(tokenTime) || tokenTime <= 0) return false;
 
-    return isValidSignature && isNotExpired;
+    // 🛡️ 嚴格時間窗口：不接受未來時間戳（容許 60 秒時鐘微小偏差）且有效期限為 7 天
+    const now = Date.now();
+    const isNotFuture = tokenTime <= now + 60 * 1000;
+    const isNotExpired = now - tokenTime < 7 * 24 * 60 * 60 * 1000;
+
+    return isValidSignature && isNotFuture && isNotExpired;
   } catch {
     return false;
   }

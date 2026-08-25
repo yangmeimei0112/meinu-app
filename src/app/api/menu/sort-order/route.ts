@@ -106,15 +106,28 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { storeId, itemIds } = body as { storeId?: string; itemIds?: string[] };
 
-    if (!storeId || !Array.isArray(itemIds)) {
+    if (!storeId || typeof storeId !== 'string' || storeId.trim().length === 0 || storeId.length > 64) {
       return NextResponse.json(
-        { success: false, message: '參數錯誤：缺少 storeId 或 itemIds' },
+        { success: false, message: '參數錯誤：無效的 storeId' },
         { status: 400 }
       );
     }
 
+    if (!Array.isArray(itemIds) || itemIds.length > 500) {
+      return NextResponse.json(
+        { success: false, message: '參數錯誤：無效或超長之 itemIds 清單' },
+        { status: 400 }
+      );
+    }
+
+    // 🛡️ 防禦：過濾非純字串元素與超長 ID，防止型別混淆與 Prototype 注入
+    const cleanItemIds = itemIds
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0 && id.length <= 64)
+      .map((id) => id.trim());
+
+    const cleanStoreId = storeId.trim();
     const orderMap = readOrderMap();
-    orderMap[storeId] = itemIds;
+    orderMap[cleanStoreId] = cleanItemIds;
     writeOrderMap(orderMap);
 
     return NextResponse.json({

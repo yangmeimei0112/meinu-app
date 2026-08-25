@@ -119,9 +119,9 @@ export async function POST(request: NextRequest) {
       code?: string;
     };
 
-    if (!storeId) {
+    if (!storeId || typeof storeId !== 'string' || storeId.trim().length === 0 || storeId.length > 64) {
       return NextResponse.json(
-        { success: false, message: '參數錯誤：缺少 storeId' },
+        { success: false, message: '參數錯誤：缺少或無效的 storeId' },
         { status: 400 }
       );
     }
