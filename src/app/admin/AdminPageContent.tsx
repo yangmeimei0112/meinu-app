@@ -21,20 +21,8 @@ import { useAdminOrderActions } from './hooks/useAdminOrderActions';
 import AdminAuthLock from './components/AdminAuthLock';
 import AdminTopBar from './components/AdminTopBar';
 import AdminTabsNav from './components/AdminTabsNav';
-import AdminVoiceSettingsModal from './components/AdminVoiceSettingsModal';
-import AdminStoreModal from './components/AdminStoreModal';
-import AdminCategoryModal from './components/AdminCategoryModal';
-import AdminProductModal from './components/AdminProductModal';
-import AdminChangeModal from './components/AdminChangeModal';
 import { AdminMaintenanceSection } from './components/AdminMaintenanceSection';
-
-// 🚀 隨選動態加載重型彈窗 (Code Splitting)
-const AdminPrintModal = dynamic(() => import('./AdminPrintModal'), { ssr: false });
-const AdminManualOrderModal = dynamic(() => import('./AdminManualOrderModal'), { ssr: false });
-const AdminBatchImportModal = dynamic(() => import('./AdminBatchImportModal'), { ssr: false });
-const AdminGroupSettingsModal = dynamic(() => import('./AdminGroupSettingsModal'), { ssr: false });
-const SignatureModal = dynamic(() => import('@/components/SignatureModal'), { ssr: false });
-const DoubleConfirmModal = dynamic(() => import('@/components/DoubleConfirmModal'), { ssr: false });
+import { AdminModalsContainer } from './components/modals/AdminModalsContainer';
 
 export default function AdminPageContent() {
   const { theme, toggleTheme } = useTheme();
@@ -554,130 +542,66 @@ export default function AdminPageContent() {
         )}
       </main>
 
-      {/* 友善列印檢視 Modal */}
-      {isPrintModalOpen && (
-        <AdminPrintModal
-          isOpen={isPrintModalOpen}
-          onClose={() => setIsPrintModalOpen(false)}
-          groupOrder={activeGroup}
-          submissions={submissions}
-          itemSummary={itemSummary}
-          grandTotal={grandTotal}
-        />
-      )}
-
-      {/* 團長代點餐 Modal */}
-      {isManualOrderModalOpen && (
-        <AdminManualOrderModal
-          isOpen={isManualOrderModalOpen}
-          onClose={() => setIsManualOrderModalOpen(false)}
-          groupOrder={activeGroup}
-          menuItems={allMenuItems}
-          paymentMethods={paymentMethods}
-          soldOutOptions={soldOutOptions}
-          onOrderAdded={fetchAdminData}
-        />
-      )}
-
-      {/* 菜單 CSV 批量匯入 Modal */}
-      {isBatchImportModalOpen && (
-        <AdminBatchImportModal
-          isOpen={isBatchImportModalOpen}
-          onClose={() => setIsBatchImportModalOpen(false)}
-          storeId={selectedCrudStoreId}
-          storeName={stores.find((s) => s.id === selectedCrudStoreId)?.name || '當前店家'}
-          onImportSuccess={fetchAdminData}
-        />
-      )}
-
-      {/* 團購活動與公告進階設定 Modal */}
-      {isGroupSettingsModalOpen && (
-        <AdminGroupSettingsModal
-          isOpen={isGroupSettingsModalOpen}
-          onClose={() => setIsGroupSettingsModalOpen(false)}
-          groupOrder={activeGroup}
-          stores={stores}
-          onSaveGroupSettings={handleSaveGroupSettings}
-        />
-      )}
-
-      {/* 店家增修 Modal */}
-      <AdminStoreModal
-        isOpen={isStoreModalOpen}
+      {/* 🌟 集中化掛載後台所有彈窗 */}
+      <AdminModalsContainer
+        isPrintModalOpen={isPrintModalOpen}
+        setIsPrintModalOpen={setIsPrintModalOpen}
+        activeGroup={activeGroup}
+        submissions={submissions}
+        itemSummary={itemSummary}
+        grandTotal={grandTotal}
+        isManualOrderModalOpen={isManualOrderModalOpen}
+        setIsManualOrderModalOpen={setIsManualOrderModalOpen}
+        allMenuItems={allMenuItems}
+        paymentMethods={paymentMethods}
+        soldOutOptions={soldOutOptions}
+        fetchAdminData={fetchAdminData}
+        isBatchImportModalOpen={isBatchImportModalOpen}
+        setIsBatchImportModalOpen={setIsBatchImportModalOpen}
+        selectedCrudStoreId={selectedCrudStoreId}
+        stores={stores}
+        isGroupSettingsModalOpen={isGroupSettingsModalOpen}
+        setIsGroupSettingsModalOpen={setIsGroupSettingsModalOpen}
+        handleSaveGroupSettings={handleSaveGroupSettings}
+        isStoreModalOpen={isStoreModalOpen}
+        setIsStoreModalOpen={setIsStoreModalOpen}
         editingStore={editingStore}
         categories={categories}
-        stores={stores}
         storeForm={storeForm}
         setStoreForm={setStoreForm}
         storeImagePreview={storeImagePreview}
         uploadingImage={uploadingImage}
-        onClose={() => setIsStoreModalOpen(false)}
-        onSaveStore={handleSaveStore}
-        onImageChange={handleStoreImageChange}
-      />
-
-      {/* 分類增修 Modal */}
-      <AdminCategoryModal
-        isOpen={isCatModalOpen}
+        handleSaveStore={handleSaveStore}
+        handleStoreImageChange={handleStoreImageChange}
+        isCatModalOpen={isCatModalOpen}
+        setIsCatModalOpen={setIsCatModalOpen}
         editingCat={editingCat}
         catNameInput={catNameInput}
         setCatNameInput={setCatNameInput}
-        onClose={() => setIsCatModalOpen(false)}
-        onSaveCategory={handleSaveCategory}
-      />
-
-      {/* 餐點品項與規格 Modal */}
-      <AdminProductModal
-        isOpen={isProductModalOpen}
+        handleSaveCategory={handleSaveCategory}
+        isProductModalOpen={isProductModalOpen}
+        setIsProductModalOpen={setIsProductModalOpen}
         editingProduct={editingProduct}
         productForm={productForm}
         setProductForm={setProductForm}
         productCustomGroups={productCustomGroups}
         setProductCustomGroups={setProductCustomGroups}
-        onClose={() => setIsProductModalOpen(false)}
-        onSaveProduct={handleSaveProduct}
-        onAddCustomGroup={handleAddCustomGroup}
-        onRemoveCustomGroup={handleRemoveCustomGroup}
-        onAddOptionToGroup={handleAddOptionToGroup}
-        onRemoveOptionFromGroup={handleRemoveOptionFromGroup}
-      />
-
-      {/* 簽名預覽 Modal */}
-      {signatureTarget && (
-        <SignatureModal
-          nickname={signatureTarget.user_nickname}
-          onClose={() => setSignatureTarget(null)}
-          onSaveSignature={handleSaveSignature}
-        />
-      )}
-
-      {/* 現金找零試算 Modal */}
-      <AdminChangeModal
+        handleSaveProduct={handleSaveProduct}
+        handleAddCustomGroup={handleAddCustomGroup}
+        handleRemoveCustomGroup={handleRemoveCustomGroup}
+        handleAddOptionToGroup={handleAddOptionToGroup}
+        handleRemoveOptionFromGroup={handleRemoveOptionFromGroup}
+        signatureTarget={signatureTarget}
+        setSignatureTarget={setSignatureTarget}
+        handleSaveSignature={handleSaveSignature}
         changeModalTarget={changeModalTarget}
+        setChangeModalTarget={setChangeModalTarget}
         receivedCash={receivedCash}
         setReceivedCash={setReceivedCash}
-        onClose={() => {
-          setChangeModalTarget(null);
-          setReceivedCash('');
-        }}
-      />
-
-      {/* ⚠️ 全域後台操作二次確認彈窗 */}
-      <DoubleConfirmModal
-        isOpen={adminConfirmModal.isOpen}
-        title={adminConfirmModal.title}
-        message={adminConfirmModal.message}
-        confirmText={adminConfirmModal.confirmText}
-        cancelText={adminConfirmModal.cancelText}
-        isDanger={adminConfirmModal.isDanger}
-        onConfirm={adminConfirmModal.onConfirm}
-        onCancel={closeAdminConfirmModal}
-      />
-
-      {/* 🗣️ 新訂單語音詳細播報設定與試聽 Modal */}
-      <AdminVoiceSettingsModal
-        isOpen={showVoiceSettingsModal}
-        onClose={() => setShowVoiceSettingsModal(false)}
+        adminConfirmModal={adminConfirmModal}
+        closeAdminConfirmModal={closeAdminConfirmModal}
+        showVoiceSettingsModal={showVoiceSettingsModal}
+        setShowVoiceSettingsModal={setShowVoiceSettingsModal}
         isSpeechEnabled={isSpeechEnabled}
         toggleSpeech={toggleSpeech}
         speechMode={speechMode}

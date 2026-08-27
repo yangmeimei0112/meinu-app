@@ -5,12 +5,13 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import CustomModal from '@/components/CustomModal';
-import BudgetLimitNotice from '@/components/BudgetLimitNotice';
 import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import { supabase } from '@/lib/supabase';
 import { MultiStoreCart, CartItem } from '@/types/cart';
 import { MenuItem, GroupOrder } from '@/types/database';
-import { ShoppingCart, ChevronLeft, ArrowRight, Trash2, Pencil } from 'lucide-react';
+import { ShoppingCart, ChevronLeft } from 'lucide-react';
+import { CartEmptyState } from './components/CartEmptyState';
+import { CartStoreGroup } from './components/CartStoreGroup';
 
 export default function MultiCartPage() {
   const [multiCart, setMultiCart] = useState<MultiStoreCart>({});
@@ -44,7 +45,7 @@ export default function MultiCartPage() {
     }
   }, []);
 
-  // 抓取當前店家開放中的團購活動（取得預算上限與狀態）
+  // 抓取當前店家開放中的團購活動
   useEffect(() => {
     if (!activeStoreId) {
       setActiveGroupOrder(null);
@@ -98,8 +99,8 @@ export default function MultiCartPage() {
 
     if (group.items.length === 0) {
       delete updated[storeId];
-      const remainingIds = Object.keys(updated);
-      setActiveStoreId(remainingIds[0] || '');
+      const remainingStoreIds = Object.keys(updated);
+      setActiveStoreId(remainingStoreIds[0] || '');
     }
 
     saveMultiCart(updated);
@@ -110,69 +111,70 @@ export default function MultiCartPage() {
     const group = updated[storeId];
     if (!group) return;
 
-    group.items = group.items.filter((item) => item.cartItemId !== cartItemId);
+    group.items = group.items.filter((i) => i.cartItemId !== cartItemId);
     if (group.items.length === 0) {
       delete updated[storeId];
-      const remainingIds = Object.keys(updated);
-      setActiveStoreId(remainingIds[0] || '');
+      const remainingStoreIds = Object.keys(updated);
+      setActiveStoreId(remainingStoreIds[0] || '');
     }
 
     saveMultiCart(updated);
   };
 
   const handleClearStoreCart = (storeId: string) => {
-    const storeName = multiCart[storeId]?.storeName || '這間店家';
+    const group = multiCart[storeId];
+    if (!group) return;
     setClearConfirmModal({
       isOpen: true,
       storeId,
-      storeName,
+      storeName: group.storeName,
     });
   };
 
   const executeClearStoreCart = (storeId: string) => {
     const updated = { ...multiCart };
     delete updated[storeId];
-    const remainingIds = Object.keys(updated);
-    setActiveStoreId(remainingIds[0] || '');
+    const remainingStoreIds = Object.keys(updated);
+    setActiveStoreId(remainingStoreIds[0] || '');
     saveMultiCart(updated);
     setClearConfirmModal({ isOpen: false, storeId: '', storeName: '' });
   };
 
-  // ✏️ 快速在購物車中修改餐點規格 (Edit in Cart)
-  const handleStartEditItem = async (item: CartItem) => {
-    // 取得原始餐點資料以獲取 custom_groups
-    const { data: menuData } = await supabase
+  // 開啟規格修改彈窗
+  const handleStartEditItem = async (cartItem: CartItem) => {
+    setEditingCartItem(cartItem);
+    const { data } = await supabase
       .from('menu_items')
       .select('*')
-      .eq('id', item.menuItemId)
+      .eq('id', cartItem.menuItemId)
       .single();
 
-    if (menuData) {
-      setEditingMenuItem(menuData as MenuItem);
+    if (data) {
+      setEditingMenuItem(data as MenuItem);
     } else {
-      // 找不到時以現有資料組裝
       setEditingMenuItem({
-        id: item.menuItemId,
-        store_id: item.storeId,
-        name: item.name,
-        price: item.unitPrice,
+        id: cartItem.menuItemId,
+        store_id: cartItem.storeId,
+        name: cartItem.name,
+        price: cartItem.unitPrice,
         description: null,
         is_sold_out: false,
         stock_quantity: null,
+        custom_groups: [],
       });
     }
-    setEditingCartItem(item);
   };
 
   const handleSaveEditedItem = (updatedItem: CartItem) => {
+    if (!editingCartItem) return;
+    const storeId = editingCartItem.storeId;
     const updated = { ...multiCart };
-    const group = updated[updatedItem.storeId];
+    const group = updated[storeId];
     if (!group) return;
 
-    group.items = group.items.map((item) =>
-      item.cartItemId === updatedItem.cartItemId ? updatedItem : item
+    group.items = group.items.map((i) =>
+      i.cartItemId === editingCartItem.cartItemId ? updatedItem : i
     );
-
     saveMultiCart(updated);
     setEditingCartItem(null);
     setEditingMenuItem(null);
@@ -185,7 +187,7 @@ export default function MultiCartPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-20 transition-colors duration-200">
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-24 transition-colors duration-200">
       <OfflineBanner />
       <Header />
 
@@ -209,23 +211,10 @@ export default function MultiCartPage() {
         </div>
 
         {storeIds.length === 0 ? (
-          <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center border border-slate-100 dark:border-slate-800 space-y-3 shadow-xs">
-            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
-              <ShoppingCart className="w-6 h-6 stroke-[1.5]" />
-            </div>
-            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">目前所有店家的購物車都是空的喔！</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500">快前往大廳挑選喜歡的店家吧！</p>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1 bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold px-5 py-2.5 rounded-2xl shadow-xs transition active:scale-95"
-            >
-              <span>前往點餐大廳</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
+          <CartEmptyState />
         ) : (
           <>
-            {/* 店家購物車頁籤切換 (Foodpanda / Uber Eats 樣式) */}
+            {/* 店家購物車頁籤切換 */}
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
               {storeIds.map((sId) => {
                 const group = multiCart[sId];
@@ -236,7 +225,7 @@ export default function MultiCartPage() {
                     key={sId}
                     type="button"
                     onClick={() => setActiveStoreId(sId)}
-                    className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 shrink-0 border ${
+                    className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 shrink-0 border cursor-pointer ${
                       isActive
                         ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
                         : 'bg-white dark:bg-[#131B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-[#182338]'
@@ -259,136 +248,16 @@ export default function MultiCartPage() {
 
             {/* 當前選定店家購物車細節 */}
             {currentGroup && (
-              <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <div>
-                    <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                      <span>{currentGroup.storeName}</span>
-                    </h3>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleClearStoreCart(activeStoreId)}
-                    className="text-xs text-slate-400 hover:text-red-500 font-semibold transition"
-                  >
-                    清空此店
-                  </button>
-                </div>
-
-                {/* 個人預算補貼提醒 */}
-                {activeGroupOrder?.enable_budget_limit &&
-                  activeGroupOrder?.budget_limit_amount && (
-                    <BudgetLimitNotice
-                      budgetLimit={activeGroupOrder.budget_limit_amount}
-                      totalAmount={currentStoreTotal}
-                    />
-                  )}
-
-                {/* 品項清單 */}
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {currentGroup.items.map((item) => (
-                    <div key={item.cartItemId} className="py-3.5 space-y-1.5">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.name}</h4>
-                          {item.selectedOptions.length > 0 && (
-                            <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
-                              {item.selectedOptions
-                                .map((opt) => `${opt.groupTitle}: ${opt.itemName}`)
-                                .join(' / ')}
-                            </p>
-                          )}
-                          {item.customNotes && (
-                            <p className="text-xs text-sky-600 dark:text-sky-400 mt-0.5">
-                              備註：{item.customNotes}
-                            </p>
-                          )}
-                        </div>
-                        <span className="text-sm font-extrabold text-sky-600 dark:text-sky-400 shrink-0">
-                          ${item.totalPrice} 元
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-1">
-                        {/* ✏️ 快速修改規格按鈕 */}
-                        <button
-                          type="button"
-                          onClick={() => handleStartEditItem(item)}
-                          className="text-[11px] font-bold text-sky-600 dark:text-sky-300 bg-sky-50 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 border border-sky-100 dark:border-slate-700 px-2.5 py-1 rounded-xl transition flex items-center gap-1 active:scale-95 cursor-pointer"
-                        >
-                          <Pencil className="w-3 h-3 stroke-[2.2]" />
-                          <span>修改規格</span>
-                        </button>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleRemoveItem(activeStoreId, item.cartItemId)
-                            }
-                            className="text-xs text-slate-300 hover:text-red-500 p-1.5 transition cursor-pointer"
-                            title="刪除品項"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-
-                          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200/60 dark:border-slate-700">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleUpdateQuantity(activeStoreId, item.cartItemId, -1)
-                              }
-                              className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center cursor-pointer"
-                            >
-                              -
-                            </button>
-                            <span className="text-xs font-bold w-4 text-center text-slate-800 dark:text-slate-100">
-                              {item.quantity}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleUpdateQuantity(activeStoreId, item.cartItemId, 1)
-                              }
-                              className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center cursor-pointer"
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* 底部結算與跳轉按鈕 */}
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between font-extrabold text-base text-slate-800 dark:text-slate-100">
-                    <span>店家小計金額</span>
-                    <span className="text-sky-600 dark:text-sky-400 text-lg">${currentStoreTotal} 元</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* ‹ 繼續點餐按鈕：直達該店家菜單頁面 */}
-                    <Link
-                      href={`/stores/${activeStoreId}`}
-                      className="bg-sky-50 dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 font-bold text-xs py-3 rounded-2xl border border-sky-100 dark:border-slate-700 text-center transition active:scale-95 flex items-center justify-center gap-1"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5" />
-                      <span>繼續點餐</span>
-                    </Link>
-
-                    {/* 前往結帳按鈕 */}
-                    <Link
-                      href={`/checkout?storeId=${activeStoreId}`}
-                      className="bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold text-xs py-3 rounded-2xl text-center shadow-md transition active:scale-95 flex items-center justify-center gap-1"
-                    >
-                      <span>前往結帳</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
+              <CartStoreGroup
+                currentGroup={currentGroup}
+                activeStoreId={activeStoreId}
+                activeGroupOrder={activeGroupOrder}
+                currentStoreTotal={currentStoreTotal}
+                onClearStoreCart={handleClearStoreCart}
+                onStartEditItem={handleStartEditItem}
+                onRemoveItem={handleRemoveItem}
+                onUpdateQuantity={handleUpdateQuantity}
+              />
             )}
           </>
         )}
