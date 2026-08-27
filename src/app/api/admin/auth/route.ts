@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
   // 🛡️ 防禦 1：CSRF 跨站偽造請求阻斷
   if (!isValidOrigin(req)) {
     return NextResponse.json(
-      { success: false, message: '🚫 存取被拒：不合法的跨來源請求 (CSRF Protected)' },
+      { success: false, message: '存取被拒：不合法的跨來源請求 (CSRF Protected)' },
       { status: 403 }
     );
   }
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   const contentLength = Number(req.headers.get('content-length') || 0);
   if (contentLength > 16384) {
     return NextResponse.json(
-      { success: false, message: '🚫 請求資料過大，拒絕處理' },
+      { success: false, message: '請求資料過大，拒絕處理' },
       { status: 413 }
     );
   }
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
   if (globalRateState.globalThrottleUntil > now) {
     const globalWait = Math.ceil((globalRateState.globalThrottleUntil - now) / 1000);
     return NextResponse.json(
-      { success: false, message: `🔒 系統偵測到全域高頻登入異常，全站防護冷卻中 (${globalWait} 秒)` },
+      { success: false, message: `系統偵測到全域高頻登入異常，全站防護冷卻中 (${globalWait} 秒)` },
       { status: 429 }
     );
   }
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
   if (ipRecord.lockedUntil > now) {
     const waitSec = Math.ceil((ipRecord.lockedUntil - now) / 1000);
     return NextResponse.json(
-      { success: false, message: `🔒 嘗試次數過多，伺服端安全鎖定中，請於 ${waitSec} 秒後再試！`, lockedUntilSec: waitSec },
+      { success: false, message: `嘗試次數過多，伺服端安全鎖定中，請於 ${waitSec} 秒後再試！`, lockedUntilSec: waitSec },
       { status: 429 }
     );
   }
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: lockedUntil > 0 ? `🚫 密碼錯誤達上限！伺服端已鎖定 ${waitSec} 秒` : `❌ 密碼錯誤！(剩餘 ${Math.max(0, 5 - nextCount)} 次嘗試機會)`,
+          message: lockedUntil > 0 ? `密碼錯誤達上限！伺服端已鎖定 ${waitSec} 秒` : `密碼錯誤！(剩餘 ${Math.max(0, 5 - nextCount)} 次嘗試機會)`,
           lockedUntilSec: waitSec,
           remainingAttempts: Math.max(0, 5 - nextCount),
         },
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({
       success: true,
-      message: '✅ 驗證成功，歡迎登入團長後台',
+      message: '驗證成功，歡迎登入團長後台',
     });
 
     // 寫入 HttpOnly Secure SameSite=Strict Cookie

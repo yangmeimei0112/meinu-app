@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Banknote, Coins } from 'lucide-react';
 
 interface AdminChangeModalProps {
   changeModalTarget: { nickname: string; amount: number } | null;
@@ -20,10 +21,13 @@ export default function AdminChangeModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white dark:bg-[#131B2B] w-full max-w-xs rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 text-center shadow-2xl">
-        <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">💵 現金找零試算器</h3>
+        <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5">
+          <Banknote className="w-5 h-5 text-emerald-500" />
+          <span>現金找零試算器</span>
+        </h3>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {changeModalTarget.nickname} 應付金額：
-          <span className="font-extrabold text-sky-600 dark:text-sky-400 text-sm">
+          <span className="font-extrabold text-sky-600 dark:text-sky-400 text-sm ml-1">
             ${changeModalTarget.amount} 元
           </span>
         </p>
@@ -44,7 +48,10 @@ export default function AdminChangeModal({
 
         {Number(receivedCash) > 0 && (
           <div className="bg-sky-50 dark:bg-sky-950/40 p-3 rounded-2xl border border-sky-100 dark:border-sky-900/60">
-            <p className="text-xs text-sky-700 dark:text-sky-300 font-bold">💰 應找零金額</p>
+            <p className="text-xs text-sky-700 dark:text-sky-300 font-bold flex items-center justify-center gap-1">
+              <Coins className="w-4 h-4 text-amber-500" />
+              <span>應找零金額</span>
+            </p>
             <p className="text-xl font-extrabold text-sky-600 dark:text-sky-400 mt-0.5">
               ${Math.max(0, Number(receivedCash) - changeModalTarget.amount)} 元
             </p>

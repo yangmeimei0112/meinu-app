@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Volume2, X, CheckCircle2, Circle, FileText, Zap, Sliders } from 'lucide-react';
 
 interface AdminVoiceSettingsModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ export default function AdminVoiceSettingsModal({
       <div className="bg-white dark:bg-[#0E1726] border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 animate-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🗣️</span>
+            <Volume2 className="w-5 h-5 text-emerald-500" />
             <h3 className="font-black text-slate-900 dark:text-slate-100 text-base">
               新訂單語音播報設定
             </h3>
@@ -40,9 +41,10 @@ export default function AdminVoiceSettingsModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm bg-slate-100 dark:bg-slate-800 cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 w-8 h-8 rounded-full flex items-center justify-center font-bold bg-slate-100 dark:bg-slate-800 cursor-pointer"
+            aria-label="關閉"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -63,7 +65,17 @@ export default function AdminVoiceSettingsModal({
                 : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
             }`}
           >
-            {isSpeechEnabled ? '🟢 已開啟' : '⚪ 已關閉'}
+            {isSpeechEnabled ? (
+              <span className="inline-flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                <span>已開啟</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <Circle className="w-3.5 h-3.5 text-slate-400" />
+                <span>已關閉</span>
+              </span>
+            )}
           </button>
         </div>
 
@@ -82,7 +94,10 @@ export default function AdminVoiceSettingsModal({
                   : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
               }`}
             >
-              <p className="font-black text-xs">📋 完整明細模式 (推薦)</p>
+              <p className="font-black text-xs flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-emerald-500" />
+                <span>完整明細模式 (推薦)</span>
+              </p>
               <p className="text-[10px] mt-1 opacity-80 leading-relaxed">
                 報出姓名、餐點品項、數量與客製備註
               </p>
@@ -96,7 +111,10 @@ export default function AdminVoiceSettingsModal({
                   : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
               }`}
             >
-              <p className="font-black text-xs">⚡ 簡明摘要模式</p>
+              <p className="font-black text-xs flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-500" />
+                <span>簡明摘要模式</span>
+              </p>
               <p className="text-[10px] mt-1 opacity-80 leading-relaxed">
                 僅報出姓名、總份數與總金額
               </p>
@@ -111,7 +129,8 @@ export default function AdminVoiceSettingsModal({
               htmlFor="voice-speed-slider"
               className="text-xs font-black text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
             >
-              <span>🎚️ 播報語速調節</span>
+              <Sliders className="w-3.5 h-3.5 text-emerald-500" />
+              <span>播報語速調節</span>
             </label>
             <div className="flex items-center gap-1.5">
               <span className="text-emerald-600 dark:text-emerald-400 font-mono font-black text-sm px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/80 rounded-lg border border-emerald-200/80 dark:border-emerald-800/60 shadow-2xs">
@@ -156,7 +175,8 @@ export default function AdminVoiceSettingsModal({
             onClick={playTestSpeech}
             className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-black text-xs py-2.5 rounded-2xl transition active:scale-95 flex items-center justify-center gap-1.5 border border-slate-200/80 dark:border-slate-700 cursor-pointer shadow-2xs"
           >
-            <span>🔊 立即試聽效果</span>
+            <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
+            <span>立即試聽效果</span>
           </button>
           <button
             type="button"

@@ -3,16 +3,24 @@
 import { useState, useSyncExternalStore, FormEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Search, ClipboardList, Share2, QrCode } from 'lucide-react';
 import QRCodeModal from './QRCodeModal';
 
 export const ORDERS_UPDATE_EVENT = 'menu_app_orders_updated';
 
 function subscribeStorage(callback: () => void) {
-  window.addEventListener('storage', callback);
-  window.addEventListener(ORDERS_UPDATE_EVENT, callback);
+  if (typeof window === 'undefined' || !window || typeof window.addEventListener !== 'function') return () => {};
+  try {
+    window.addEventListener('storage', callback);
+    window.addEventListener(ORDERS_UPDATE_EVENT, callback);
+  } catch {}
   return () => {
-    window.removeEventListener('storage', callback);
-    window.removeEventListener(ORDERS_UPDATE_EVENT, callback);
+    try {
+      if (typeof window !== 'undefined' && window && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('storage', callback);
+        window.removeEventListener(ORDERS_UPDATE_EVENT, callback);
+      }
+    } catch {}
   };
 }
 
@@ -60,7 +68,7 @@ export default function Header() {
   const handleSearchCode = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!shortCode.trim()) return;
-    showToast(`🔍 正在搜尋團購快碼：#${shortCode}`);
+    showToast(`正在搜尋團購快碼：#${shortCode}`);
   };
 
   const handleSharePlatform = async () => {
@@ -79,7 +87,7 @@ export default function Header() {
       }
     } else {
       await navigator.clipboard.writeText(shareUrl);
-      showToast('📋 平台大廳連結已複製至剪貼簿！');
+      showToast('平台大廳連結已複製至剪貼簿！');
     }
   };
 
@@ -121,9 +129,9 @@ export default function Header() {
             />
             <button
               type="submit"
-              className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-500 text-[10px] p-0.5"
+              className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-500 p-0.5 transition cursor-pointer"
             >
-              🔍
+              <Search className="w-3.5 h-3.5" />
             </button>
           </div>
         </form>
@@ -135,7 +143,8 @@ export default function Header() {
             className="relative bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 dark:border-slate-700 active:scale-95"
             title="查看我的送訂紀錄與付款狀態"
           >
-            <span>📋 訂單</span>
+            <ClipboardList className="w-3.5 h-3.5 stroke-[2.2]" />
+            <span>訂單</span>
             {hasNewOrder && (
               <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping" />
             )}
@@ -145,20 +154,21 @@ export default function Header() {
           <button
             type="button"
             onClick={handleSharePlatform}
-            className="bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-0.5 border border-sky-100 dark:border-slate-700 active:scale-95"
+            className="bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 dark:border-slate-700 active:scale-95 cursor-pointer"
             title="分享平台"
           >
-            <span>🔗 分享</span>
+            <Share2 className="w-3.5 h-3.5 stroke-[2.2]" />
+            <span>分享</span>
           </button>
 
           {/* 現場 QR Code */}
           <button
             type="button"
             onClick={() => setIsQrModalOpen(true)}
-            className="bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 p-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center border border-sky-100 dark:border-slate-700 active:scale-95"
+            className="bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 p-1.5 rounded-xl transition flex items-center justify-center border border-sky-100 dark:border-slate-700 active:scale-95 cursor-pointer"
             title="顯示現場 QR Code"
           >
-            📱
+            <QrCode className="w-4 h-4 text-sky-600 dark:text-sky-300 stroke-[2.2]" />
           </button>
         </div>
       </div>

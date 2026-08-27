@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
 import OrderStatusActions from './components/OrderStatusActions';
 import OrderStatusReceipt from './components/OrderStatusReceipt';
+import { ChevronLeft, Check, CheckCircle2, Clock, ArrowRight, HelpCircle } from 'lucide-react';
 
 interface OrderItemDetail {
   id: string;
@@ -234,7 +235,7 @@ export default function OrderStatusPage({
     setConfirmModalConfig({
       isOpen: true,
       type: 'modify',
-      title: '✏️ 確認要修改這筆訂單嗎？',
+      title: '確認要修改這筆訂單嗎？',
       message:
         '系統會將您點的餐點完整還原回購物車，並取消此筆訂單，讓您可以直接重新調整規格、甜度冰塊或品項！',
       confirmText: '還原回購物車修改',
@@ -247,7 +248,7 @@ export default function OrderStatusPage({
     setConfirmModalConfig({
       isOpen: true,
       type: 'cancel',
-      title: '🗑️ 確認要取消這筆訂單嗎？',
+      title: '確認要取消這筆訂單嗎？',
       message: '取消後此筆單號將被註銷。若您之後仍想用餐，可以重新到菜單挑選送單。',
       confirmText: '確認取消訂單',
       isDanger: true,
@@ -264,7 +265,7 @@ export default function OrderStatusPage({
   // 執行確認動作（修改或取消）
   const handleExecuteModalAction = async () => {
     if (!isOrderOwner) {
-      showToast('🔒 權限限制：此訂單不屬於此裝置，無法執行修改或取消操作！');
+      showToast('權限限制：此訂單不屬於此裝置，無法執行修改或取消操作！');
       setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
       return;
     }
@@ -307,7 +308,7 @@ export default function OrderStatusPage({
 
         cleanLocalHistory();
 
-        showToast('🔄 已成功將品項還原回購物車！正在前往購物車...');
+        showToast('已成功將品項還原回購物車！正在前往購物車...');
         setTimeout(() => router.push('/cart'), 500);
       } else {
         // 取消訂單：刪除後台此筆訂單明細與訂單主檔
@@ -320,12 +321,12 @@ export default function OrderStatusPage({
         if (error) throw error;
         cleanLocalHistory();
 
-        showToast('🗑️ 訂單已順利取消！正在返回首頁大廳...');
+        showToast('訂單已順利取消！正在返回首頁大廳...');
         setTimeout(() => router.push('/'), 500);
       }
     } catch (e) {
       console.error(e);
-      showToast('❌ 操作失敗，可能訂單已被處理或網路不穩，請稍後重試');
+      showToast('操作失敗，可能訂單已被處理或網路不穩，請稍後重試');
     } finally {
       setIsActionLoading(false);
     }
@@ -352,7 +353,8 @@ export default function OrderStatusPage({
           href="/"
           className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 transition py-1"
         >
-          ‹ 返回「咩nu」大廳
+          <ChevronLeft className="w-4 h-4" />
+          <span>返回「咩nu」大廳</span>
         </Link>
 
         {loading ? (
@@ -361,22 +363,23 @@ export default function OrderStatusPage({
           </div>
         ) : !order ? (
           <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center text-slate-500 dark:text-slate-400 space-y-3 border border-slate-100 dark:border-slate-800">
-            <div className="text-3xl">❓</div>
+            <HelpCircle className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto stroke-[1.5]" />
             <p className="font-extrabold text-slate-700 dark:text-slate-200">找不到該筆訂單資訊</p>
             <p className="text-xs text-slate-400 dark:text-slate-500">訂單可能已被取消或連結單號不正確。</p>
             <Link
               href="/"
-              className="inline-block bg-sky-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs"
+              className="inline-flex items-center gap-1 bg-sky-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs"
             >
-              返回大廳 ➔
+              <span>返回大廳</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         ) : (
           <>
             {/* 訂單成功與對帳標籤卡片 */}
             <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 dark:text-emerald-400 text-2xl mx-auto flex items-center justify-center font-bold border border-emerald-100 dark:border-emerald-900/60 shadow-2xs">
-                ✓
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-500 dark:text-emerald-400 mx-auto flex items-center justify-center border border-emerald-100 dark:border-emerald-900/60 shadow-2xs">
+                <Check className="w-6 h-6 stroke-[3]" />
               </div>
               <div>
                 <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">
@@ -390,13 +393,13 @@ export default function OrderStatusPage({
               {/* ⚡ Realtime 對帳狀態動態更新標籤 */}
               <div className="pt-1">
                 {order.is_paid ? (
-                  <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-extrabold px-4 py-1.5 rounded-full shadow-xs animate-in zoom-in duration-300">
-                    <span>✅</span>
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-xs font-extrabold px-4 py-1.5 rounded-full shadow-xs animate-in zoom-in duration-300">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     <span>團長已核實收到款項</span>
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-xs font-extrabold px-4 py-1.5 rounded-full animate-pulse">
-                    <span>⏳</span>
+                  <span className="inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-xs font-extrabold px-4 py-1.5 rounded-full animate-pulse">
+                    <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                     <span>待團長對帳與確認</span>
                   </span>
                 )}

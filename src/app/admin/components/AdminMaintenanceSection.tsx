@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { MaintenanceData, MaintenanceScreen } from '@/components/MaintenanceGuard';
+import { CheckCircle2, AlertTriangle, Settings, X, Lightbulb, Upload, Save, Smartphone } from 'lucide-react';
 
 const QUICK_REASONS = [
   '系統例行升級',
@@ -57,7 +58,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
     if (!file) return;
 
     if (file.size > 3 * 1024 * 1024) {
-      showToast('⚠️ 圖片或 GIF 檔案建議小於 3MB，請重新選擇！');
+      showToast('圖片或 GIF 檔案建議小於 3MB，請重新選擇！');
       return;
     }
 
@@ -65,7 +66,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
       setConfig((prev) => ({ ...prev, custom_image_url: base64 }));
-      showToast('📸 已選取自訂圖片/GIF，請點擊下方「儲存設定」生效！');
+      showToast('已選取自訂圖片/GIF，請點擊下方「儲存設定」生效！');
     };
     reader.readAsDataURL(file);
   };
@@ -75,7 +76,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-    showToast('🔄 已移除自訂圖片，恢復預設單齒輪旋轉動畫');
+    showToast('已移除自訂圖片，恢復預設單齒輪旋轉動畫');
   };
 
   // 儲存維護設定至伺服端
@@ -174,7 +175,17 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
                 : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-amber-500/25'
             }`}
           >
-            <span>{config.is_maintenance ? '🟢 關閉維護 (恢復前台點餐)' : '🚧 開啟維護模式 (30秒預警並攔截)'}</span>
+            {config.is_maintenance ? (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>關閉維護 (恢復前台點餐)</span>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-4 h-4" />
+                <span>開啟維護模式 (30秒預警並攔截)</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -184,7 +195,8 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
         {/* 左側：設定表單 (6 欄) */}
         <div className="lg:col-span-6 bg-white/95 dark:bg-[#0E1726]/95 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-5 backdrop-blur-md">
           <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <span>⚙️ 維護公告與自訂視覺設定</span>
+            <Settings className="w-4 h-4 text-sky-500" />
+            <span>維護公告與自訂視覺設定</span>
           </h3>
 
           {/* 自訂圖片 / GIF 上傳區塊 */}
@@ -197,15 +209,17 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
                 <button
                   type="button"
                   onClick={handleRemoveImage}
-                  className="text-[11px] text-rose-500 hover:text-rose-600 font-black cursor-pointer"
+                  className="text-[11px] text-rose-500 hover:text-rose-600 font-black cursor-pointer flex items-center gap-1"
                 >
-                  ✕ 移除並恢復預設齒輪
+                  <X className="w-3 h-3" />
+                  <span>移除並恢復預設齒輪</span>
                 </button>
               )}
             </div>
 
-            <p className="text-[11px] text-sky-600 dark:text-sky-400 font-semibold leading-relaxed">
-              💡 建議規格：正方形 1:1（如 300×300 ~ 512×512 像素），支援 JPG、PNG、WebP 或動態 GIF。未上傳時將預設顯示單一旋轉齒輪動畫。
+            <p className="text-[11px] text-sky-600 dark:text-sky-400 font-semibold leading-relaxed flex items-center gap-1">
+              <Lightbulb className="w-3.5 h-3.5 shrink-0" />
+              <span>建議規格：正方形 1:1（如 300×300 ~ 512×512 像素），支援 JPG、PNG、WebP 或動態 GIF。未上傳時將預設顯示單一旋轉齒輪動畫。</span>
             </p>
 
             {/* 上傳按鈕與預覽 */}
@@ -222,7 +236,8 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
                 htmlFor="maintenance-image-upload"
                 className="bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 shadow-2xs transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0"
               >
-                <span>📁 選擇檔案上傳</span>
+                <Upload className="w-3.5 h-3.5" />
+                <span>選擇檔案上傳</span>
               </label>
 
               {config.custom_image_url ? (
@@ -315,9 +330,10 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
             type="button"
             onClick={() => handleSaveConfig()}
             disabled={saving}
-            className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black py-2.5 rounded-2xl text-xs transition shadow-md shadow-sky-500/20 active:scale-95 cursor-pointer disabled:opacity-50"
+            className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black py-2.5 rounded-2xl text-xs transition shadow-md shadow-sky-500/20 active:scale-95 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
-            {saving ? '正在儲存中...' : '💾 儲存維護公告設定'}
+            <Save className="w-3.5 h-3.5" />
+            <span>{saving ? '正在儲存中...' : '儲存維護公告設定'}</span>
           </button>
         </div>
 
@@ -325,7 +341,8 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
         <div className="lg:col-span-6 bg-white/95 dark:bg-[#0E1726]/95 rounded-3xl p-5 sm:p-6 border border-slate-200/90 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] space-y-4 flex flex-col justify-between backdrop-blur-md">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <span>📱 前台即時效果預覽</span>
+              <Smartphone className="w-4 h-4 text-sky-500" />
+              <span>前台即時效果預覽</span>
             </h3>
 
             {/* 設備切換按鈕 */}
@@ -366,7 +383,7 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
                 data={config}
                 checking={false}
                 isPreview={true}
-                onCheckStatus={() => showToast('🔔 此為預覽畫面測試按鈕')}
+                onCheckStatus={() => showToast('此為預覽畫面測試按鈕')}
               />
             </div>
           </div>

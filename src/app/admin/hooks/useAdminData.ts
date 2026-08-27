@@ -76,7 +76,7 @@ export function useAdminData({
         playChimeSound();
       }
 
-      showToast(`🔔 收到 ${nickname || '團員'} 的新訂單！`);
+      showToast(`收到 ${nickname || '團員'} 的新訂單！`);
 
       // 2. 若語音報單開啟：抓取訂單明細並依音效狀態分流播報
       if (isSpeechEnabled) {
@@ -413,6 +413,25 @@ export function useAdminData({
     };
   }, [isUnlocked, fetchAdminData, notifyNewOrder]);
 
+  // 🌟 樂觀更新特定店家菜單品項順序，杜絕非同步重抓造成的順序回彈
+  const optimisticReorderMenuItems = useCallback((storeId: string, orderedItemIds: string[]) => {
+    setAllMenuItems((prev) => {
+      const storeItems = prev.filter((item) => item.store_id === storeId);
+      const otherItems = prev.filter((item) => item.store_id !== storeId);
+
+      const sortedStoreItems = [...storeItems].sort((a, b) => {
+        const indexA = orderedItemIds.indexOf(a.id);
+        const indexB = orderedItemIds.indexOf(b.id);
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return a.name.localeCompare(b.name, 'zh-TW');
+      });
+
+      return [...otherItems, ...sortedStoreItems];
+    });
+  }, []);
+
   return {
     activeGroup,
     setActiveGroup,
@@ -433,6 +452,7 @@ export function useAdminData({
     setSoldOutOptions,
     allMenuItems,
     setAllMenuItems,
+    optimisticReorderMenuItems,
     allSubmissions,
     setAllSubmissions,
     submissions,

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { X, QrCode, Check, Download } from 'lucide-react';
 
 interface QRCodeModalProps {
   isOpen: boolean;
@@ -35,11 +36,19 @@ export default function QRCodeModal({
     };
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
+      try {
+        if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
+          window.addEventListener('keydown', handleKeyDown);
+        }
+      } catch {}
     }
     return () => {
       document.body.style.overflow = 'unset';
-      window.removeEventListener('keydown', handleKeyDown);
+      try {
+        if (typeof window !== 'undefined' && window && typeof window.removeEventListener === 'function') {
+          window.removeEventListener('keydown', handleKeyDown);
+        }
+      } catch {}
     };
   }, [isOpen, onClose]);
 
@@ -103,18 +112,17 @@ export default function QRCodeModal({
       >
         {/* 關閉按鈕 */}
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-slate-200 p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 transition p-1 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer"
           aria-label="關閉"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X className="w-5 h-5" />
         </button>
 
         {/* 標題區 */}
         <div className="text-center mb-4 shrink-0">
-          <div className="text-3xl mb-1">📱</div>
+          <QrCode className="w-8 h-8 text-sky-500 mx-auto mb-1 stroke-[1.8]" />
           <h3 className="text-lg font-bold text-gray-800 dark:text-slate-100">{title}</h3>
           <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">使用手機相機掃描 QR Code 即可開啟網頁</p>
         </div>
@@ -150,9 +158,16 @@ export default function QRCodeModal({
           <button
             type="button"
             onClick={handleCopy}
-            className="bg-white dark:bg-slate-700 hover:bg-sky-100 dark:hover:bg-slate-600 text-sky-700 dark:text-sky-200 px-2.5 py-1 rounded border border-sky-200 dark:border-slate-600 font-medium transition shrink-0 active:scale-95"
+            className="bg-white dark:bg-slate-700 hover:bg-sky-100 dark:hover:bg-slate-600 text-sky-700 dark:text-sky-200 px-2.5 py-1 rounded border border-sky-200 dark:border-slate-600 font-medium transition shrink-0 active:scale-95 cursor-pointer flex items-center gap-1"
           >
-            {copied ? '✓ 已複製' : '複製'}
+            {copied ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+                <span>已複製</span>
+              </>
+            ) : (
+              '複製'
+            )}
           </button>
         </div>
 
@@ -161,17 +176,15 @@ export default function QRCodeModal({
           <button
             type="button"
             onClick={handleDownload}
-            className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-medium py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 text-sm shadow-sm active:scale-95"
+            className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-medium py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 text-sm shadow-sm active:scale-95 cursor-pointer"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            下載圖片
+            <Download className="w-4 h-4" />
+            <span>下載圖片</span>
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-medium py-2.5 px-4 rounded-xl transition text-sm active:scale-95"
+            className="bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 font-medium py-2.5 px-4 rounded-xl transition text-sm active:scale-95 cursor-pointer"
           >
             關閉
           </button>

@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { OrderSubmissionAdmin } from '../admin-types';
+import { CheckCircle2, Clock, AlertTriangle, PenTool, Banknote, Copy, Trash2 } from 'lucide-react';
+import { PaymentMethodIcon, SoldOutOptionIcon, stripEmojis } from '@/lib/icon-utils';
 
 interface AdminOrderCardProps {
   sub: OrderSubmissionAdmin;
@@ -63,7 +65,10 @@ export default function AdminOrderCard({
             <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono mt-0.5 font-bold flex items-center gap-1.5">
               <span>#{sub.order_number}</span>
               <span>&bull;</span>
-              <span className="text-slate-600 dark:text-slate-300">{sub.payment_method_name}</span>
+              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                <PaymentMethodIcon name={sub.payment_method_name} className="w-3 h-3 text-emerald-500" />
+                <span>{stripEmojis(sub.payment_method_name)}</span>
+              </span>
             </p>
           </div>
         </div>
@@ -72,17 +77,27 @@ export default function AdminOrderCard({
         <button
           type="button"
           onClick={() => onTogglePaid(sub.id, sub.is_paid)}
-          className={`px-3.5 py-1.5 rounded-full text-xs font-black transition active:scale-95 shrink-0 cursor-pointer shadow-2xs ${
+          className={`px-3.5 py-1.5 rounded-full text-xs font-black transition active:scale-95 shrink-0 cursor-pointer shadow-2xs flex items-center gap-1.5 ${
             isPaid
               ? 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800/80'
               : 'bg-gradient-to-r from-rose-500 to-pink-600 text-white hover:from-rose-600 hover:to-pink-700 border border-rose-400 shadow-rose-500/25 animate-pulse'
           }`}
         >
-          {isPaid ? '✅ 已付款' : '⏳ 待付款 (點擊收款)'}
+          {isPaid ? (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>已付款</span>
+            </>
+          ) : (
+            <>
+              <Clock className="w-3.5 h-3.5" />
+              <span>待付款 (點擊收款)</span>
+            </>
+          )}
         </button>
       </div>
 
-      {/* 🍔 餐點明細清單 */}
+      {/* 餐點明細清單 */}
       <div className="space-y-1.5 pl-1">
         {(sub.order_items || []).map((item) => (
           <div
@@ -109,15 +124,19 @@ export default function AdminOrderCard({
       {/* 缺貨備案提示 */}
       {sub.sold_out_option && (
         <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-amber-50/70 dark:bg-[#1E1710] px-3 py-1.5 rounded-xl border border-amber-200/60 dark:border-amber-900/50 flex items-center gap-1.5">
-          <span className="font-black text-amber-800 dark:text-amber-400">⚠️ 缺貨備案：</span>
-          <span>{sub.sold_out_option}</span>
+          <SoldOutOptionIcon title={sub.sold_out_option} className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span className="font-black text-amber-800 dark:text-amber-400">缺貨備案：</span>
+          <span>{stripEmojis(sub.sold_out_option)}</span>
         </div>
       )}
 
       {/* 數位手繪簽名預覽 */}
       {sub.signature_data && (
         <div className="bg-slate-50 dark:bg-[#152033] p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex items-center gap-2.5">
-          <span className="text-[10px] font-black text-slate-400 dark:text-slate-400 shrink-0">✍️ 對帳簽名:</span>
+          <span className="text-[10px] font-black text-slate-400 dark:text-slate-400 shrink-0 flex items-center gap-1">
+            <PenTool className="w-3 h-3 text-sky-500" />
+            <span>對帳簽名:</span>
+          </span>
           <img src={sub.signature_data} alt="簽名" className="h-7 object-contain rounded-md" />
         </div>
       )}
@@ -128,9 +147,10 @@ export default function AdminOrderCard({
           <button
             type="button"
             onClick={() => onSetSignatureTarget(sub)}
-            className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-black px-2.5 py-1 rounded-xl border border-slate-200/80 dark:border-slate-700 transition active:scale-95 cursor-pointer shadow-2xs"
+            className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-black px-2.5 py-1 rounded-xl border border-slate-200/80 dark:border-slate-700 transition active:scale-95 cursor-pointer shadow-2xs flex items-center gap-1"
           >
-            ✍️ 簽名
+            <PenTool className="w-3 h-3" />
+            <span>簽名</span>
           </button>
           <button
             type="button"
@@ -140,23 +160,26 @@ export default function AdminOrderCard({
                 amount: sub.final_amount,
               })
             }
-            className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-black px-2.5 py-1 rounded-xl border border-slate-200/80 dark:border-slate-700 transition active:scale-95 cursor-pointer shadow-2xs"
+            className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-black px-2.5 py-1 rounded-xl border border-slate-200/80 dark:border-slate-700 transition active:scale-95 cursor-pointer shadow-2xs flex items-center gap-1"
           >
-            💵 找零試算
+            <Banknote className="w-3 h-3" />
+            <span>找零試算</span>
           </button>
           <button
             type="button"
             onClick={() => onCopyPersonalReceipt(sub)}
-            className="bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 text-[11px] font-black px-2.5 py-1 rounded-xl border border-sky-200/80 dark:border-sky-800/60 transition active:scale-95 cursor-pointer shadow-2xs"
+            className="bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 text-[11px] font-black px-2.5 py-1 rounded-xl border border-sky-200/80 dark:border-sky-800/60 transition active:scale-95 cursor-pointer shadow-2xs flex items-center gap-1"
           >
-            📋 私訊明細
+            <Copy className="w-3 h-3" />
+            <span>私訊明細</span>
           </button>
           <button
             type="button"
             onClick={() => onDeleteOrder(sub.id, sub.user_nickname, sub.order_number)}
-            className="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 text-[11px] font-black px-2.5 py-1 rounded-xl border border-rose-200/60 dark:border-rose-900/60 transition active:scale-95 cursor-pointer shadow-2xs"
+            className="bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 text-[11px] font-black px-2.5 py-1 rounded-xl border border-rose-200/60 dark:border-rose-900/60 transition active:scale-95 cursor-pointer shadow-2xs flex items-center gap-1"
           >
-            🗑️ 刪除
+            <Trash2 className="w-3 h-3" />
+            <span>刪除</span>
           </button>
         </div>
 

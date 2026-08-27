@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { GroupOrderAdmin } from './admin-types';
 import { Store } from '@/types/database';
+import { Settings, X, Megaphone, Truck, Clock, Banknote, Save } from 'lucide-react';
 
 interface AdminGroupSettingsModalProps {
   isOpen: boolean;
@@ -76,7 +77,7 @@ export default function AdminGroupSettingsModal({
     e.preventDefault();
     setModalError(null);
     if (!title.trim() || !storeId) {
-      setModalError('⚠️ 請填寫團購活動名稱並選擇合作門市！');
+      setModalError('請填寫團購活動名稱並選擇合作門市！');
       return;
     }
 
@@ -96,7 +97,7 @@ export default function AdminGroupSettingsModal({
       onClose();
     } catch (err: any) {
       console.error(err);
-      setModalError(`❌ 儲存失敗：${err?.message || err}`);
+      setModalError(`儲存失敗：${err?.message || err}`);
     } finally {
       setIsSaving(false);
     }
@@ -107,10 +108,10 @@ export default function AdminGroupSettingsModal({
       <div className="bg-white dark:bg-[#131B2B] w-full max-w-lg rounded-3xl p-6 space-y-5 shadow-2xl my-auto max-h-[90vh] overflow-y-auto text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-2xl">⚙️</span>
+            <Settings className="w-6 h-6 text-sky-500" />
             <div>
               <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">
-                {groupOrder ? '團購活動與進階設定' : '🚀 發起全新團購活動'}
+                {groupOrder ? '團購活動與進階設定' : '發起全新團購活動'}
               </h3>
               <p className="text-xs text-slate-400 dark:text-slate-400">
                 設定公告通知、湊單進度條、截單倒數與個人補助預算
@@ -121,8 +122,9 @@ export default function AdminGroupSettingsModal({
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer"
+            aria-label="關閉"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -174,7 +176,8 @@ export default function AdminGroupSettingsModal({
           {/* 團長即時公告欄 */}
           <div className="bg-sky-50/60 dark:bg-sky-950/40 rounded-2xl p-3.5 border border-sky-100 dark:border-sky-900/60 space-y-1.5">
             <label htmlFor="group-modal-announcement" className="font-bold text-sky-900 dark:text-sky-300 flex items-center gap-1.5">
-              <span>📢 團長即時公告欄</span>
+              <Megaphone className="w-4 h-4 text-sky-500" />
+              <span>團長即時公告欄</span>
               <span className="text-[10px] text-sky-600 dark:text-sky-400 font-normal">（前台頂部即時顯示彩色跑馬燈）</span>
             </label>
             <input
@@ -192,7 +195,8 @@ export default function AdminGroupSettingsModal({
           <div className="bg-slate-50 dark:bg-[#182234] rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor="group-modal-enable-min-threshold" className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer">
-                <span>🚚 起送 / 免運湊單進度條</span>
+                <Truck className="w-4 h-4 text-sky-500" />
+                <span>起送 / 免運湊單進度條</span>
               </label>
               <input
                 id="group-modal-enable-min-threshold"
@@ -227,7 +231,8 @@ export default function AdminGroupSettingsModal({
           <div className="bg-slate-50 dark:bg-[#182234] rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor="group-modal-enable-countdown" className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer">
-                <span>⏱️ 預計截單倒數計時器</span>
+                <Clock className="w-4 h-4 text-sky-500" />
+                <span>預計截單倒數計時器</span>
               </label>
               <input
                 id="group-modal-enable-countdown"
@@ -260,7 +265,8 @@ export default function AdminGroupSettingsModal({
           <div className="bg-slate-50 dark:bg-[#182234] rounded-2xl p-3.5 border border-slate-200 dark:border-slate-700 space-y-2">
             <div className="flex items-center justify-between">
               <label htmlFor="group-modal-enable-budget" className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer">
-                <span>💵 每人預算上限 / 公費補貼提醒</span>
+                <Banknote className="w-4 h-4 text-sky-500" />
+                <span>每人預算上限 / 公費補貼提醒</span>
               </label>
               <input
                 id="group-modal-enable-budget"
@@ -303,9 +309,10 @@ export default function AdminGroupSettingsModal({
             <button
               type="submit"
               disabled={isSaving}
-              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-extrabold py-2.5 rounded-2xl transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer"
+              className="flex-1 bg-sky-500 hover:bg-sky-600 text-white font-extrabold py-2.5 rounded-2xl transition shadow-xs active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
             >
-              {isSaving ? '儲存中...' : '💾 儲存團購設定'}
+              <Save className="w-4 h-4" />
+              <span>{isSaving ? '儲存中...' : '儲存團購設定'}</span>
             </button>
           </div>
         </form>

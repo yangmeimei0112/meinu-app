@@ -1,5 +1,7 @@
 'use client';
 
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
+
 interface BudgetLimitNoticeProps {
   budgetLimit?: number | null;
   totalAmount: number;
@@ -24,7 +26,11 @@ export default function BudgetLimitNotice({
           : 'bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/60'
       }`}
     >
-      <span className="text-base shrink-0">{isOverBudget ? '💡' : '🎉'}</span>
+      {isOverBudget ? (
+        <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+      ) : (
+        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+      )}
       <div className="space-y-0.5 flex-1">
         <div className="flex items-center justify-between font-bold">
           <span>個人預算補貼提醒</span>

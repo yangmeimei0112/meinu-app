@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { OrderSubmissionAdmin } from '../../admin-types';
+import { Package, Copy, Calculator, ArrowRight, Save } from 'lucide-react';
 
 interface AdminDashboardFeeSplitProps {
   totalItemCount: number;
@@ -36,12 +37,13 @@ export function AdminDashboardFeeSplit({
 
   return (
     <div className="space-y-5">
-      {/* 📦 1. 向店家報單彙總清單組件 (拿鐵暖橘調漸層) */}
+      {/* 1. 向店家報單彙總清單組件 (拿鐵暖橘調漸層) */}
       <div className="bg-gradient-to-b from-amber-500/10 via-orange-500/5 to-white dark:from-[#21170E] dark:via-[#19120B] dark:to-[#100B07] rounded-3xl p-5 sm:p-6 border border-amber-200/80 dark:border-amber-500/30 shadow-[0_4px_20px_-4px_rgba(245,158,11,0.1)] space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h3 className="text-sm sm:text-base font-black text-amber-950 dark:text-amber-100 flex items-center gap-2">
-              <span>📦 向店家下單總表</span>
+              <Package className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <span>向店家下單總表</span>
               <span className="text-xs font-black text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-200 dark:border-amber-800/60 shadow-2xs">
                 共 {totalItemCount} 份
               </span>
@@ -56,7 +58,8 @@ export function AdminDashboardFeeSplit({
             onClick={handleCopyStoreOrderText}
             className="bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-slate-700 text-amber-900 dark:text-amber-300 font-extrabold text-xs px-3.5 py-2 rounded-2xl border border-amber-200/90 dark:border-amber-900/60 transition active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs"
           >
-            <span>📋 複製報單文字</span>
+            <Copy className="w-3.5 h-3.5" />
+            <span>複製報單文字</span>
           </button>
         </div>
 
@@ -83,12 +86,13 @@ export function AdminDashboardFeeSplit({
         </div>
       </div>
 
-      {/* 🔢 2. 運費平攤算式設定組件 (科技紫藍調漸層) */}
+      {/* 2. 運費平攤算式設定組件 (科技紫藍調漸層) */}
       <div className="bg-gradient-to-b from-indigo-500/10 via-purple-500/5 to-white dark:from-[#181533] dark:via-[#131028] dark:to-[#0B0918] rounded-3xl p-5 sm:p-6 border border-indigo-200/80 dark:border-indigo-500/30 shadow-[0_4px_20px_-4px_rgba(99,102,241,0.1)] space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h3 className="text-sm sm:text-base font-black text-indigo-950 dark:text-indigo-100 flex items-center gap-2">
-              <span>🔢 運費與折扣平攤設定</span>
+              <Calculator className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>運費與折扣平攤設定</span>
             </h3>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
               依全團人數即時平均試算每人金額
@@ -155,8 +159,9 @@ export function AdminDashboardFeeSplit({
               {submissions.slice(0, 3).map((sub) => (
                 <div key={sub.id} className="py-1.5 flex justify-between font-bold">
                   <span className="text-slate-700 dark:text-slate-200 truncate mr-2">{sub.user_nickname}</span>
-                  <span className="text-slate-400 dark:text-slate-500 shrink-0 font-mono text-[11px]">
-                    原價 ${sub.total_amount} ➔{' '}
+                  <span className="text-slate-400 dark:text-slate-500 shrink-0 font-mono text-[11px] flex items-center">
+                    原價 ${sub.total_amount}
+                    <ArrowRight className="w-3 h-3 mx-1 text-indigo-500 inline" />
                     <span className="text-indigo-600 dark:text-indigo-400 font-black text-xs">
                       ${calculateAdjustedAmount(sub.total_amount)} 元
                     </span>
@@ -170,9 +175,10 @@ export function AdminDashboardFeeSplit({
         <button
           type="button"
           onClick={handleApplyFeeSplit}
-          className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-black py-2.5 rounded-2xl text-xs transition shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+          className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-black py-2.5 rounded-2xl text-xs transition shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
         >
-          💾 套用平攤設定至全團訂單
+          <Save className="w-3.5 h-3.5" />
+          <span>套用平攤設定至全團訂單</span>
         </button>
       </div>
     </div>

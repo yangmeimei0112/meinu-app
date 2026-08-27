@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { PaymentMethodIcon, SoldOutOptionIcon, stripEmojis } from '@/lib/icon-utils';
 
 interface OrderItemDetail {
   id: string;
@@ -56,14 +57,20 @@ export default function OrderStatusReceipt({ order, orderItems }: OrderStatusRec
           <span>訂購人暱稱：</span>
           <span className="font-bold text-slate-800 dark:text-slate-100">{order.user_nickname}</span>
         </div>
-        <div className="flex justify-between">
+        <div className="flex justify-between items-center">
           <span>付款方式：</span>
-          <span className="font-bold text-slate-800 dark:text-slate-100">{order.payment_method_name}</span>
+          <span className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+            <PaymentMethodIcon name={order.payment_method_name} className="w-3.5 h-3.5 text-emerald-500" />
+            <span>{stripEmojis(order.payment_method_name)}</span>
+          </span>
         </div>
         {order.sold_out_option && (
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <span>缺貨備案：</span>
-            <span className="font-bold text-slate-800 dark:text-slate-100">{order.sold_out_option}</span>
+            <span className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+              <SoldOutOptionIcon title={order.sold_out_option} className="w-3.5 h-3.5 text-rose-500" />
+              <span>{stripEmojis(order.sold_out_option)}</span>
+            </span>
           </div>
         )}
         <div className="flex justify-between text-sm font-extrabold text-sky-600 dark:text-sky-400 pt-2 border-t border-slate-100 dark:border-slate-800">

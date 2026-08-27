@@ -9,8 +9,9 @@ import { supabase } from '@/lib/supabase';
 import { Store, Category } from '@/types/database';
 import { useDebounce } from '@/lib/useDebounce';
 import { useTheme } from '@/lib/theme';
-import FloatingCartButton from '@/components/FloatingCartButton';
 import HomeWelcomeBanner from '@/components/HomeWelcomeBanner';
+import { Search, ChevronRight, Store as StoreIcon, Sun, Moon } from 'lucide-react';
+import { stripEmojis } from '@/lib/icon-utils';
 
 // 🌟 智慧版本號格式化（自動支援 v6.5, v6.3 等英數版號與中文版號互轉）
 function formatVersionDisplay(msg: string, hash: string): string {
@@ -42,7 +43,7 @@ function formatVersionDisplay(msg: string, hash: string): string {
     return `v${major}.0 (${hash})`;
   }
 
-  return hash.startsWith('v') ? hash : `v6.5 (${hash})`;
+  return hash.startsWith('v') ? hash : `v9.0 (${hash})`;
 }
 
 export default function HomePage() {
@@ -135,9 +136,7 @@ export default function HomePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white dark:bg-[#131B2B] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl py-2.5 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 transition shadow-xs placeholder:text-slate-400 dark:placeholder:text-slate-500"
             />
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-sm">
-              🔍
-            </span>
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
           </div>
 
           {/* 🏷️ 分類切換標籤列 */}
@@ -164,7 +163,7 @@ export default function HomePage() {
                     : 'bg-white dark:bg-[#131B2B] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-[#182338]'
                 }`}
               >
-                {cat.name}
+                {stripEmojis(cat.name)}
               </button>
             ))}
           </div>
@@ -184,7 +183,7 @@ export default function HomePage() {
               </div>
             ) : filteredStores.length === 0 ? (
               <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
-                <div className="text-3xl">☕</div>
+                <StoreIcon className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
                 <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">目前尚無符合的店家</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
                   可以在後台管理端新增店家與菜單喔！
@@ -195,7 +194,7 @@ export default function HomePage() {
                 <Link
                   key={store.id}
                   href={`/stores/${store.code || store.id}`}
-                  className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs hover:border-sky-200 dark:hover:border-sky-500/40 hover:shadow-md transition cursor-pointer flex items-center gap-3.5 active:scale-[0.99] block content-auto"
+                  className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs hover:border-sky-200 dark:hover:border-sky-500/40 hover:shadow-md transition cursor-pointer flex items-center gap-3.5 active:scale-[0.99] block content-auto group"
                 >
                   <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-2xl shrink-0 overflow-hidden border border-sky-100 dark:border-sky-900/60">
                     {store.image_url ? (
@@ -207,11 +206,11 @@ export default function HomePage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      '🥤'
+                      <StoreIcon className="w-7 h-7 text-sky-500" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate">
+                    <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate group-hover:text-sky-500 transition-colors">
                       {store.name}
                     </h4>
                     <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">點擊瀏覽完整菜單與選購</p>
@@ -221,7 +220,7 @@ export default function HomePage() {
                       </span>
                     </div>
                   </div>
-                  <span className="text-slate-300 dark:text-slate-600 text-lg">›</span>
+                  <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-sky-500 group-hover:translate-x-0.5 transition-all" />
                 </Link>
               ))
             )}
@@ -230,7 +229,7 @@ export default function HomePage() {
       </div>
 
       {/* 底部版本號、主題切換與後台登入按鈕 */}
-      <footer className="w-full py-6 flex flex-col sm:flex-row items-center justify-center gap-2.5 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800/80 mt-auto px-4">
+      <footer className="w-full py-6 flex flex-col sm:flex-row items-center justify-center gap-2.5 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800/80 mt-auto px-4 pb-24">
         <div className="flex items-center gap-2">
           <span 
             title={commitMsg}
@@ -257,13 +256,14 @@ export default function HomePage() {
           title={`切換為${theme === 'dark' ? '亮色' : '暗色'}主題`}
           aria-label={`切換為${theme === 'dark' ? '亮色' : '暗色'}主題`}
         >
-          <span className="text-[13px]">{theme === 'dark' ? '☀️' : '🌙'}</span>
+          {theme === 'dark' ? (
+            <Sun className="w-3.5 h-3.5 text-amber-400" />
+          ) : (
+            <Moon className="w-3.5 h-3.5 text-sky-500" />
+          )}
           <span>{theme === 'dark' ? '亮色模式' : '暗色模式'}</span>
         </button>
       </footer>
-
-      {/* 🛒 首頁右下角浮動購物車按鈕 (有餐點時自動出現，平常隱藏) */}
-      <FloatingCartButton />
     </div>
   );
 }

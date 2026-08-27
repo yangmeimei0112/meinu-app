@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { Bell, BellOff, Volume2, VolumeX, Settings, Monitor, Smartphone, Sun, Moon, Store, LogOut } from 'lucide-react';
 
 interface AdminTopBarProps {
   isSoundEnabled: boolean;
@@ -59,7 +60,7 @@ export default function AdminTopBar({
             }`}
             title={isSoundEnabled ? '已開啟接單叮咚音效 (點擊關閉)' : '已關閉接單叮咚音效 (點擊開啟)'}
           >
-            <span>{isSoundEnabled ? '🔔' : '🔕'}</span>
+            {isSoundEnabled ? <Bell className="w-4 h-4 text-sky-500" /> : <BellOff className="w-4 h-4 text-slate-400" />}
             <span className="hidden sm:inline font-black">{isSoundEnabled ? '音效開啟' : '音效關閉'}</span>
           </button>
 
@@ -69,7 +70,7 @@ export default function AdminTopBar({
               type="button"
               onClick={() => {
                 const next = toggleSpeech();
-                showToast(next ? '🗣️ 已開啟新訂單語音報單' : '🤐 已關閉新訂單語音報單');
+                showToast(next ? '已開啟新訂單語音報單' : '已關閉新訂單語音報單');
               }}
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 isSpeechEnabled
@@ -78,7 +79,7 @@ export default function AdminTopBar({
               }`}
               title={isSpeechEnabled ? '已開啟新訂單語音詳細報單 (點擊關閉)' : '已關閉語音報單 (點擊開啟)'}
             >
-              <span>{isSpeechEnabled ? '🗣️' : '🤐'}</span>
+              {isSpeechEnabled ? <Volume2 className="w-4 h-4 text-emerald-500" /> : <VolumeX className="w-4 h-4 text-slate-400" />}
               <span className="hidden sm:inline font-black">{isSpeechEnabled ? '語音報單' : '語音關閉'}</span>
               {isSpeaking && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />}
             </button>
@@ -88,7 +89,7 @@ export default function AdminTopBar({
               className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg transition cursor-pointer"
               title="語音報單進階設定與試聽"
             >
-              ⚙️
+              <Settings className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -104,7 +105,7 @@ export default function AdminTopBar({
               }`}
               title="寬螢幕雙欄檢視 (推薦電腦使用)"
             >
-              💻
+              <Monitor className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
@@ -116,7 +117,7 @@ export default function AdminTopBar({
               }`}
               title="單欄緊湊檢視 (推薦手機使用)"
             >
-              📱
+              <Smartphone className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -126,24 +127,26 @@ export default function AdminTopBar({
             onClick={toggleTheme}
             className="p-2 rounded-2xl font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
           >
-            {theme === 'dark' ? '☀️' : '🌙'}
+            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-sky-400" />}
           </button>
 
           {/* 5. 前台大廳入口 */}
           <Link
             href="/"
-            className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-2xl font-black text-xs transition active:scale-95 shadow-2xs"
+            className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-3.5 py-2 rounded-2xl font-black text-xs transition active:scale-95 shadow-2xs flex items-center gap-1.5"
           >
-            🏪 前台大廳
+            <Store className="w-3.5 h-3.5" />
+            <span>前台大廳</span>
           </Link>
 
           {/* 6. 安全登出 */}
           <button
             type="button"
             onClick={handleLogout}
-            className="bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200/80 dark:border-rose-900/60 px-3.5 py-2 rounded-2xl font-black text-xs transition active:scale-95 cursor-pointer shadow-2xs"
+            className="bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200/80 dark:border-rose-900/60 px-3.5 py-2 rounded-2xl font-black text-xs transition active:scale-95 cursor-pointer shadow-2xs flex items-center gap-1.5"
           >
-            🔒 登出
+            <LogOut className="w-3.5 h-3.5" />
+            <span>登出</span>
           </button>
         </div>
       </div>

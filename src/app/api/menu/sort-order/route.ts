@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
     const contentLength = Number(request.headers.get('content-length') || 0);
     if (contentLength > 16384) {
       return NextResponse.json(
-        { success: false, message: '🚫 請求資料過大，拒絕處理 (Payload Too Large)' },
+        { success: false, message: '請求資料過大，拒絕處理 (Payload Too Large)' },
         { status: 413 }
       );
     }
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
     const token = request.cookies.get('meinu_admin_token')?.value;
     if (!verifyAdminToken(token)) {
       return NextResponse.json(
-        { success: false, message: '🔒 存取被拒：未經授權的操作，請先解鎖團長管理後台！' },
+        { success: false, message: '存取被拒：未經授權的操作，請先解鎖團長管理後台！' },
         { status: 401 }
       );
     }

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { BarChart3, UtensilsCrossed, Archive, Wrench } from 'lucide-react';
 
 interface AdminTabsNavProps {
   activeTab: 'active' | 'crud' | 'archive' | 'maintenance';
@@ -26,7 +27,8 @@ export default function AdminTabsNav({
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          <span>📊 即時對帳</span>
+          <BarChart3 className="w-4 h-4" />
+          <span>即時對帳</span>
           {activeSubmissionsCount > 0 && (
             <span className="bg-sky-500 dark:bg-white text-white dark:text-sky-800 text-[10px] px-2 py-0.2 rounded-full font-black">
               {activeSubmissionsCount}
@@ -44,7 +46,8 @@ export default function AdminTabsNav({
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          <span>🍽️ 店家與菜單工作室</span>
+          <UtensilsCrossed className="w-4 h-4" />
+          <span>店家與菜單工作室</span>
         </button>
 
         {/* 3. 歷史歸檔 */}
@@ -57,7 +60,8 @@ export default function AdminTabsNav({
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          <span>🗄️ 歷史訂單歸檔</span>
+          <Archive className="w-4 h-4" />
+          <span>歷史訂單歸檔</span>
         </button>
 
         {/* 4. 系統維護 */}
@@ -70,7 +74,8 @@ export default function AdminTabsNav({
               : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          <span>🛠️ 系統維護模式</span>
+          <Wrench className="w-4 h-4" />
+          <span>系統維護模式</span>
         </button>
       </div>
     </div>

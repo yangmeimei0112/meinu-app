@@ -39,6 +39,7 @@ export const metadata: Metadata = {
 };
 
 import MaintenanceGuard from '@/components/MaintenanceGuard';
+import MobileBottomNav from '@/components/MobileBottomNav';
 
 export default function RootLayout({
   children,
@@ -70,7 +71,10 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-slate-50 text-slate-900 dark:bg-[#0B0F17] dark:text-slate-100 antialiased selection:bg-sky-100 dark:selection:bg-sky-900/60 selection:text-sky-600 dark:selection:text-sky-300">
-        <MaintenanceGuard>{children}</MaintenanceGuard>
+        <MaintenanceGuard>
+          {children}
+          <MobileBottomNav />
+        </MaintenanceGuard>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Search, X, CheckCircle2, Trash2 } from 'lucide-react';
 
 interface AdminDashboardFiltersProps {
   searchQuery: string;
@@ -34,11 +35,12 @@ export function AdminDashboardFilters({
   return (
     <div className="bg-white/95 dark:bg-[#0E1726]/95 rounded-3xl p-4 sm:p-5 border border-slate-200/90 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] space-y-3.5 backdrop-blur-md">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* 🔍 搜尋框 */}
+        {/* 搜尋框 */}
         <div className="relative flex-1">
+          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="🔍 搜尋團員暱稱或單號..."
+            placeholder="搜尋團員暱稱或單號..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-100/90 dark:bg-[#152033] border border-slate-200 dark:border-slate-700/80 rounded-2xl py-2.5 px-3.5 pl-9 text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400 transition"
@@ -47,9 +49,10 @@ export function AdminDashboardFilters({
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 w-5 h-5 rounded-full flex items-center justify-center hover:bg-slate-300 transition"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 w-5 h-5 rounded-full flex items-center justify-center hover:bg-slate-300 transition cursor-pointer"
+              aria-label="清除搜尋"
             >
-              ✕
+              <X className="w-3 h-3" />
             </button>
           )}
         </div>
@@ -114,16 +117,18 @@ export function AdminDashboardFilters({
             <button
               type="button"
               onClick={handleBatchMarkPaid}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1 cursor-pointer"
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
-              <span>✅ 批次標記已付款 ({selectedCount})</span>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>批次標記已付款 ({selectedCount})</span>
             </button>
             <button
               type="button"
               onClick={handleBatchDeleteOrders}
-              className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1 cursor-pointer"
+              className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
-              <span>🗑️ 批次刪除 ({selectedCount})</span>
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>批次刪除 ({selectedCount})</span>
             </button>
           </div>
         )}

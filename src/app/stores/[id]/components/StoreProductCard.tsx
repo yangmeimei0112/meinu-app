@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { MenuItem } from '@/types/database';
+import { Flame, Ban, Plus } from 'lucide-react';
 
 interface StoreProductCardProps {
   item: MenuItem;
@@ -27,13 +28,15 @@ export default function StoreProductCard({ item, popularQty, onSelect }: StorePr
         <div className="flex items-center gap-2">
           <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base">{item.name}</h4>
           {isSoldOut && (
-            <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-              已售完
+            <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Ban className="w-3 h-3 text-slate-400" />
+              <span>已售完</span>
             </span>
           )}
           {popularQty > 0 && (
-            <span className="bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-0.5">
-              🔥 本團已點 {popularQty} 份
+            <span className="bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Flame className="w-3 h-3 text-amber-500 shrink-0" />
+              <span>本團已點 {popularQty} 份</span>
             </span>
           )}
         </div>
@@ -52,7 +55,17 @@ export default function StoreProductCard({ item, popularQty, onSelect }: StorePr
             : 'bg-sky-50 dark:bg-slate-800 hover:bg-sky-500 dark:hover:bg-sky-600 text-sky-600 dark:text-sky-300 hover:text-white border-sky-200 dark:border-slate-700 cursor-pointer'
         }`}
       >
-        {isSoldOut ? '已售完' : '選購 +'}
+        {isSoldOut ? (
+          <span className="flex items-center gap-1">
+            <Ban className="w-3 h-3" />
+            <span>已售完</span>
+          </span>
+        ) : (
+          <span className="flex items-center gap-1">
+            <Plus className="w-3 h-3" />
+            <span>選購</span>
+          </span>
+        )}
       </button>
     </div>
   );

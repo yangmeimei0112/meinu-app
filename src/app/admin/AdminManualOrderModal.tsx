@@ -5,6 +5,8 @@ import type { MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { GroupOrderAdmin } from './admin-types';
 import { supabase } from '@/lib/supabase';
 import { generateSequentialOrderNumber } from '@/lib/order-utils';
+import { PenTool, X, Plus, Minus } from 'lucide-react';
+import { stripEmojis } from '@/lib/icon-utils';
 
 interface AdminManualOrderModalProps {
   isOpen: boolean;
@@ -42,17 +44,17 @@ export default function AdminManualOrderModal({
   const handleManualSubmit = async () => {
     setStatusMsg(null);
     if (!nickname.trim()) {
-      setStatusMsg({ text: '⚠️ 請填寫朋友暱稱！', isError: true });
+      setStatusMsg({ text: '請填寫朋友暱稱！', isError: true });
       return;
     }
     if (!currentItem) {
-      setStatusMsg({ text: '⚠️ 請選擇餐點品項！', isError: true });
+      setStatusMsg({ text: '請選擇餐點品項！', isError: true });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // 🔢 規律化循序單號生成 (MN-001, MN-002, MN-003 ...)
+      // 規律化循序單號生成 (MN-001, MN-002, MN-003 ...)
       const orderNumber = await generateSequentialOrderNumber(supabase, groupOrder.id);
       const { data: submission, error: subErr } = await supabase
         .from('order_submissions')
@@ -79,7 +81,7 @@ export default function AdminManualOrderModal({
         custom_notes: customNotes.trim() ? customNotes.trim() : null,
       });
 
-      setStatusMsg({ text: `🎉 已成功幫「${nickname.trim()}」代點餐點！`, isError: false });
+      setStatusMsg({ text: `已成功幫「${nickname.trim()}」代點餐點！`, isError: false });
       setTimeout(() => {
         setNickname('');
         setCustomNotes('');
@@ -89,7 +91,7 @@ export default function AdminManualOrderModal({
       }, 1000);
     } catch (err) {
       console.error(err);
-      setStatusMsg({ text: '❌ 代點失敗，請稍後重試', isError: true });
+      setStatusMsg({ text: '代點失敗，請稍後重試', isError: true });
     } finally {
       setIsSubmitting(false);
     }
@@ -100,7 +102,7 @@ export default function AdminManualOrderModal({
       <div className="bg-white dark:bg-[#131B2B] w-full max-w-sm rounded-3xl p-5 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-100">
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
           <div className="flex items-center gap-2">
-            <span className="text-xl">✍️</span>
+            <PenTool className="w-5 h-5 text-sky-500" />
             <div>
               <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">團長代點餐 / 人工補單</h3>
               <p className="text-xs text-slate-400 dark:text-slate-400">幫現場或發 LINE 的朋友手動新增一筆訂單</p>
@@ -110,8 +112,9 @@ export default function AdminManualOrderModal({
             type="button"
             onClick={onClose}
             className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer"
+            aria-label="關閉"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -169,16 +172,18 @@ export default function AdminManualOrderModal({
                 type="button"
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center cursor-pointer"
+                aria-label="減少數量"
               >
-                -
+                <Minus className="w-3 h-3" />
               </button>
               <span className="text-xs font-bold w-4 text-center text-slate-800 dark:text-slate-100">{quantity}</span>
               <button
                 type="button"
                 onClick={() => setQuantity((q) => q + 1)}
                 className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold shadow-xs active:scale-95 text-xs flex items-center justify-center cursor-pointer"
+                aria-label="增加數量"
               >
-                +
+                <Plus className="w-3 h-3" />
               </button>
             </div>
           </div>
@@ -209,7 +214,7 @@ export default function AdminManualOrderModal({
             >
               {paymentMethods.map((pm) => (
                 <option key={pm.id} value={pm.name}>
-                  {pm.name}
+                  {stripEmojis(pm.name)}
                 </option>
               ))}
             </select>
@@ -227,7 +232,7 @@ export default function AdminManualOrderModal({
             >
               {soldOutOptions.map((so) => (
                 <option key={so.id} value={so.title}>
-                  {so.title}
+                  {stripEmojis(so.title)}
                 </option>
               ))}
             </select>
@@ -244,9 +249,10 @@ export default function AdminManualOrderModal({
             type="button"
             disabled={isSubmitting}
             onClick={handleManualSubmit}
-            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-2.5 rounded-2xl text-xs shadow-md transition active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-2.5 rounded-2xl text-xs shadow-md transition active:scale-95 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
           >
-            {isSubmitting ? '正在寫入...' : '➕ 確定新增代點訂單'}
+            <Plus className="w-4 h-4" />
+            <span>{isSubmitting ? '正在寫入...' : '確定新增代點訂單'}</span>
           </button>
         </div>
       </div>

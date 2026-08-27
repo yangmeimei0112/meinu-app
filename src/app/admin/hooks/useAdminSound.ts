@@ -59,19 +59,31 @@ export function useAdminSound() {
   useEffect(() => {
     const handleGesture = () => {
       initAudio();
-      window.removeEventListener('click', handleGesture);
-      window.removeEventListener('touchstart', handleGesture);
-      window.removeEventListener('keydown', handleGesture);
+      try {
+        if (typeof window !== 'undefined' && window && typeof window.removeEventListener === 'function') {
+          window.removeEventListener('click', handleGesture);
+          window.removeEventListener('touchstart', handleGesture);
+          window.removeEventListener('keydown', handleGesture);
+        }
+      } catch {}
     };
 
-    window.addEventListener('click', handleGesture, { passive: true, once: true });
-    window.addEventListener('touchstart', handleGesture, { passive: true, once: true });
-    window.addEventListener('keydown', handleGesture, { passive: true, once: true });
+    try {
+      if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
+        window.addEventListener('click', handleGesture, { passive: true, once: true });
+        window.addEventListener('touchstart', handleGesture, { passive: true, once: true });
+        window.addEventListener('keydown', handleGesture, { passive: true, once: true });
+      }
+    } catch {}
 
     return () => {
-      window.removeEventListener('click', handleGesture);
-      window.removeEventListener('touchstart', handleGesture);
-      window.removeEventListener('keydown', handleGesture);
+      try {
+        if (typeof window !== 'undefined' && window && typeof window.removeEventListener === 'function') {
+          window.removeEventListener('click', handleGesture);
+          window.removeEventListener('touchstart', handleGesture);
+          window.removeEventListener('keydown', handleGesture);
+        }
+      } catch {}
     };
   }, [initAudio]);
 

@@ -3,6 +3,20 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { GroupOrderAdmin, AdminViewMode, OrderSubmissionAdmin } from './admin-types';
+import {
+  Archive,
+  Search,
+  CheckSquare,
+  Square,
+  Trash2,
+  Check,
+  Store as StoreIcon,
+  Package,
+  Megaphone,
+  RotateCcw,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
 
 interface AdminArchiveSectionProps {
   viewMode?: AdminViewMode;
@@ -134,7 +148,8 @@ export function AdminArchiveSection({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pl-2">
           <div>
             <h3 className="text-base sm:text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
-              <span>🗂️ 歷史團購活動歸檔</span>
+              <Archive className="w-5 h-5 text-sky-500" />
+              <span>歷史團購活動歸檔</span>
               <span className="text-xs font-black text-slate-700 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-800 px-3 py-0.5 rounded-full border border-slate-300 dark:border-slate-700 shadow-2xs">
                 共 {archivedGroups.length} 個歷史活動
               </span>
@@ -150,6 +165,7 @@ export function AdminArchiveSection({
               <>
                 {/* 搜尋輸入框 */}
                 <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     placeholder="搜尋歷史活動或店家..."
@@ -157,9 +173,6 @@ export function AdminArchiveSection({
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="bg-white dark:bg-[#152033] border border-slate-200 dark:border-slate-700 rounded-2xl py-2 pl-8 pr-3 text-xs font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400 shadow-2xs"
                   />
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                    🔍
-                  </span>
                 </div>
 
                 <button
@@ -171,7 +184,17 @@ export function AdminArchiveSection({
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <span>{isAllSelected ? '☑️ 取消全選' : '⬜ 全選'}</span>
+                  {isAllSelected ? (
+                    <>
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      <span>取消全選</span>
+                    </>
+                  ) : (
+                    <>
+                      <Square className="w-3.5 h-3.5" />
+                      <span>全選</span>
+                    </>
+                  )}
                 </button>
 
                 {selectedGroupIds.length > 0 && (
@@ -180,7 +203,8 @@ export function AdminArchiveSection({
                     onClick={handleExecuteBatchDelete}
                     className="bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white text-xs px-4 py-2 rounded-2xl font-black transition shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer animate-in fade-in duration-150"
                   >
-                    <span>🗑️ 批次刪除 ({selectedGroupIds.length})</span>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>批次刪除 ({selectedGroupIds.length})</span>
                   </button>
                 )}
               </>
@@ -190,8 +214,8 @@ export function AdminArchiveSection({
       </div>
 
       {archivedGroups.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-[#0E1726]/90 p-12 text-center text-xs text-slate-400 dark:text-slate-500 space-y-2">
-          <div className="text-3xl">🗂️</div>
+        <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-[#0E1726]/90 p-12 text-center text-xs text-slate-400 dark:text-slate-500 space-y-3">
+          <Archive className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto stroke-[1.5]" />
           <p className="font-extrabold text-slate-700 dark:text-slate-200 text-sm">目前尚無已結案的封存團購活動</p>
           <p>當進行中的團購活動結案歸檔後，將會在此處保存備查。</p>
         </div>
@@ -238,19 +262,21 @@ export function AdminArchiveSection({
                             : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 hover:border-sky-400'
                         }`}
                       >
-                        {isChecked && '✓'}
+                        {isChecked && <Check className="w-3 h-3 text-white" />}
                       </button>
 
                       <div className="min-w-0 flex-1 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           {/* 店家標籤 */}
-                          <span className="text-[11px] font-black bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 px-3 py-0.5 rounded-full border border-sky-200 dark:border-sky-800/60">
-                            🏪 {group.stores?.name || '合作門市'}
+                          <span className="text-[11px] font-black bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 px-3 py-0.5 rounded-full border border-sky-200 dark:border-sky-800/60 flex items-center gap-1">
+                            <StoreIcon className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                            <span>{group.stores?.name || '合作門市'}</span>
                           </span>
 
                           {/* 狀態標籤 */}
-                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
-                            📦 已結案歸檔
+                          <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                            <Package className="w-3 h-3 text-slate-400" />
+                            <span>已結案歸檔</span>
                           </span>
                         </div>
 
@@ -261,8 +287,9 @@ export function AdminArchiveSection({
 
                         {/* 公告 */}
                         {group.announcement && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 italic">
-                            📢 {group.announcement}
+                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 italic flex items-center gap-1">
+                            <Megaphone className="w-3 h-3 text-sky-500 shrink-0" />
+                            <span>{group.announcement}</span>
                           </p>
                         )}
                       </div>
@@ -274,32 +301,44 @@ export function AdminArchiveSection({
                       <button
                         type="button"
                         onClick={() => handleReopenGroup(group)}
-                        className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1 cursor-pointer"
+                        className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs px-3.5 py-1.5 rounded-xl shadow-xs active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
                       >
-                        <span>🔄 一鍵重開新團</span>
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>一鍵重開新團</span>
                       </button>
 
                       {/* 展開明細按鈕 */}
                       <button
                         type="button"
                         onClick={(e) => handleToggleExpandOrders(group.id, e)}
-                        className={`text-xs px-3.5 py-1.5 rounded-xl font-black border transition flex items-center gap-1 cursor-pointer shadow-2xs ${
+                        className={`text-xs px-3.5 py-1.5 rounded-xl font-black border transition flex items-center gap-1.5 cursor-pointer shadow-2xs ${
                           isExpanded
                             ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent'
                             : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        <span>{isExpanded ? '收合名單 ▲' : '查看訂單 ▼'}</span>
+                        {isExpanded ? (
+                          <>
+                            <ChevronUp className="w-3.5 h-3.5" />
+                            <span>收合名單</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="w-3.5 h-3.5" />
+                            <span>查看訂單</span>
+                          </>
+                        )}
                       </button>
 
                       {/* 單筆刪除 */}
                       <button
                         type="button"
                         onClick={() => handleDeleteArchivedGroup(group.id, group.title)}
-                        className="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 font-black text-xs px-2.5 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
+                        className="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 font-black text-xs w-8 h-8 rounded-xl border border-slate-200/60 dark:border-slate-700 transition cursor-pointer flex items-center justify-center"
                         title="刪除此活動紀錄"
+                        aria-label="刪除此活動紀錄"
                       >
-                        🗑️
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>

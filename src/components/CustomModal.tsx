@@ -6,6 +6,7 @@ import { MenuItem, CustomGroup } from '@/types/database';
 import { CartItem, SelectedOption } from '@/types/cart';
 import { useCustomModalDraft } from './custom-modal/useCustomModalDraft';
 import { CustomModalOptionGroup } from './custom-modal/CustomModalOptionGroup';
+import { History as IconHistory, Check as IconCheck, AlertCircle as IconAlertCircle, X } from 'lucide-react';
 
 interface CustomModalProps {
   item: MenuItem | null;
@@ -15,34 +16,6 @@ interface CustomModalProps {
   onClose: () => void;
   onAddToCart: (cartItem: CartItem) => void;
   onUpdateCartItem?: (updatedItem: CartItem) => void;
-}
-
-function IconHistory({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 3v5h5" />
-      <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
-      <path d="M12 7v5l4 2" />
-    </svg>
-  );
-}
-
-function IconCheck({ className = 'w-3.5 h-3.5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
-function IconAlertCircle({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="12" y1="8" x2="12" y2="12" />
-      <line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
-  );
 }
 
 export default function CustomModal({
@@ -289,9 +262,10 @@ export default function CustomModal({
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center text-sm font-bold active:scale-95 cursor-pointer"
+            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center active:scale-95 cursor-pointer"
+            aria-label="關閉"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 

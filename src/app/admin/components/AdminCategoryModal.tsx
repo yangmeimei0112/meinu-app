@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Category } from '@/types/database';
+import { Pencil, Tag } from 'lucide-react';
 
 interface AdminCategoryModalProps {
   isOpen: boolean;
@@ -26,7 +27,17 @@ export default function AdminCategoryModal({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white dark:bg-[#131B2B] w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 shadow-2xl">
         <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
-          {editingCat ? '✏️ 編輯類別名稱' : '🏷️ 新增類別'}
+          {editingCat ? (
+            <span className="flex items-center justify-center gap-1.5">
+              <Pencil className="w-4 h-4 text-sky-500" />
+              <span>編輯類別名稱</span>
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-1.5">
+              <Tag className="w-4 h-4 text-sky-500" />
+              <span>新增類別</span>
+            </span>
+          )}
         </h3>
 
         <form onSubmit={onSaveCategory} className="space-y-3">

@@ -110,10 +110,10 @@ export async function POST(req: NextRequest) {
   if (host && origin) {
     try {
       if (new URL(origin).host !== host) {
-        return NextResponse.json({ success: false, message: '🚫 跨來源請求被拒' }, { status: 403 });
+        return NextResponse.json({ success: false, message: '跨來源請求被拒' }, { status: 403 });
       }
     } catch {
-      return NextResponse.json({ success: false, message: '🚫 不合法的請求來源' }, { status: 403 });
+      return NextResponse.json({ success: false, message: '不合法的請求來源' }, { status: 403 });
     }
   }
 
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
   const token = req.cookies.get('meinu_admin_token')?.value;
   if (!verifyAdminToken(token)) {
     return NextResponse.json(
-      { success: false, message: '🔒 存取被拒：未經授權的操作，請先解鎖團長後台！' },
+      { success: false, message: '存取被拒：未經授權的操作，請先解鎖團長後台！' },
       { status: 401 }
     );
   }

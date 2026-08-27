@@ -14,6 +14,7 @@ import { CartItem } from '@/types/cart';
 import { useMultiCart } from '@/lib/useMultiCart';
 import { useDebounce } from '@/lib/useDebounce';
 import StoreProductCard from './components/StoreProductCard';
+import { ChevronLeft, Lock, Megaphone, Share2, Search, Clock, Flame, Truck, CheckCircle2, UtensilsCrossed } from 'lucide-react';
 
 interface GroupOrderMeta {
   id: string;
@@ -103,8 +104,23 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
       if (menuRes.data) {
         let items = menuRes.data as MenuItem[];
 
-        // 🌟 套用團長後台排定的自訂順序
-        const customOrder: string[] = sortRes?.itemIds || [];
+        // 🌟 套用團長後台排定的自訂順序（優先讀取伺服端，本地快取作為雙重備援）
+        let customOrder: string[] = sortRes?.itemIds || [];
+        if (customOrder.length === 0 && typeof window !== 'undefined') {
+          try {
+            const cachedOrders = JSON.parse(localStorage.getItem('menu_app_store_sort_orders') || '{}');
+            if (Array.isArray(cachedOrders[storeId])) {
+              customOrder = cachedOrders[storeId];
+            }
+          } catch {}
+        } else if (customOrder.length > 0 && typeof window !== 'undefined') {
+          try {
+            const cachedOrders = JSON.parse(localStorage.getItem('menu_app_store_sort_orders') || '{}');
+            cachedOrders[storeId] = customOrder;
+            localStorage.setItem('menu_app_store_sort_orders', JSON.stringify(cachedOrders));
+          } catch {}
+        }
+
         if (customOrder.length > 0) {
           items.sort((a, b) => {
             const indexA = customOrder.indexOf(a.id);
@@ -233,7 +249,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
       }
     } else {
       await navigator.clipboard.writeText(shareUrl);
-      showToast(`📋 「${store.name}」專屬揪團連結已複製！`);
+      showToast(`「${store.name}」專屬揪團連結已複製！`);
     }
   };
 
@@ -259,11 +275,11 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
   const handleAddToCart = useCallback(
     (newItem: CartItem) => {
       if (isGroupClosed) {
-        showToast('⚠️ 團長已截單，目前停止收單中！');
+        showToast('團長已截單，目前停止收單中！');
         return;
       }
       addItem(newItem);
-      showToast(`🛒 已將「${newItem.name}」加入購物車！`);
+      showToast(`已將「${newItem.name}」加入購物車！`);
     },
     [isGroupClosed, addItem, showToast]
   );
@@ -297,7 +313,8 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
             href="/"
             className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 transition py-1"
           >
-            ‹ 返回「咩nu」大廳
+            <ChevronLeft className="w-4 h-4" />
+            <span>返回「咩nu」大廳</span>
           </Link>
           <span className="text-[11px] text-slate-400 dark:text-slate-500">
             {store?.name ? `店家：${store.name}` : ''}
@@ -308,7 +325,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
 
         {isGroupClosed && (
           <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl p-3.5 flex items-center gap-2.5 shadow-xs">
-            <span className="text-xl">🔒</span>
+            <Lock className="w-5 h-5 text-rose-500 shrink-0" />
             <div>
               <p className="font-extrabold text-rose-800 dark:text-rose-300">團長已截單，停止收單中</p>
               <p className="text-[11px] text-rose-600 dark:text-rose-400 font-normal mt-0.5">
@@ -320,7 +337,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
 
         {groupMeta?.announcement && (
           <div className="bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-2xl p-3 shadow-xs text-xs font-bold flex items-center gap-2 animate-in fade-in duration-300">
-            <span className="text-base shrink-0">📢</span>
+            <Megaphone className="w-4 h-4 shrink-0 text-white" />
             <p className="line-clamp-2">{groupMeta.announcement}</p>
           </div>
         )}
@@ -343,7 +360,11 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-base">{isUrgent ? '🔥' : '⏱️'}</span>
+                  {isUrgent ? (
+                    <Flame className="w-4 h-4 text-rose-400 shrink-0 animate-bounce" />
+                  ) : (
+                    <Clock className="w-4 h-4 text-slate-300 shrink-0" />
+                  )}
                   <span className="text-xs font-bold">
                     {isUrgent ? '即將截單！把握時間' : '預計截單倒數'}
                   </span>
@@ -363,14 +384,20 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
             {groupMeta.enable_min_threshold && (
               <div className="bg-white dark:bg-[#131B2B] rounded-2xl p-3 border border-sky-100 dark:border-slate-800 shadow-xs space-y-1.5">
                 <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-slate-700 dark:text-slate-200 flex items-center gap-1">
-                    <span>🚚 起送湊單進度</span>
+                  <span className="text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                    <span>起送湊單進度</span>
                     <span className="text-sky-600 dark:text-sky-400">(${groupTotalAmount} / ${groupMeta.min_threshold_amount})</span>
                   </span>
-                  <span className="text-sky-600 dark:text-sky-400">
-                    {groupTotalAmount >= groupMeta.min_threshold_amount
-                      ? '🎉 已達標！'
-                      : `還差 $${groupMeta.min_threshold_amount - groupTotalAmount} 元`}
+                  <span className="text-sky-600 dark:text-sky-400 flex items-center gap-1">
+                    {groupTotalAmount >= groupMeta.min_threshold_amount ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                        <span>已達標！</span>
+                      </>
+                    ) : (
+                      `還差 $${groupMeta.min_threshold_amount - groupTotalAmount} 元`
+                    )}
                   </span>
                 </div>
 
@@ -412,15 +439,16 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    '🥤'
+                    <UtensilsCrossed className="w-8 h-8 text-slate-300 dark:text-slate-600 stroke-[1.5]" />
                   )}
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 truncate">
                     {store.name}
                   </h2>
-                  <span className="inline-block mt-1 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">
-                    🟢 開放揪團中
+                  <span className="inline-flex items-center gap-1 mt-1 bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>開放揪團中</span>
                   </span>
                 </div>
               </div>
@@ -428,9 +456,10 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
               <button
                 type="button"
                 onClick={handleShareStore}
-                className="bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold text-xs px-3.5 py-2.5 rounded-2xl shadow-xs transition active:scale-95 shrink-0 flex items-center gap-1"
+                className="bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold text-xs px-3.5 py-2.5 rounded-2xl shadow-xs transition active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
               >
-                <span>🔗 揪團分享</span>
+                <Share2 className="w-3.5 h-3.5 stroke-[2.2]" />
+                <span>揪團分享</span>
               </button>
             </div>
 
@@ -454,7 +483,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
                   onChange={(e) => setMenuSearchQuery(e.target.value)}
                   className="w-full bg-white dark:bg-[#131B2B] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-800 rounded-2xl py-2.5 pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 transition shadow-xs placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 text-sm">🔍</span>
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none" />
               </div>
 
               {filteredMenuItems.map((item: MenuItem) => (

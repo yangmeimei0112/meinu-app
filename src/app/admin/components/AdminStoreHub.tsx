@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import type { Category, MenuItem, PaymentMethod, SoldOutOption, Store } from '@/types/database';
+import { Store as StoreIcon, Settings, ChevronUp, ChevronDown, Plus, Tag, CreditCard, AlertTriangle, X, Wrench, ArrowRight, Pencil, Trash2 } from 'lucide-react';
+import { PaymentMethodIcon, SoldOutOptionIcon } from '@/lib/icon-utils';
 
 interface AdminStoreHubProps {
   isDesktop: boolean;
@@ -68,13 +70,14 @@ export default function AdminStoreHub({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pl-2">
           <div>
             <h2 className="text-base sm:text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
-              <span>🏪 合作店家與菜單中心</span>
+              <StoreIcon className="w-5 h-5 text-sky-500" />
+              <span>合作店家與菜單中心</span>
               <span className="text-xs font-black text-sky-800 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/80 px-3 py-0.5 rounded-full border border-sky-200 dark:border-sky-800/60 shadow-2xs">
                 共 {stores.length} 家門市
               </span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-1">
-              點擊任一門市卡片的「🛠️ 進入菜單設計」即可配置餐點、多層次規格選項與售罄狀態！
+              點擊任一門市卡片的「進入菜單設計」即可配置餐點、多層次規格選項與售罄狀態！
             </p>
           </div>
 
@@ -84,8 +87,9 @@ export default function AdminStoreHub({
               onClick={() => setShowGlobalSettings(!showGlobalSettings)}
               className="bg-white/90 dark:bg-slate-800/90 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black px-4 py-2 rounded-2xl border border-slate-200/90 dark:border-slate-700 transition active:scale-95 flex items-center gap-1.5 cursor-pointer shadow-2xs"
             >
-              <span>⚙️ 全域設定 (分類 / 金流 / 缺貨)</span>
-              <span className="text-[10px]">{showGlobalSettings ? '▲' : '▼'}</span>
+              <Settings className="w-3.5 h-3.5" />
+              <span>全域設定 (分類 / 金流 / 缺貨)</span>
+              {showGlobalSettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
 
             <button
@@ -93,47 +97,51 @@ export default function AdminStoreHub({
               onClick={onCreateStore}
               className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-black px-4 py-2 rounded-2xl transition active:scale-95 shadow-md shadow-sky-500/20 flex items-center gap-1.5 cursor-pointer"
             >
-              <span>＋ 新增合作門市</span>
+              <Plus className="w-3.5 h-3.5" />
+              <span>新增合作門市</span>
             </button>
           </div>
         </div>
 
-        {/* ⚙️ 全域設定折疊卡片 */}
+        {/* 全域設定折疊卡片 */}
         {showGlobalSettings && (
           <div className="bg-white/90 dark:bg-[#152033]/90 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-700 space-y-4 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-md">
             <div className="flex bg-slate-100 dark:bg-slate-800/90 p-1.5 rounded-2xl text-xs font-black text-slate-600 dark:text-slate-300 max-w-md border border-slate-200 dark:border-slate-700">
               <button
                 type="button"
                 onClick={() => setGlobalSettingTab('categories')}
-                className={`flex-1 py-1.5 rounded-xl transition cursor-pointer ${
+                className={`flex-1 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
                   globalSettingTab === 'categories'
                     ? 'bg-white dark:bg-sky-500 text-slate-900 dark:text-white shadow-xs'
                     : 'hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
-                🏷️ 商品分類 ({categories.length})
+                <Tag className="w-3 h-3" />
+                <span>商品分類 ({categories.length})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setGlobalSettingTab('payments')}
-                className={`flex-1 py-1.5 rounded-xl transition cursor-pointer ${
+                className={`flex-1 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
                   globalSettingTab === 'payments'
                     ? 'bg-white dark:bg-sky-500 text-slate-900 dark:text-white shadow-xs'
                     : 'hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
-                💳 付款方式 ({paymentMethods.length})
+                <CreditCard className="w-3 h-3" />
+                <span>付款方式 ({paymentMethods.length})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setGlobalSettingTab('sold_outs')}
-                className={`flex-1 py-1.5 rounded-xl transition cursor-pointer ${
+                className={`flex-1 py-1.5 rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
                   globalSettingTab === 'sold_outs'
                     ? 'bg-white dark:bg-sky-500 text-slate-900 dark:text-white shadow-xs'
                     : 'hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
-                ⚠️ 缺貨備案 ({soldOutOptions.length})
+                <AlertTriangle className="w-3 h-3" />
+                <span>缺貨備案 ({soldOutOptions.length})</span>
               </button>
             </div>
 
@@ -145,9 +153,10 @@ export default function AdminStoreHub({
                   <button
                     type="button"
                     onClick={onCreateCategory}
-                    className="text-xs font-black bg-gradient-to-r from-sky-500 to-blue-600 text-white px-3 py-1.5 rounded-xl shadow-xs active:scale-95 cursor-pointer"
+                    className="text-xs font-black bg-gradient-to-r from-sky-500 to-blue-600 text-white px-3 py-1.5 rounded-xl shadow-xs active:scale-95 cursor-pointer flex items-center gap-1"
                   >
-                    ＋ 新增分類
+                    <Plus className="w-3 h-3" />
+                    <span>新增分類</span>
                   </button>
                 </div>
                 {categories.length === 0 ? (
@@ -173,22 +182,25 @@ export default function AdminStoreHub({
                           type="button"
                           onClick={() => onMoveCategory(cat.id, 'up')}
                           className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-6 h-6 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer flex items-center justify-center font-black"
+                          aria-label="上移"
                         >
-                          ↑
+                          <ChevronUp className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => onMoveCategory(cat.id, 'down')}
                           className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-6 h-6 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer flex items-center justify-center font-black"
+                          aria-label="下移"
                         >
-                          ↓
+                          <ChevronDown className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => onDeleteCategory(cat.id)}
-                          className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 font-black px-1.5 cursor-pointer"
+                          className="text-xs text-rose-500 hover:text-rose-700 dark:hover:text-rose-400 font-black p-1 cursor-pointer"
+                          aria-label="刪除"
                         >
-                          ✕
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ))}
@@ -205,9 +217,10 @@ export default function AdminStoreHub({
                   <button
                     type="button"
                     onClick={onCreatePaymentMethod}
-                    className="text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-3 py-1.5 rounded-xl shadow-xs active:scale-95 cursor-pointer"
+                    className="text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-3 py-1.5 rounded-xl shadow-xs active:scale-95 cursor-pointer flex items-center gap-1"
                   >
-                    ＋ 新增付款方式
+                    <Plus className="w-3 h-3" />
+                    <span>新增付款方式</span>
                   </button>
                 </div>
                 {paymentMethods.length === 0 ? (
@@ -222,6 +235,7 @@ export default function AdminStoreHub({
                         className="bg-slate-50 dark:bg-[#0E1726] p-3 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2"
                       >
                         <div className="flex items-center gap-2">
+                          <PaymentMethodIcon name={method.name} className="w-4 h-4 text-emerald-500 shrink-0" />
                           <input
                             id={`pm-item-${method.id}`}
                             name={`pm_${method.id}_name`}
@@ -251,9 +265,10 @@ export default function AdminStoreHub({
                           <button
                             type="button"
                             onClick={() => onDeletePaymentMethod(method.id)}
-                            className="text-xs text-rose-500 hover:text-rose-700 font-black px-1 cursor-pointer"
+                            className="text-xs text-rose-500 hover:text-rose-700 font-black p-1 cursor-pointer"
+                            aria-label="刪除"
                           >
-                            ✕
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                         <input
@@ -277,9 +292,10 @@ export default function AdminStoreHub({
                   <button
                     type="button"
                     onClick={onCreateSoldOutOption}
-                    className="text-xs font-black bg-gradient-to-r from-amber-500 to-orange-600 text-white px-3 py-1.5 rounded-xl shadow-xs active:scale-95 cursor-pointer"
+                    className="text-xs font-black bg-gradient-to-r from-amber-500 to-orange-600 text-white px-3 py-1.5 rounded-xl shadow-xs active:scale-95 cursor-pointer flex items-center gap-1"
                   >
-                    ＋ 新增備案
+                    <Plus className="w-3 h-3" />
+                    <span>新增備案</span>
                   </button>
                 </div>
                 {soldOutOptions.length === 0 ? (
@@ -293,6 +309,7 @@ export default function AdminStoreHub({
                         key={opt.id}
                         className="bg-slate-50 dark:bg-[#0E1726] p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-2"
                       >
+                        <SoldOutOptionIcon title={opt.title} className="w-4 h-4 text-rose-500 shrink-0" />
                         <input
                           id={`so-item-${opt.id}`}
                           name={`so_${opt.id}_title`}
@@ -312,22 +329,25 @@ export default function AdminStoreHub({
                           type="button"
                           onClick={() => onMoveSoldOutOption(opt.id, 'up')}
                           className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-6 h-6 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer flex items-center justify-center font-black"
+                          aria-label="上移"
                         >
-                          ↑
+                          <ChevronUp className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => onMoveSoldOutOption(opt.id, 'down')}
                           className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 w-6 h-6 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer flex items-center justify-center font-black"
+                          aria-label="下移"
                         >
-                          ↓
+                          <ChevronDown className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => onDeleteSoldOutOption(opt.id)}
-                          className="text-xs text-rose-500 hover:text-rose-700 font-black px-1.5 cursor-pointer"
+                          className="text-xs text-rose-500 hover:text-rose-700 font-black p-1 cursor-pointer"
+                          aria-label="刪除"
                         >
-                          ✕
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ))}
@@ -339,19 +359,20 @@ export default function AdminStoreHub({
         )}
       </div>
 
-      {/* 🏪 合作門市卡片網格 (Store Cards Grid) */}
+      {/* 合作門市卡片網格 (Store Cards Grid) */}
       {stores.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-[#0E1726]/90 p-12 text-center text-xs text-slate-400 dark:text-slate-500 space-y-3">
-          <div className="text-4xl">🏪</div>
+          <StoreIcon className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto stroke-[1.5]" />
           <p className="font-extrabold text-sm text-slate-700 dark:text-slate-200">目前尚無任何合作店家</p>
           <p>請點擊上方按鈕新增第一家合作店家，開始建立菜單！</p>
           <div className="pt-2 flex justify-center">
             <button
               type="button"
               onClick={onCreateStore}
-              className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs px-4 py-2 rounded-2xl transition shadow-xs active:scale-95 cursor-pointer"
+              className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs px-4 py-2 rounded-2xl transition shadow-xs active:scale-95 cursor-pointer flex items-center gap-1.5"
             >
-              ＋ 新增合作門市
+              <Plus className="w-3.5 h-3.5" />
+              <span>新增合作門市</span>
             </button>
           </div>
         </div>
@@ -370,16 +391,16 @@ export default function AdminStoreHub({
                 <div className="space-y-3.5">
                   {/* 店家封面與分類標籤 */}
                   <div className="flex items-start justify-between gap-3.5">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/60 dark:to-indigo-950/60 border border-sky-100 dark:border-sky-900/60 flex items-center justify-center text-3xl overflow-hidden shrink-0 shadow-inner">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/60 dark:to-indigo-950/60 border border-sky-100 dark:border-sky-900/60 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
                       {store.image_url ? (
                         <img src={store.image_url} alt={store.name} className="w-full h-full object-cover" />
                       ) : (
-                        '🏪'
+                        <StoreIcon className="w-8 h-8 text-sky-400 stroke-[1.8]" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* 🏷️ S-??? 商家專屬編號徽章 */}
+                        {/* S-??? 商家專屬編號徽章 */}
                         <span className="text-[10px] font-black font-mono bg-slate-900 text-white dark:bg-sky-500 dark:text-white px-2.5 py-0.5 rounded-full shadow-2xs">
                           {store.code || 'S-001'}
                         </span>
@@ -410,8 +431,9 @@ export default function AdminStoreHub({
                     onClick={() => onSelectStudioStore(store.id)}
                     className="w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-black text-xs py-2.5 rounded-2xl transition shadow-md shadow-sky-500/20 active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                   >
-                    <span>🛠️ 進入菜單設計</span>
-                    <span className="text-sm">➔</span>
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>進入菜單設計</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </button>
 
                   {/* 次要操作 */}
@@ -419,16 +441,18 @@ export default function AdminStoreHub({
                     <button
                       type="button"
                       onClick={() => onEditStore(store)}
-                      className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-black py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
+                      className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-black py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700 transition cursor-pointer flex items-center justify-center gap-1"
                     >
-                      ✏️ 編輯資料
+                      <Pencil className="w-3 h-3" />
+                      <span>編輯資料</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => onDeleteStore(store.id)}
-                      className="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-black px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700 transition cursor-pointer"
+                      className="bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 text-xs font-black px-3 py-1.5 rounded-xl border border-slate-200/60 dark:border-slate-700 transition cursor-pointer flex items-center gap-1"
                     >
-                      🗑️ 刪除
+                      <Trash2 className="w-3 h-3" />
+                      <span>刪除</span>
                     </button>
                   </div>
                 </div>

@@ -15,6 +15,7 @@ import CheckoutSummary from './components/CheckoutSummary';
 import CheckoutOptions from './components/CheckoutOptions';
 import OrderSuccessModal from '@/components/OrderSuccessModal';
 import DoubleConfirmModal from '@/components/DoubleConfirmModal';
+import { ChevronLeft, ClipboardList, ArrowRight, AlertTriangle } from 'lucide-react';
 
 function CheckoutContent() {
   const router = useRouter();
@@ -182,7 +183,7 @@ function CheckoutContent() {
 
   const handleCopyAccount = (text: string) => {
     navigator.clipboard.writeText(text);
-    showToast('📋 已複製帳號資訊至剪貼簿！');
+    showToast('已複製帳號資訊至剪貼簿！');
   };
 
   const grandTotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
@@ -192,32 +193,32 @@ function CheckoutContent() {
     if (honeypotTrap.trim()) {
       console.warn('Bot detected via honeypot trap');
       setIsSubmitting(false);
-      showToast('⚠️ 系統防護攔截：偵測到異常請求');
+      showToast('系統防護攔截：偵測到異常請求');
       return;
     }
 
     // 🛡️ 2. 人類操作時間閾值檢查：防止腳本在開啟網頁後極速自動送單
     if (!isHumanInteractionTime(pageLoadTime, 1000)) {
-      showToast('⚠️ 操作速度過快，請稍候 1 秒後再點擊送單！');
+      showToast('操作速度過快，請稍候 1 秒後再點擊送單！');
       return;
     }
 
     // 🛡️ 3. 客戶端送單頻率防刷單限制 (Rate Limit)
     const rateCheck = checkRateLimit();
     if (!rateCheck.allowed) {
-      showToast(rateCheck.reason || '⚠️ 操作過於頻繁，請稍候再試！');
+      showToast(rateCheck.reason || '操作過於頻繁，請稍候再試！');
       return;
     }
 
     // 🛡️ 4. XSS 輸入清洗與長度限制
     const cleanNickname = sanitizeInput(nickname, 30);
     if (!cleanNickname) {
-      showToast('⚠️ 請填寫您的有效暱稱，方便團長對帳！');
+      showToast('請填寫您的有效暱稱，方便團長對帳！');
       return;
     }
 
     if (cartItems.length === 0) {
-      showToast('⚠️ 購物車是空的，請先挑選餐點！');
+      showToast('購物車是空的，請先挑選餐點！');
       return;
     }
 
@@ -240,7 +241,7 @@ function CheckoutContent() {
 
       if (existingGroup && existingGroup.length > 0) {
         if (existingGroup[0].status === 'closed') {
-          showToast('🚫 團長已截單，目前停止收單中！無法送出訂單。');
+          showToast('團長已截單，目前停止收單中！無法送出訂單。');
           setIsSubmitting(false);
           return;
         }
@@ -271,7 +272,7 @@ function CheckoutContent() {
       if ((duplicateRows?.length || 0) > 0) {
         setDuplicateConfirmModal({
           isOpen: true,
-          title: '⚠️ 發現同名訂單提醒',
+          title: '發現同名訂單提醒',
           message: `目前已有一位「${cleanNickname}」送單囉！建議加上姓氏或代號（例如：戴小明、小明B）避免對帳混淆。確定要繼續以此暱稱送單嗎？`,
           confirmText: '繼續以此暱稱送單',
           cancelText: '返回修改暱稱',
@@ -287,7 +288,7 @@ function CheckoutContent() {
       await executeFinalOrderSubmission(cleanNickname, activeGroupId);
     } catch (err) {
       console.error(err);
-      showToast('❌ 送出失敗，請重試或檢查網路連線');
+      showToast('送出失敗，請重試或檢查網路連線');
       setIsSubmitting(false);
     }
   };
@@ -457,7 +458,7 @@ function CheckoutContent() {
       });
     } catch (err) {
       console.error(err);
-      showToast('❌ 送出失敗，請重試或檢查網路連線');
+      showToast('送出失敗，請重試或檢查網路連線');
     } finally {
       setIsSubmitting(false);
     }
@@ -479,10 +480,14 @@ function CheckoutContent() {
           href="/cart"
           className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-sky-500 dark:hover:text-sky-400 transition py-1"
         >
-          ‹ 返回購物車修改品項
+          <ChevronLeft className="w-4 h-4" />
+          <span>返回購物車修改品項</span>
         </Link>
 
-        <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">📋 確認點餐與結帳</h2>
+        <div className="flex items-center gap-2">
+          <ClipboardList className="w-5 h-5 text-sky-500" />
+          <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">確認點餐與結帳</h2>
+        </div>
 
         {/* 🍯 蜜罐陷阱欄位：視覺不可見，專門捕捉盲目填充的自動化腳本 */}
         <div aria-hidden="true" style={{ opacity: 0, position: 'absolute', top: -9999, left: -9999, height: 0, width: 0, zIndex: -1, overflow: 'hidden' }}>
@@ -503,9 +508,10 @@ function CheckoutContent() {
             <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">購物車目前沒有餐點喔！</p>
             <Link
               href="/"
-              className="inline-block bg-sky-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-xs"
+              className="inline-flex items-center gap-1 bg-sky-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-xs"
             >
-              去大廳看看 ➔
+              <span>去大廳看看</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         ) : (
@@ -543,8 +549,9 @@ function CheckoutContent() {
                 <p className="text-[11px] text-slate-400 dark:text-slate-500">正在檢查是否重複暱稱...</p>
               )}
               {!checkingDuplicate && hasDuplicateNickname && nickname.trim() && (
-                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl p-2 text-[11px] text-amber-700 dark:text-amber-300 font-semibold">
-                  ⚠️ 目前已有同名暱稱，建議加上姓氏或代號避免對帳混淆。
+                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-xl p-2 text-[11px] text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                  <span>目前已有同名暱稱，建議加上姓氏或代號避免對帳混淆。</span>
                 </div>
               )}
             </div>

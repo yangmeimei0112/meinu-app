@@ -1,6 +1,8 @@
 'use client';
 
 import { OrderSubmissionAdmin, GroupOrderAdmin } from './admin-types';
+import { Printer, X, Package, Users } from 'lucide-react';
+import { stripEmojis } from '@/lib/icon-utils';
 
 interface AdminPrintModalProps {
   isOpen: boolean;
@@ -33,7 +35,7 @@ export default function AdminPrintModal({
         {/* 頂部操作欄（列印時隱藏） */}
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3 print:hidden">
           <div className="flex items-center gap-2">
-            <span className="text-xl">🖨️</span>
+            <Printer className="w-5 h-5 text-sky-500" />
             <div>
               <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">友善列印檢視</h3>
               <p className="text-xs text-slate-400 dark:text-slate-400">紙本對帳與向店家下單明細總表</p>
@@ -44,17 +46,19 @@ export default function AdminPrintModal({
             <button
               type="button"
               onClick={handlePrint}
-              className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs transition active:scale-95 flex items-center gap-1 cursor-pointer"
+              className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
             >
-              <span>🖨️ 立即列印</span>
+              <Printer className="w-3.5 h-3.5" />
+              <span>立即列印</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
               className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center font-bold cursor-pointer"
+              aria-label="關閉"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -75,8 +79,9 @@ export default function AdminPrintModal({
 
             {/* 1. 向店家下單彙總表 */}
             <div className="space-y-2">
-              <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 print:bg-slate-100 print:text-black px-3 py-1.5 rounded-lg border border-transparent dark:border-slate-700">
-                📦 1. 向店家下單品項彙總清單 (共 {totalItemCount} 份)
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 print:bg-slate-100 print:text-black px-3 py-1.5 rounded-lg border border-transparent dark:border-slate-700 flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-slate-500" />
+                <span>1. 向店家下單品項彙總清單 (共 {totalItemCount} 份)</span>
               </h2>
               <table className="w-full text-xs text-left border border-slate-200 dark:border-slate-700 print:border-slate-300">
                 <thead className="bg-slate-50 dark:bg-[#182234] print:bg-slate-50 text-slate-600 dark:text-slate-300 print:text-slate-700 border-b border-slate-200 dark:border-slate-700">
@@ -100,8 +105,9 @@ export default function AdminPrintModal({
 
             {/* 2. 個人對帳明細表 */}
             <div className="space-y-2 pt-2">
-              <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 print:bg-slate-100 print:text-black px-3 py-1.5 rounded-lg border border-transparent dark:border-slate-700">
-                👥 2. 個人對帳與收費明細表 (共 {submissions.length} 人)
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 print:bg-slate-100 print:text-black px-3 py-1.5 rounded-lg border border-transparent dark:border-slate-700 flex items-center gap-1.5">
+                <Users className="w-4 h-4 text-slate-500" />
+                <span>2. 個人對帳與收費明細表 (共 {submissions.length} 人)</span>
               </h2>
               <table className="w-full text-xs text-left border border-slate-200 dark:border-slate-700 print:border-slate-300">
                 <thead className="bg-slate-50 dark:bg-[#182234] print:bg-slate-50 text-slate-600 dark:text-slate-300 print:text-slate-700 border-b border-slate-200 dark:border-slate-700">
@@ -131,7 +137,7 @@ export default function AdminPrintModal({
                         ))}
                       </td>
                       <td className="p-2 border-r border-slate-200 dark:border-slate-700 text-center align-top text-[11px] text-slate-700 dark:text-slate-300 print:text-black">
-                        {sub.payment_method_name}
+                        {stripEmojis(sub.payment_method_name)}
                       </td>
                       <td className="p-2 border-r border-slate-200 dark:border-slate-700 text-right align-top font-bold text-slate-900 dark:text-slate-100 print:text-black">
                         ${sub.final_amount}

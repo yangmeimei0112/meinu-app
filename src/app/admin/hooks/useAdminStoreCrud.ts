@@ -12,6 +12,7 @@ interface UseAdminStoreCrudProps {
   paymentMethods: PaymentMethod[];
   soldOutOptions: SoldOutOption[];
   allMenuItems: MenuItem[];
+  optimisticReorderMenuItems?: (storeId: string, orderedItemIds: string[]) => void;
   fetchAdminData: (targetGroupId?: string, isSilent?: boolean) => Promise<void>;
   showToast: (msg: string) => void;
   openAdminConfirmModal: (modal: AdminConfirmModalState) => void;
@@ -24,6 +25,7 @@ export function useAdminStoreCrud({
   paymentMethods,
   soldOutOptions,
   allMenuItems,
+  optimisticReorderMenuItems,
   fetchAdminData,
   showToast,
   openAdminConfirmModal,
@@ -94,7 +96,7 @@ export function useAdminStoreCrud({
         const { error: uploadError } = await supabase.storage.from('stores').upload(fileName, storeImageFile);
         if (uploadError) {
           console.error('上傳圖片錯誤:', uploadError);
-          showToast('❌ 圖片上傳失敗，請確認 Storage 設定');
+          showToast('圖片上傳失敗，請確認 Storage 設定');
           setUploadingImage(false);
           return;
         }
@@ -138,7 +140,7 @@ export function useAdminStoreCrud({
         }
       }
 
-      showToast(editingStore ? '✅ 店家資訊與編號已更新！' : '🎉 新增合作店家成功！');
+      showToast(editingStore ? '店家資訊與編號已更新！' : '新增合作店家成功！');
       setIsStoreModalOpen(false);
       setEditingStore(null);
       setStoreForm({ name: '', category_id: '', code_number: '001' });
@@ -147,7 +149,7 @@ export function useAdminStoreCrud({
       fetchAdminData();
     } catch (err: any) {
       console.error('儲存店家失敗:', err);
-      showToast(`❌ 儲存店家失敗: ${err?.message || '請稍後重試'}`);
+      showToast(`儲存店家失敗: ${err?.message || '請稍後重試'}`);
     } finally {
       setUploadingImage(false);
     }
@@ -157,7 +159,7 @@ export function useAdminStoreCrud({
   const handleDeleteStore = (storeId: string) => {
     openAdminConfirmModal({
       isOpen: true,
-      title: '⚠️ 刪除合作店家',
+      title: '刪除合作店家',
       message: '確定要刪除此店家嗎？此動作將一併影響相關菜單且無法復原！',
       confirmText: '確定刪除',
       cancelText: '取消',
@@ -167,11 +169,11 @@ export function useAdminStoreCrud({
         try {
           const { error } = await supabase.from('stores').delete().eq('id', storeId);
           if (error) throw error;
-          showToast('🗑️ 店家已刪除');
+          showToast('店家已刪除');
           fetchAdminData();
         } catch (err) {
           console.error('刪除店家失敗:', err);
-          showToast('❌ 刪除店家失敗');
+          showToast('刪除店家失敗');
         }
       },
     });
@@ -185,11 +187,11 @@ export function useAdminStoreCrud({
       if (editingCat) {
         const { error } = await supabase.from('categories').update({ name: catNameInput.trim() }).eq('id', editingCat.id);
         if (error) throw error;
-        showToast('✅ 類別名稱已修改！');
+        showToast('類別名稱已修改！');
       } else {
         const { error } = await supabase.from('categories').insert([{ name: catNameInput.trim(), sort_order: categories.length + 1 }]);
         if (error) throw error;
-        showToast('➕ 已新增類別！');
+        showToast('已新增類別！');
       }
       setIsCatModalOpen(false);
       setEditingCat(null);
@@ -203,7 +205,7 @@ export function useAdminStoreCrud({
   const handleDeleteCategory = (catId: string) => {
     openAdminConfirmModal({
       isOpen: true,
-      title: '⚠️ 刪除商品分類',
+      title: '刪除商品分類',
       message: '確定要刪除此商品分類嗎？',
       confirmText: '確定刪除',
       cancelText: '取消',
@@ -213,11 +215,11 @@ export function useAdminStoreCrud({
         try {
           const { error } = await supabase.from('categories').delete().eq('id', catId);
           if (error) throw error;
-          showToast('🗑️ 類別已刪除');
+          showToast('類別已刪除');
           fetchAdminData();
         } catch (err) {
           console.error('刪除類別失敗:', err);
-          showToast('❌ 刪除分類失敗');
+          showToast('刪除分類失敗');
         }
       },
     });
@@ -243,27 +245,27 @@ export function useAdminStoreCrud({
     };
     const { error } = await supabase.from('payment_methods').insert([payload]);
     if (error) {
-      showToast('❌ 新增付款方式失敗');
+      showToast('新增付款方式失敗');
       return;
     }
-    showToast('➕ 已新增付款方式');
+    showToast('已新增付款方式');
     fetchAdminData();
   };
 
   const handleSavePaymentMethod = async (id: string, payload: { name: string; account_info: string | null }) => {
     const { error } = await supabase.from('payment_methods').update(payload).eq('id', id);
     if (error) {
-      showToast('❌ 儲存付款方式失敗');
+      showToast('儲存付款方式失敗');
       return;
     }
-    showToast('✅ 付款方式已更新');
+    showToast('付款方式已更新');
     fetchAdminData();
   };
 
   const handleDeletePaymentMethod = (id: string) => {
     openAdminConfirmModal({
       isOpen: true,
-      title: '⚠️ 刪除付款方式',
+      title: '刪除付款方式',
       message: '確定要刪除此付款方式嗎？',
       confirmText: '確定刪除',
       cancelText: '取消',
@@ -272,10 +274,10 @@ export function useAdminStoreCrud({
         closeAdminConfirmModal();
         const { error } = await supabase.from('payment_methods').delete().eq('id', id);
         if (error) {
-          showToast('❌ 刪除付款方式失敗');
+          showToast('刪除付款方式失敗');
           return;
         }
-        showToast('🗑️ 付款方式已刪除');
+        showToast('付款方式已刪除');
         fetchAdminData();
       },
     });
@@ -284,10 +286,10 @@ export function useAdminStoreCrud({
   const handleTogglePaymentMethodActive = async (id: string, currentStatus: boolean) => {
     const { error } = await supabase.from('payment_methods').update({ is_active: !currentStatus }).eq('id', id);
     if (error) {
-      showToast('❌ 切換付款方式狀態失敗');
+      showToast('切換付款方式狀態失敗');
       return;
     }
-    showToast(!currentStatus ? '✅ 已啟用付款方式' : '⏸️ 已停用付款方式');
+    showToast(!currentStatus ? '已啟用付款方式' : '已停用付款方式');
     fetchAdminData();
   };
 
@@ -297,27 +299,27 @@ export function useAdminStoreCrud({
     const payload = { title: '請團長聯繫我', sort_order: nextOrder };
     const { error } = await supabase.from('sold_out_options').insert([payload]);
     if (error) {
-      showToast('❌ 新增缺貨備案失敗');
+      showToast('新增缺貨備案失敗');
       return;
     }
-    showToast('➕ 已新增缺貨備案');
+    showToast('已新增缺貨備案');
     fetchAdminData();
   };
 
   const handleSaveSoldOutOption = async (id: string, title: string) => {
     const { error } = await supabase.from('sold_out_options').update({ title: title.trim() }).eq('id', id);
     if (error) {
-      showToast('❌ 儲存缺貨備案失敗');
+      showToast('儲存缺貨備案失敗');
       return;
     }
-    showToast('✅ 缺貨備案已更新');
+    showToast('缺貨備案已更新');
     fetchAdminData();
   };
 
   const handleDeleteSoldOutOption = (id: string) => {
     openAdminConfirmModal({
       isOpen: true,
-      title: '⚠️ 刪除缺貨備案',
+      title: '刪除缺貨備案',
       message: '確定要刪除此缺貨備案嗎？',
       confirmText: '確定刪除',
       cancelText: '取消',
@@ -326,10 +328,10 @@ export function useAdminStoreCrud({
         closeAdminConfirmModal();
         const { error } = await supabase.from('sold_out_options').delete().eq('id', id);
         if (error) {
-          showToast('❌ 刪除缺貨備案失敗');
+          showToast('刪除缺貨備案失敗');
           return;
         }
-        showToast('🗑️ 缺貨備案已刪除');
+        showToast('缺貨備案已刪除');
         fetchAdminData();
       },
     });
@@ -386,7 +388,7 @@ export function useAdminStoreCrud({
     e.preventDefault();
     const targetStoreId = selectedCrudStoreId || editingProduct?.store_id;
     if (!targetStoreId || !productForm.name.trim()) {
-      showToast('⚠️ 請確認已選擇店家並填寫餐點名稱！');
+      showToast('請確認已選擇店家並填寫餐點名稱！');
       return;
     }
     try {
@@ -403,17 +405,17 @@ export function useAdminStoreCrud({
       if (editingProduct) {
         const { error } = await supabase.from('menu_items').update(payload).eq('id', editingProduct.id);
         if (error) throw error;
-        showToast('✅ 餐點與客製化選項已更新！');
+        showToast('餐點與客製化選項已更新！');
       } else {
         const { error } = await supabase.from('menu_items').insert([payload]);
         if (error) throw error;
-        showToast('🎉 新增餐點成功！');
+        showToast('新增餐點成功！');
       }
       setIsProductModalOpen(false);
       fetchAdminData();
     } catch (err: any) {
       console.error('儲存餐點失敗:', err);
-      showToast(`❌ 儲存餐點失敗: ${err?.message || '請檢查格式'}`);
+      showToast(`儲存餐點失敗: ${err?.message || '請檢查格式'}`);
     }
   };
 
@@ -421,7 +423,7 @@ export function useAdminStoreCrud({
   const handleDeleteProduct = (productId: string) => {
     openAdminConfirmModal({
       isOpen: true,
-      title: '⚠️ 刪除餐點品項',
+      title: '刪除餐點品項',
       message: '確定要刪除此餐點品項嗎？此動作無法復原！',
       confirmText: '確定刪除',
       cancelText: '取消',
@@ -431,11 +433,11 @@ export function useAdminStoreCrud({
         try {
           const { error } = await supabase.from('menu_items').delete().eq('id', productId);
           if (error) throw error;
-          showToast('🗑️ 品項已刪除');
+          showToast('品項已刪除');
           fetchAdminData();
         } catch (err) {
           console.error('刪除品項失敗:', err);
-          showToast('❌ 刪除品項失敗');
+          showToast('刪除品項失敗');
         }
       },
     });
@@ -456,6 +458,19 @@ export function useAdminStoreCrud({
 
   // 11. 重新排列菜單品項順序
   const handleReorderMenuItems = async (storeId: string, orderedItemIds: string[]) => {
+    // 1. 立即樂觀更新全域狀態，0ms 響應且保證順序穩定
+    optimisticReorderMenuItems?.(storeId, orderedItemIds);
+
+    // 2. 寫入本地客戶端快取，確保重新整理時雙重保險
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedOrders = JSON.parse(localStorage.getItem('menu_app_store_sort_orders') || '{}');
+        cachedOrders[storeId] = orderedItemIds;
+        localStorage.setItem('menu_app_store_sort_orders', JSON.stringify(cachedOrders));
+      } catch {}
+    }
+
+    // 3. 背景非同步同步至伺服端
     try {
       const res = await fetch('/api/menu/sort-order', {
         method: 'POST',
@@ -465,11 +480,10 @@ export function useAdminStoreCrud({
       if (!res.ok) {
         throw new Error('伺服器儲存排序失敗');
       }
-      showToast('✅ 菜單順序已更新！');
-      fetchAdminData(undefined, true);
+      showToast('菜單順序已更新！');
     } catch (err: any) {
       console.error('儲存菜單排序失敗:', err);
-      showToast(`❌ 儲存順序失敗: ${err?.message || '未知錯誤'}`);
+      showToast(`儲存順序失敗: ${err?.message || '未知錯誤'}`);
     }
   };
 

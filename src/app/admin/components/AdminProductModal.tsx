@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { MenuItem, CustomGroup } from '@/types/database';
+import { Pencil, Plus, Trash2, X } from 'lucide-react';
 
 interface ProductFormState {
   name: string;
@@ -46,7 +47,17 @@ export default function AdminProductModal({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white dark:bg-[#131B2B] w-full max-w-lg rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto shadow-2xl">
         <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
-          {editingProduct ? '✏️ 編輯餐點與客製化選項' : '➕ 新增餐點'}
+          {editingProduct ? (
+            <span className="flex items-center justify-center gap-1.5">
+              <Pencil className="w-4 h-4 text-sky-500" />
+              <span>編輯餐點與客製化選項</span>
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-1.5">
+              <Plus className="w-4 h-4 text-sky-500" />
+              <span>新增餐點</span>
+            </span>
+          )}
         </h3>
 
         <form onSubmit={onSaveProduct} className="space-y-3">
@@ -95,8 +106,8 @@ export default function AdminProductModal({
                 onChange={(e) => setProductForm({ ...productForm, is_sold_out: e.target.value === 'true' })}
                 className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
-                <option value="false">🟢 正常供應中</option>
-                <option value="true">⚪ 暫時已售完 / 下架</option>
+                <option value="false">正常供應中</option>
+                <option value="true">暫時售完 / 下架</option>
               </select>
             </div>
           </div>
@@ -199,9 +210,10 @@ export default function AdminProductModal({
                     <button
                       type="button"
                       onClick={() => onRemoveCustomGroup(group.id)}
-                      className="text-xs text-red-500 hover:bg-red-50 dark:hover:bg-rose-950/40 p-1.5 rounded-lg font-bold cursor-pointer"
+                      className="text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-1.5 rounded-lg font-bold cursor-pointer transition"
+                      title="刪除客製群組"
                     >
-                      🗑️
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
@@ -258,18 +270,20 @@ export default function AdminProductModal({
                         <button
                           type="button"
                           onClick={() => onRemoveOptionFromGroup(group.id, opt.id)}
-                          className="text-xs text-red-400 hover:text-red-600 font-bold px-1 cursor-pointer"
+                          className="text-xs text-rose-400 hover:text-rose-600 font-bold p-1 cursor-pointer transition"
+                          title="刪除選項"
                         >
-                          ✕
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ))}
                     <button
                       type="button"
                       onClick={() => onAddOptionToGroup(group.id)}
-                      className="text-[10px] text-sky-600 dark:text-sky-400 font-bold hover:underline cursor-pointer"
+                      className="text-[11px] text-sky-600 dark:text-sky-400 font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      ＋ 新增子選項
+                      <Plus className="w-3 h-3" />
+                      <span>新增子選項</span>
                     </button>
                   </div>
                 </div>

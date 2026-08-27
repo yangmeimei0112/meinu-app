@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { PaymentMethod, SoldOutOption } from '@/types/database';
+import { Check, Copy } from 'lucide-react';
+import { PaymentMethodIcon, SoldOutOptionIcon, stripEmojis } from '@/lib/icon-utils';
 
 interface CheckoutOptionsProps {
   paymentMethods: PaymentMethod[];
@@ -41,7 +43,10 @@ export default function CheckoutOptions({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{pm.name}</span>
+                  <div className="flex items-center gap-2">
+                    <PaymentMethodIcon name={pm.name} className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100">{stripEmojis(pm.name)}</span>
+                  </div>
                   <span
                     className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] ${
                       isSelected
@@ -49,7 +54,7 @@ export default function CheckoutOptions({
                         : 'border-slate-300 dark:border-slate-600'
                     }`}
                   >
-                    {isSelected && '✓'}
+                    {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
                   </span>
                 </div>
                 {pm.account_info && (
@@ -63,9 +68,10 @@ export default function CheckoutOptions({
                         e.stopPropagation();
                         onCopyAccount(pm.account_info || '');
                       }}
-                      className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer"
+                      className="bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[10px] font-bold px-2.5 py-1 rounded-lg shrink-0 transition cursor-pointer flex items-center gap-1"
                     >
-                      📋 複製帳號
+                      <Copy className="w-3 h-3" />
+                      <span>複製帳號</span>
                     </button>
                   </div>
                 )}
@@ -91,8 +97,11 @@ export default function CheckoutOptions({
                     : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                 }`}
               >
-                <span>{so.title}</span>
-                {isSelected && <span className="font-bold">✓</span>}
+                <div className="flex items-center gap-2">
+                  <SoldOutOptionIcon title={so.title} className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{stripEmojis(so.title)}</span>
+                </div>
+                {isSelected && <Check className="w-3.5 h-3.5 text-sky-500 stroke-[2.5]" />}
               </div>
             );
           })}

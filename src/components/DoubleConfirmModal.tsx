@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { AlertTriangle, HelpCircle } from 'lucide-react';
 
 interface DoubleConfirmModalProps {
   isOpen: boolean;
@@ -39,10 +40,14 @@ export default function DoubleConfirmModal({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
       <div className="bg-white dark:bg-[#131B2B] text-slate-800 dark:text-slate-100 w-full max-w-sm rounded-3xl p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-150 border border-slate-100 dark:border-slate-800">
         <div className="text-center space-y-2">
-          <div className={`w-12 h-12 rounded-2xl mx-auto flex items-center justify-center text-2xl ${
-            isDanger ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-500' : 'bg-sky-50 dark:bg-sky-950/60 text-sky-500'
+          <div className={`w-12 h-12 rounded-2xl mx-auto flex items-center justify-center ${
+            isDanger ? 'bg-rose-50 dark:bg-rose-950/60' : 'bg-sky-50 dark:bg-sky-950/60'
           }`}>
-            {isDanger ? '⚠️' : '❓'}
+            {isDanger ? (
+              <AlertTriangle className="w-6 h-6 text-rose-500" />
+            ) : (
+              <HelpCircle className="w-6 h-6 text-sky-500" />
+            )}
           </div>
           <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100">{title}</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed whitespace-pre-line">{message}</p>

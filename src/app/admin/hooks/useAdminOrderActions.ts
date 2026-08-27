@@ -84,7 +84,7 @@ export function useAdminOrderActions({
       })
       .eq('id', activeGroup.id);
 
-    showToast(`🔢 平攤設定已更新！已重新試算全團個人金額。`);
+    showToast(`平攤設定已更新！已重新試算全團個人金額。`);
     fetchAdminData();
   };
 
@@ -98,7 +98,7 @@ export function useAdminOrderActions({
     setAllSubmissions((prev) =>
       prev.map((s) => (s.id === targetId ? { ...s, signature_data: signatureData, is_paid: true } : s))
     );
-    showToast(`✍️ 已存入 ${targetNickname} 的對帳手繪簽名！`);
+    showToast(`已存入 ${targetNickname} 的對帳手繪簽名！`);
 
     const { error } = await supabase
       .from('order_submissions')
@@ -108,7 +108,7 @@ export function useAdminOrderActions({
     if (error) {
       console.error('儲存簽名失敗:', error);
       fetchAdminData(selectedActiveGroupIdRef.current);
-      showToast('❌ 儲存簽名失敗');
+      showToast('儲存簽名失敗');
     }
   };
 
@@ -117,7 +117,7 @@ export function useAdminOrderActions({
     if (!activeGroup) return;
     openAdminConfirmModal({
       isOpen: true,
-      title: '📦 歸檔團購活動',
+      title: '歸檔團購活動',
       message: '確定要歸檔此團購活動嗎？歸檔後可隨時一鍵重開新團。',
       confirmText: '確定歸檔',
       cancelText: '取消',
@@ -125,7 +125,7 @@ export function useAdminOrderActions({
       onConfirm: async () => {
         closeAdminConfirmModal();
         await supabase.from('group_orders').update({ status: 'completed' }).eq('id', activeGroup.id);
-        showToast('📦 團購活動已移入歷史歸檔！');
+        showToast('團購活動已移入歷史歸檔！');
         fetchAdminData();
       },
     });
@@ -153,11 +153,11 @@ export function useAdminOrderActions({
       .single();
 
     if (!error && newGroup) {
-      showToast('🔄 已成功一鍵發起新團購活動！');
+      showToast('已成功發起新團購活動！');
       setActiveTab('active');
       fetchAdminData();
     } else {
-      showToast('❌ 建立新團購活動失敗');
+      showToast('建立新團購活動失敗');
     }
   };
 
@@ -165,7 +165,7 @@ export function useAdminOrderActions({
   const handleDeleteArchivedGroup = (groupId: string, title: string) => {
     openAdminConfirmModal({
       isOpen: true,
-      title: '🗑️ 刪除歷史活動',
+      title: '刪除歷史活動',
       message: `確定要刪除歷史活動「${title}」嗎？此動作將一併清除該活動底下的所有歷史訂單紀錄，且無法復原。`,
       confirmText: '確定刪除',
       cancelText: '取消',
@@ -187,11 +187,11 @@ export function useAdminOrderActions({
           const { error } = await supabase.from('group_orders').delete().eq('id', groupId);
           if (error) throw error;
 
-          showToast(`🗑️ 已刪除歷史活動「${title}」`);
+          showToast(`已刪除歷史活動「${title}」`);
           fetchAdminData();
         } catch (err: any) {
           console.error('刪除歷史活動失敗:', err);
-          showToast(`❌ 刪除失敗：${err?.message || err}`);
+          showToast(`刪除失敗：${err?.message || err}`);
         }
       },
     });
@@ -204,7 +204,7 @@ export function useAdminOrderActions({
 
     openAdminConfirmModal({
       isOpen: true,
-      title: '🗑️ 批次刪除歷史活動',
+      title: '批次刪除歷史活動',
       message: `確定要批次刪除選取的 ${count} 個歷史活動嗎？此動作將一併清除這些活動底下的所有歷史訂單紀錄，且無法復原。`,
       confirmText: '確定批次刪除',
       cancelText: '取消',
@@ -226,11 +226,11 @@ export function useAdminOrderActions({
           const { error } = await supabase.from('group_orders').delete().in('id', groupIds);
           if (error) throw error;
 
-          showToast(`🗑️ 已批次刪除 ${count} 個歷史活動`);
+          showToast(`已批次刪除 ${count} 個歷史活動`);
           fetchAdminData();
         } catch (err: any) {
           console.error('批次刪除歷史活動失敗:', err);
-          showToast(`❌ 批次刪除失敗：${err?.message || err}`);
+          showToast(`批次刪除失敗：${err?.message || err}`);
         }
       },
     });
@@ -251,11 +251,11 @@ export function useAdminOrderActions({
     if (activeGroup) {
       const { error } = await supabase.from('group_orders').update(updatedData).eq('id', activeGroup.id);
       if (error) throw error;
-      showToast('✅ 團購活動設定與公告已更新！');
+      showToast('團購活動設定與公告已更新！');
     } else {
       const { error } = await supabase.from('group_orders').insert([{ ...updatedData, status: 'open' }]);
       if (error) throw error;
-      showToast('🎉 新團購活動已成功發起！');
+      showToast('新團購活動已成功發起！');
     }
     fetchAdminData();
   };
@@ -267,7 +267,7 @@ export function useAdminOrderActions({
 
     if (!error) {
       setActiveGroup({ ...activeGroup, status: newStatus });
-      showToast(`活動已切換為：${newStatus === 'closed' ? '🔒 已截單 (停止收單)' : '🟢 開放收單中'}`);
+      showToast(`活動已切換為：${newStatus === 'closed' ? '已截單 (停止收單)' : '開放收單中'}`);
     }
   };
 
@@ -276,14 +276,14 @@ export function useAdminOrderActions({
     const newStatus = !currentStatus;
 
     setAllSubmissions((prev) => prev.map((s) => (s.id === subId ? { ...s, is_paid: newStatus } : s)));
-    showToast(newStatus ? '✅ 標記為已付款' : '⏳ 標記為未付款');
+    showToast(newStatus ? '標記為已付款' : '標記為未付款');
 
     const { error } = await supabase.from('order_submissions').update({ is_paid: newStatus }).eq('id', subId);
 
     if (error) {
       console.error('更新付款狀態失敗:', error);
       setAllSubmissions((prev) => prev.map((s) => (s.id === subId ? { ...s, is_paid: currentStatus } : s)));
-      showToast('❌ 更新付款狀態失敗，已復原狀態');
+      showToast('更新付款狀態失敗，已復原狀態');
     }
   };
 
@@ -294,14 +294,14 @@ export function useAdminOrderActions({
     setSelectedSubmissionIds([]);
 
     setAllSubmissions((prev) => prev.map((s) => (idsToUpdate.includes(s.id) ? { ...s, is_paid: true } : s)));
-    showToast(`✅ 已批次標記 ${idsToUpdate.length} 筆訂單為已付款！`);
+    showToast(`已批次標記 ${idsToUpdate.length} 筆訂單為已付款！`);
 
     const { error } = await supabase.from('order_submissions').update({ is_paid: true }).in('id', idsToUpdate);
 
     if (error) {
       console.error('批次標記失敗:', error);
       fetchAdminData(selectedActiveGroupIdRef.current);
-      showToast('❌ 批次更新付款狀態失敗');
+      showToast('批次更新付款狀態失敗');
     }
   };
 
@@ -309,7 +309,7 @@ export function useAdminOrderActions({
   const handleDeleteOrder = (subId: string, nickname: string, orderNumber: string) => {
     openAdminConfirmModal({
       isOpen: true,
-      title: '🗑️ 刪除訂單',
+      title: '刪除訂單',
       message: `確定要刪除「${nickname}」的訂單 #${orderNumber} 嗎？此動作將一併刪除該訂單的所有餐點明細，且無法復原。`,
       confirmText: '確定刪除',
       cancelText: '取消',
@@ -318,7 +318,7 @@ export function useAdminOrderActions({
         closeAdminConfirmModal();
         setAllSubmissions((prev) => prev.filter((s) => s.id !== subId));
         setSelectedSubmissionIds((prev) => prev.filter((id) => id !== subId));
-        showToast(`🗑️ 已刪除 ${nickname} 的訂單`);
+        showToast(`已刪除 ${nickname} 的訂單`);
 
         try {
           await supabase.from('order_items').delete().eq('submission_id', subId);
@@ -327,7 +327,7 @@ export function useAdminOrderActions({
           fetchAdminData(selectedActiveGroupIdRef.current, true);
         } catch (err) {
           console.error('刪除訂單失敗:', err);
-          showToast('❌ 刪除訂單失敗，正在重新同步...');
+          showToast('刪除訂單失敗，正在重新同步...');
           fetchAdminData(selectedActiveGroupIdRef.current, true);
         }
       },
@@ -342,7 +342,7 @@ export function useAdminOrderActions({
 
     openAdminConfirmModal({
       isOpen: true,
-      title: '🗑️ 批次刪除訂單',
+      title: '批次刪除訂單',
       message: `確定要批次刪除選取的 ${count} 筆訂單嗎？此動作將一併刪除這些訂單的所有餐點明細，且無法復原。`,
       confirmText: '確定批次刪除',
       cancelText: '取消',
@@ -351,7 +351,7 @@ export function useAdminOrderActions({
         closeAdminConfirmModal();
         setAllSubmissions((prev) => prev.filter((s) => !idsToDelete.includes(s.id)));
         setSelectedSubmissionIds([]);
-        showToast(`🗑️ 已批次刪除 ${count} 筆訂單`);
+        showToast(`已批次刪除 ${count} 筆訂單`);
 
         try {
           await supabase.from('order_items').delete().in('submission_id', idsToDelete);
@@ -360,7 +360,7 @@ export function useAdminOrderActions({
           fetchAdminData(selectedActiveGroupIdRef.current, true);
         } catch (err) {
           console.error('批次刪除訂單失敗:', err);
-          showToast('❌ 批次刪除失敗，正在重新同步...');
+          showToast('批次刪除失敗，正在重新同步...');
           fetchAdminData(selectedActiveGroupIdRef.current, true);
         }
       },
@@ -369,25 +369,25 @@ export function useAdminOrderActions({
 
   // 14. 複製個人明細
   const handleCopyPersonalReceipt = async (sub: OrderSubmissionAdmin) => {
-    let text = `📢【咩nu 團購金額對帳】\n${sub.user_nickname} 你好！你點了：\n---\n`;
+    let text = `【咩nu 團購金額對帳】\n${sub.user_nickname} 你好！你點了：\n---\n`;
     (sub.order_items || []).forEach((item) => {
       text += `• ${item.item_name} x ${item.quantity} ($${item.unit_price * item.quantity})\n`;
       if (item.custom_notes) text += `   備註：${item.custom_notes}\n`;
     });
-    text += `---\n💰 個人小計：$${sub.final_amount} 元 (${sub.payment_method_name})\n`;
-    text += `狀態：${sub.is_paid ? '✅ 已付款' : '⏳ 待付款'}\n請儘速核對金額，謝謝！`;
+    text += `---\n個人小計：$${sub.final_amount} 元 (${sub.payment_method_name})\n`;
+    text += `狀態：${sub.is_paid ? '已付款' : '待付款'}\n請儘速核對金額，謝謝！`;
 
     try {
       await navigator.clipboard.writeText(text);
-      showToast(`📋 已複製 ${sub.user_nickname} 的個人對帳明細！`);
+      showToast(`已複製 ${sub.user_nickname} 的個人對帳明細！`);
     } catch {
-      showToast('❌ 複製失敗');
+      showToast('複製失敗');
     }
   };
 
   // 15. 複製報單文字
   const handleCopyStoreOrderText = async () => {
-    let text = `📢【咩nu 團購向店家下單總表】\n店家：${activeGroup?.stores?.name || activeGroup?.title || '美味店家'}\n---\n`;
+    let text = `【咩nu 團購向店家下單總表】\n店家：${activeGroup?.stores?.name || activeGroup?.title || '美味店家'}\n---\n`;
     Object.entries(itemSummary).forEach(([name, qty], idx) => {
       text += `${idx + 1}. ${name} x ${qty}\n`;
     });
@@ -395,9 +395,9 @@ export function useAdminOrderActions({
 
     try {
       await navigator.clipboard.writeText(text);
-      showToast('📋 已複製叫餐報單文字！');
+      showToast('已複製叫餐報單文字！');
     } catch {
-      showToast('❌ 複製失敗');
+      showToast('複製失敗');
     }
   };
 
@@ -405,11 +405,11 @@ export function useAdminOrderActions({
   const handleCopyUnpaidReminder = async () => {
     const unpaidList = submissions.filter((s) => !s.is_paid);
     if (!unpaidList.length) {
-      showToast('🎉 全員皆已完成付款，無須催繳！');
+      showToast('全員皆已完成付款，無須催繳！');
       return;
     }
 
-    let text = `📢【咩nu 團購催繳提醒】\n活動：${activeGroup?.title}\n以下朋友尚未完成付款，請儘速繳費喔：\n---\n`;
+    let text = `【咩nu 團購催繳提醒】\n活動：${activeGroup?.title}\n以下朋友尚未完成付款，請儘速繳費喔：\n---\n`;
     unpaidList.forEach((s) => {
       text += `• ${s.user_nickname}：$${s.final_amount} 元 (${s.payment_method_name})\n`;
     });
@@ -417,16 +417,16 @@ export function useAdminOrderActions({
 
     try {
       await navigator.clipboard.writeText(text);
-      showToast('📢 已複製未付款催繳通知文字！');
+      showToast('已複製未付款催繳通知文字！');
     } catch {
-      showToast('❌ 複製失敗');
+      showToast('複製失敗');
     }
   };
 
   // 17. 匯出 CSV
   const handleExportOrdersCSV = () => {
     if (!submissions.length) {
-      showToast('❌ 目前尚無訂單可匯出');
+      showToast('目前尚無訂單可匯出');
       return;
     }
 
@@ -456,7 +456,7 @@ export function useAdminOrderActions({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('📊 訂單 CSV 已成功下載！');
+    showToast('訂單 CSV 已成功下載！');
   };
 
   return {

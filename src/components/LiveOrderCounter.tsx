@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
+import { Flame, TrendingUp } from 'lucide-react';
+
 interface LiveOrderCounterProps {
   initialCount?: number;
   initialAmount?: number;
@@ -77,8 +79,9 @@ export default function LiveOrderCounter({
           <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
         </span>
         <div className="min-w-0">
-          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
-            🔥 全團點餐進度
+          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate flex items-center gap-1">
+            <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span>全團點餐進度</span>
           </p>
           <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
             目前已收到 <span className="font-extrabold text-amber-600 dark:text-amber-400">{count}</span> 筆訂單，共累計{' '}
@@ -86,8 +89,9 @@ export default function LiveOrderCounter({
           </p>
         </div>
       </div>
-      <div className="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl text-[10px] font-extrabold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40 shadow-2xs shrink-0">
-        熱烈跟風中 🚀
+      <div className="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl text-[10px] font-extrabold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40 shadow-2xs shrink-0 flex items-center gap-1">
+        <span>熱烈跟風中</span>
+        <TrendingUp className="w-3 h-3 text-amber-500" />
       </div>
     </div>
   );

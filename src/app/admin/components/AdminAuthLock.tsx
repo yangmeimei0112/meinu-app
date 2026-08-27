@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import { generateMathChallenge, getLockoutDurationSec } from '@/lib/security';
+import { Lock, ShieldCheck, RefreshCw, ArrowRight } from 'lucide-react';
 
 interface AdminAuthLockProps {
   onUnlockSuccess: () => void;
@@ -69,14 +70,14 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
     setAuthError(null);
 
     if (lockoutRemaining > 0) {
-      setAuthError(`🔒 系統處於防撞庫安全鎖定中，請於 ${lockoutRemaining} 秒後再試！`);
+      setAuthError(`系統處於防撞庫安全鎖定中，請於 ${lockoutRemaining} 秒後再試！`);
       return;
     }
 
     // 當錯誤次數 >= 2 時強制驗證動態人機挑戰
     if (failedAttempts >= 2) {
       if (!captchaInput.trim() || Number(captchaInput.trim()) !== captchaChallenge.answer) {
-        setAuthError('⚠️ 人機驗證算術答案錯誤！請重新計算輸入。');
+        setAuthError('人機驗證算術答案錯誤！請重新計算輸入。');
         setCaptchaChallenge(generateMathChallenge());
         setCaptchaInput('');
         return;
@@ -122,7 +123,7 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
           setLockoutRemaining(lockSec);
         }
 
-        setAuthError(data.message || '❌ 密碼錯誤，請重新輸入！');
+        setAuthError(data.message || '密碼錯誤，請重新輸入！');
       }
     } catch (err) {
       console.error(err);
@@ -138,8 +139,8 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
       <Header />
       <main className="flex-1 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-[#131B2B] border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 rounded-3xl shadow-sm w-full max-w-sm text-center space-y-4">
-          <div className="w-12 h-12 bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 rounded-2xl flex items-center justify-center mx-auto text-2xl">
-            🔒
+          <div className="w-12 h-12 bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 rounded-2xl flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6 stroke-[2.2]" />
           </div>
           <div>
             <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100">「咩nu」團長管理後台</h2>
@@ -148,7 +149,10 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
 
           {lockoutRemaining > 0 ? (
             <div className="bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl p-4 text-center space-y-1">
-              <p className="text-xs font-bold text-rose-700 dark:text-rose-300">🔒 密碼錯誤次數過多</p>
+              <p className="text-xs font-bold text-rose-700 dark:text-rose-300 flex items-center justify-center gap-1">
+                <Lock className="w-3.5 h-3.5" />
+                <span>密碼錯誤次數過多</span>
+              </p>
               <p className="text-[11px] text-rose-600 dark:text-rose-400">
                 系統防撞庫鎖定中，請於 <span className="font-bold font-mono">{lockoutRemaining}</span> 秒後再試
               </p>
@@ -175,20 +179,24 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
                 className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-2xl py-3 px-4 text-center text-sm font-bold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-50"
               />
 
-              {/* 🛡️ 撞庫防護：連續錯誤 2 次以上啟動動態人機挑戰 */}
+              {/* 撞庫防護：連續錯誤 2 次以上啟動動態人機挑戰 */}
               {failedAttempts >= 2 && (
                 <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 rounded-2xl p-3 text-left space-y-2">
                   <div className="flex items-center justify-between text-[11px] font-bold text-amber-800 dark:text-amber-300">
-                    <span>🤖 人機驗證安全挑戰：</span>
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                      <span>人機驗證安全挑戰：</span>
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
                         setCaptchaChallenge(generateMathChallenge());
                         setCaptchaInput('');
                       }}
-                      className="text-sky-600 dark:text-sky-400 hover:text-sky-700 underline text-[10px] cursor-pointer"
+                      className="text-sky-600 dark:text-sky-400 hover:text-sky-700 underline text-[10px] cursor-pointer flex items-center gap-0.5"
                     >
-                      🔄 換一題
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      <span>換一題</span>
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -224,7 +232,10 @@ export default function AdminAuthLock({ onUnlockSuccess, onInitAudio }: AdminAut
                     安全校驗中...
                   </>
                 ) : (
-                  '解鎖進入後台 ➔'
+                  <>
+                    <span>解鎖進入後台</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 )}
               </button>
             </form>

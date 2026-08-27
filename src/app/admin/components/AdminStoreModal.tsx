@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { Category, Store } from '@/types/database';
+import { Pencil, Store as StoreIcon, AlertTriangle, Lightbulb } from 'lucide-react';
 
 interface AdminStoreModalProps {
   isOpen: boolean;
@@ -74,11 +75,21 @@ export default function AdminStoreModal({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white dark:bg-[#131B2B] w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 dark:text-slate-100 border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-150 shadow-2xl">
         <h3 className="text-base font-extrabold text-center text-slate-800 dark:text-slate-100">
-          {editingStore ? '✏️ 編輯店家資訊與編號' : '🏪 新增合作店家'}
+          {editingStore ? (
+            <span className="flex items-center justify-center gap-1.5">
+              <Pencil className="w-4 h-4 text-sky-500" />
+              <span>編輯店家資訊與編號</span>
+            </span>
+          ) : (
+            <span className="flex items-center justify-center gap-1.5">
+              <StoreIcon className="w-4 h-4 text-sky-500" />
+              <span>新增合作店家</span>
+            </span>
+          )}
         </h3>
 
         <form onSubmit={onSaveStore} className="space-y-3.5">
-          {/* 🏷️ 商家專屬編號 (S-??? 純數字防呆輸入) */}
+          {/* 商家專屬編號 (S-??? 純數字防呆輸入) */}
           <div className="space-y-1.5 bg-slate-50 dark:bg-[#182234] p-3 rounded-2xl border border-slate-200 dark:border-slate-700/80">
             <div className="flex items-center justify-between">
               <label htmlFor="store-form-code-input" className="text-xs font-black text-slate-700 dark:text-slate-200">
@@ -115,10 +126,11 @@ export default function AdminStoreModal({
               />
             </div>
 
-            {/* ⚠️ 衝突重複警示提示 */}
+            {/* 衝突重複警示提示 */}
             {isDuplicateConflict ? (
-              <p className="text-[11px] font-black text-rose-500 dark:text-rose-400 flex items-center gap-1 animate-pulse">
-                <span>⚠️ 商家編號「S-{storeForm.code_number.padStart(3, '0')}」已被佔用，不可重複！</span>
+              <p className="text-[11px] font-black text-rose-500 dark:text-rose-400 flex items-center gap-1.5 animate-pulse">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>商家編號「S-{storeForm.code_number.padStart(3, '0')}」已被佔用，不可重複！</span>
               </p>
             ) : (
               <p className="text-[10px] text-slate-400 dark:text-slate-500">
@@ -126,26 +138,28 @@ export default function AdminStoreModal({
               </p>
             )}
 
-            {/* 💡 智慧編碼建議按鈕膠囊 (最小可用空缺 & 最大遞增序號) */}
+            {/* 智慧編碼建議按鈕膠囊 (最小可用空缺 & 最大遞增序號) */}
             <div className="pt-1 flex items-center gap-1.5 flex-wrap">
               <span className="text-[10px] font-bold text-slate-400">建議號碼：</span>
               <button
                 type="button"
                 onClick={() => setStoreForm({ ...storeForm, code_number: minSuggestedNumber })}
-                className="text-[10px] font-black font-mono px-2 py-0.5 rounded-lg bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900 border border-sky-200 dark:border-sky-800 transition cursor-pointer"
+                className="text-[10px] font-black font-mono px-2 py-0.5 rounded-lg bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900 border border-sky-200 dark:border-sky-800 transition cursor-pointer flex items-center gap-1"
                 title="填補前面空缺的最小號碼"
               >
-                💡 最小空缺: S-{minSuggestedNumber}
+                <Lightbulb className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                <span>最小空缺: S-{minSuggestedNumber}</span>
               </button>
 
               {minSuggestedNumber !== maxSuggestedNumber && (
                 <button
                   type="button"
                   onClick={() => setStoreForm({ ...storeForm, code_number: maxSuggestedNumber })}
-                  className="text-[10px] font-black font-mono px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 transition cursor-pointer"
+                  className="text-[10px] font-black font-mono px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900 border border-emerald-200 dark:border-emerald-800 transition cursor-pointer flex items-center gap-1"
                   title="接續末端最新號碼"
                 >
-                  💡 最大序號: S-{maxSuggestedNumber}
+                  <Lightbulb className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                  <span>最大序號: S-{maxSuggestedNumber}</span>
                 </button>
               )}
             </div>
@@ -191,8 +205,9 @@ export default function AdminStoreModal({
               <label htmlFor="store-form-image" className="text-xs font-bold text-slate-600 dark:text-slate-300">
                 店家封面照片
               </label>
-              <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">
-                💡 建議像素：800 x 600 px (自動轉 WebP)
+              <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold flex items-center gap-1">
+                <Lightbulb className="w-3 h-3" />
+                <span>建議像素：800 x 600 px (自動轉 WebP)</span>
               </span>
             </div>
 

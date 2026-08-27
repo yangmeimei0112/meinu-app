@@ -71,7 +71,7 @@ export function checkRateLimit(
         const waitSec = Math.ceil((cooldownMs - timeSinceLast) / 1000);
         return {
           allowed: false,
-          reason: `⚠️ 操作過於頻繁，請稍候 ${waitSec} 秒後再試！`,
+          reason: `操作過於頻繁，請稍候 ${waitSec} 秒後再試！`,
           retryAfterSec: waitSec,
         };
       }
@@ -80,7 +80,7 @@ export function checkRateLimit(
       if (timestamps.length >= maxInWindow) {
         return {
           allowed: false,
-          reason: '⚠️ 5 分鐘內送單次數已達上限，請勿重複大量送單！',
+          reason: '5 分鐘內送單次數已達上限，請勿重複大量送單！',
           retryAfterSec: 60,
         };
       }

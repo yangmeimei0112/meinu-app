@@ -40,12 +40,20 @@ export function useMultiCart() {
       setCart(getStoredCart());
     };
 
-    window.addEventListener(CART_UPDATE_EVENT, handleSync);
-    window.addEventListener('storage', handleSync);
+    try {
+      if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
+        window.addEventListener(CART_UPDATE_EVENT, handleSync);
+        window.addEventListener('storage', handleSync);
+      }
+    } catch {}
 
     return () => {
-      window.removeEventListener(CART_UPDATE_EVENT, handleSync);
-      window.removeEventListener('storage', handleSync);
+      try {
+        if (typeof window !== 'undefined' && window && typeof window.removeEventListener === 'function') {
+          window.removeEventListener(CART_UPDATE_EVENT, handleSync);
+          window.removeEventListener('storage', handleSync);
+        }
+      } catch {}
     };
   }, []);
 

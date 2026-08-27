@@ -105,6 +105,7 @@ export default function AdminPageContent() {
     setSoldOutOptions,
     allMenuItems,
     setAllMenuItems,
+    optimisticReorderMenuItems,
     allSubmissions,
     setAllSubmissions,
     submissions,
@@ -201,6 +202,7 @@ export default function AdminPageContent() {
     paymentMethods,
     soldOutOptions,
     allMenuItems,
+    optimisticReorderMenuItems,
     fetchAdminData,
     showToast,
     openAdminConfirmModal,
@@ -288,7 +290,7 @@ export default function AdminPageContent() {
 
   const handleToggleSound = () => {
     const next = toggleSound();
-    showToast(next ? '🔔 已開啟新訂單叮咚提醒（試聽播放）' : '🔕 已靜音新訂單提示音效');
+    showToast(next ? '已開啟新訂單叮咚提醒（試聽播放）' : '已靜音新訂單提示音效');
   };
 
   const handleLogout = async () => {
@@ -296,7 +298,7 @@ export default function AdminPageContent() {
       await fetch('/api/admin/logout', { method: 'POST' });
     } catch {}
     setIsUnlocked(false);
-    showToast('🔒 已安全登出團長後台');
+    showToast('已安全登出團長後台');
   };
 
   const handleOpenStoreModal = (store?: Store) => {
