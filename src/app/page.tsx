@@ -10,40 +10,23 @@ import { Store, Category } from '@/types/database';
 import { useDebounce } from '@/lib/useDebounce';
 import { useTheme } from '@/lib/theme';
 import HomeWelcomeBanner from '@/components/HomeWelcomeBanner';
+import { formatVersionDisplay } from '@/lib/formatVersion';
 import { Search, ChevronRight, Store as StoreIcon, Sun, Moon } from 'lucide-react';
 import { stripEmojis } from '@/lib/icon-utils';
 
-// 🌟 智慧版本號格式化（自動支援 v6.5, v6.3 等英數版號與中文版號互轉）
-function formatVersionDisplay(msg: string, hash: string): string {
-  // 1. 優先匹配英數語意化版本號（如 v6.5, v6.3, v5.21）
-  const vMatch = msg.match(/v\d+\.\d+(\.\d+)?/i);
-  if (vMatch) {
-    return `${vMatch[0]} (${hash})`;
-  }
-
-  // 2. 匹配中文版號（例如：二代第六之五版 ➔ v6.5，第五之二十一版 ➔ v5.21）
-  const cnNums: Record<string, number> = {
-    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
-    '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
-    '十一': 11, '十二': 12, '十三': 13, '十四': 14, '十五': 15,
-    '十六': 16, '十七': 17, '十八': 18, '十九': 19, '二十': 20,
-    '二十一': 21,
-  };
-
-  const compoundMatch = msg.match(/第([一二三四五六七八九十]+)之([一二三四五六七八九十]+)版/);
-  if (compoundMatch) {
-    const major = cnNums[compoundMatch[1]] || compoundMatch[1];
-    const minor = cnNums[compoundMatch[2]] || compoundMatch[2];
-    return `v${major}.${minor} (${hash})`;
-  }
-
-  const singleMatch = msg.match(/第([一二三四五六七八九十]+)版/);
-  if (singleMatch) {
-    const major = cnNums[singleMatch[1]] || singleMatch[1];
-    return `v${major}.0 (${hash})`;
-  }
-
-  return hash.startsWith('v') ? hash : `v9.0 (${hash})`;
+// 首頁店家列表骨架屏（Skeleton UI）
+function StoreCardSkeleton() {
+  return (
+    <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 flex items-center gap-3.5 animate-pulse">
+      <div className="w-16 h-16 rounded-2xl bg-slate-100 dark:bg-slate-800 shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded-lg w-3/4" />
+        <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded-md w-1/2" />
+        <div className="h-5 bg-slate-100 dark:bg-slate-800 rounded-full w-20" />
+      </div>
+      <div className="w-5 h-5 rounded bg-slate-100 dark:bg-slate-800 shrink-0" />
+    </div>
+  );
 }
 
 export default function HomePage() {
@@ -120,7 +103,7 @@ export default function HomePage() {
           {/* 實時全團點餐進度卡片 */}
           <LiveOrderCounter />
 
-          {/* ✨ 現代極簡風格歡迎模塊 (含純向量飲品微動態與升騰熱氣動畫) */}
+          {/* ✨ 現代極簡風格歡迎模塊 */}
           <HomeWelcomeBanner />
 
           {/* 🔍 店家搜尋列 */}
@@ -172,14 +155,19 @@ export default function HomePage() {
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
               <span>開放點餐店家</span>
-              <span className="text-xs text-slate-400 dark:text-slate-500 font-normal">
-                共 {filteredStores.length} 家
-              </span>
+              {!loading && (
+                <span className="text-xs text-slate-400 dark:text-slate-500 font-normal">
+                  共 {filteredStores.length} 家
+                </span>
+              )}
             </h3>
 
             {loading ? (
-              <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center text-slate-400 dark:text-slate-500 text-sm animate-pulse border border-slate-100 dark:border-slate-800">
-                正在載入「咩nu」店家清單...
+              // 🦴 骨架屏：模仿實際卡片形狀，消除空白跳動感
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <StoreCardSkeleton key={i} />
+                ))}
               </div>
             ) : filteredStores.length === 0 ? (
               <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
@@ -248,7 +236,7 @@ export default function HomePage() {
 
         <span className="hidden sm:inline text-slate-300 dark:text-slate-700">•</span>
 
-        {/* 🌗 主題切換按鈕（精緻低調設計，不突兀） */}
+        {/* 🌗 主題切換按鈕 */}
         <button
           type="button"
           onClick={toggleTheme}

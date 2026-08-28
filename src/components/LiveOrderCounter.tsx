@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-
 import { Flame, TrendingUp } from 'lucide-react';
 
 interface LiveOrderCounterProps {
@@ -22,52 +21,80 @@ export default function LiveOrderCounter({
     (initialCount !== undefined && initialCount > 0) || false
   );
 
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        let groupQuery = supabase.from('group_orders').select('id').eq('status', 'open');
-        if (storeId) {
-          groupQuery = groupQuery.eq('store_id', storeId);
-        }
+  // P1-B：使用 ref 防止組件卸載後 setState，並加入 debounce 節流 Realtime 回呼
+  const isMountedRef = useRef(true);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-        const { data: groups } = await groupQuery;
-        if (groups && groups.length > 0) {
-          const groupIds = groups.map((g) => g.id);
-          const { data: submissions } = await supabase
-            .from('order_submissions')
-            .select('id, total_amount')
-            .in('group_order_id', groupIds);
-
-          if (submissions) {
-            setCount(submissions.length);
-            const sum = submissions.reduce((acc, curr) => acc + (curr.total_amount || 0), 0);
-            setTotalAmount(sum);
-            setHasData(submissions.length > 0);
-          }
-        }
-      } catch (err) {
-        console.error('Fetch live order stats error:', err);
+  const fetchStats = useCallback(async () => {
+    try {
+      let groupQuery = supabase.from('group_orders').select('id').eq('status', 'open');
+      if (storeId) {
+        groupQuery = groupQuery.eq('store_id', storeId);
       }
-    }
 
+      const { data: groups } = await groupQuery;
+      if (!isMountedRef.current) return;
+
+      if (groups && groups.length > 0) {
+        const groupIds = groups.map((g) => g.id);
+        const { data: submissions } = await supabase
+          .from('order_submissions')
+          .select('id, total_amount')
+          .in('group_order_id', groupIds);
+
+        if (!isMountedRef.current) return;
+
+        if (submissions) {
+          setCount(submissions.length);
+          const sum = submissions.reduce((acc, curr) => acc + (curr.total_amount || 0), 0);
+          setTotalAmount(sum);
+          setHasData(submissions.length > 0);
+        }
+      } else {
+        // 沒有開放中的團購時，清空計數
+        if (isMountedRef.current) {
+          setCount(0);
+          setTotalAmount(0);
+          setHasData(false);
+        }
+      }
+    } catch (err) {
+      console.error('Fetch live order stats error:', err);
+    }
+  }, [storeId]);
+
+  // 節流版 fetchStats：多筆訂單同時到達時只觸發一次
+  const debouncedFetchStats = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      fetchStats();
+    }, 200);
+  }, [fetchStats]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
     fetchStats();
 
-    // ⚡ 實時訂閱新送單與更新
+    // ⚡ 實時訂閱新送單與更新，加入 debounce 防止連發多次查詢
     const channel = supabase
       .channel('live-order-counter-channel')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'order_submissions' },
-        () => {
-          fetchStats();
-        }
+        debouncedFetchStats
       )
       .subscribe();
 
     return () => {
+      isMountedRef.current = false;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
       supabase.removeChannel(channel);
     };
-  }, [storeId]);
+  }, [fetchStats, debouncedFetchStats]);
 
   if (!hasData && count === 0) return null;
 

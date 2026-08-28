@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
 import { ClipboardList, ChevronLeft, ArrowRight, RotateCcw, Store, CheckCircle2, Clock } from 'lucide-react';
 import { PaymentMethodIcon, stripEmojis } from '@/lib/icon-utils';
+import { useToast } from '@/lib/useToast';
 
 interface OrderItemRow {
   id: string;
@@ -45,12 +46,9 @@ export default function MyOrdersPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<OrderHistoryRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
-  };
+  // P3-A：使用共用 useToast Hook
+  const { toastMessage, showToast } = useToast();
 
   useEffect(() => {
     // 進入「我的訂單」頁面時，標記新訂單已查看，解除 Header 上的紅點閃爍

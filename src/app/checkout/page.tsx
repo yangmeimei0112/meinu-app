@@ -11,7 +11,7 @@ import CheckoutCustomerForm from './components/CheckoutCustomerForm';
 import CheckoutOptions from './components/CheckoutOptions';
 import OrderSuccessModal from '@/components/OrderSuccessModal';
 import DoubleConfirmModal from '@/components/DoubleConfirmModal';
-import { ChevronLeft, ClipboardList, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ClipboardList, ArrowRight, Loader2 } from 'lucide-react';
 import { useCheckoutOrder } from './hooks/useCheckoutOrder';
 
 function CheckoutContent() {
@@ -132,9 +132,16 @@ function CheckoutContent() {
               type="button"
               disabled={isSubmitting}
               onClick={handleSubmitOrder}
-              className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3.5 rounded-2xl text-base shadow-lg hover:brightness-105 active:scale-[0.99] transition disabled:opacity-50 cursor-pointer"
+              className="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3.5 rounded-2xl text-base shadow-lg hover:brightness-105 active:scale-[0.99] transition disabled:opacity-60 cursor-pointer flex items-center justify-center gap-2"
             >
-              {isSubmitting ? '正在送出訂單...' : `確認送出訂單 ($${grandTotal} 元)`}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>正在送出訂單...</span>
+                </>
+              ) : (
+                `確認送出訂單 ($${grandTotal} 元)`
+              )}
             </button>
           </>
         )}

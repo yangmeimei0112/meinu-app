@@ -6,6 +6,54 @@ import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types
 import { GroupOrderAdmin, OrderSubmissionAdmin } from '../admin-types';
 import { SpeechOrderItem, SpeechOrderPayload } from './useAdminSpeech';
 
+// 明確定義 Supabase 原始查詢回傳的型別（取代 any）
+interface RawOrderItemRow {
+  item_name: string;
+  quantity: number;
+  custom_notes: string | null;
+  unit_price: number;
+}
+
+interface RawSubmissionRow {
+  id: string;
+  order_number: string;
+  user_nickname: string;
+  payment_method_name: string;
+  sold_out_option: string | null;
+  total_amount: number;
+  final_amount: number;
+  is_paid: boolean;
+  signature_data: string | null;
+  created_at: string;
+  group_order_id: string;
+  group_orders?: { title: string; stores?: { name: string } | null } | null;
+  order_items?: Array<{
+    id: string;
+    item_name: string;
+    quantity: number;
+    unit_price: number;
+    custom_notes: string | null;
+  }> | null;
+}
+
+interface RawGroupOrderRow {
+  id: string;
+  store_id: string;
+  title: string;
+  status: 'open' | 'closed' | 'completed';
+  announcement: string | null;
+  delivery_fee: number;
+  discount_amount: number;
+  rounding_rule: string;
+  enable_min_threshold?: boolean;
+  min_threshold_amount?: number;
+  enable_countdown?: boolean;
+  cutoff_time?: string | null;
+  enable_budget_limit?: boolean;
+  budget_limit_amount?: number;
+  stores?: { id: string; name: string; image_url?: string | null } | null;
+}
+
 interface UseAdminDataProps {
   isUnlocked: boolean;
   playChimeSound: () => void;
@@ -83,14 +131,14 @@ export function useAdminData({
         (async () => {
           try {
             // 嘗試取得該筆訂單的品項清單（含微重試以防結帳品項寫入微小延遲）
-            let itemRows: any[] = [];
+            let itemRows: RawOrderItemRow[] = [];
             for (let attempt = 0; attempt < 3; attempt++) {
               const { data } = await supabase
                 .from('order_items')
                 .select('item_name, quantity, custom_notes, unit_price')
                 .eq('submission_id', orderId);
               if (data && data.length > 0) {
-                itemRows = data;
+                itemRows = data as RawOrderItemRow[];
                 break;
               }
               await new Promise((res) => setTimeout(res, 180));
@@ -100,13 +148,13 @@ export function useAdminData({
             let totalAmount = initialAmount || 0;
 
             if (itemRows && itemRows.length > 0) {
-              items = itemRows.map((r: any) => ({
+              items = itemRows.map((r: RawOrderItemRow) => ({
                 name: r.item_name,
                 quantity: r.quantity,
                 notes: r.custom_notes,
               }));
               if (!totalAmount) {
-                totalAmount = itemRows.reduce((sum: number, r: any) => sum + (r.unit_price * r.quantity), 0);
+                totalAmount = itemRows.reduce((sum: number, r: RawOrderItemRow) => sum + (r.unit_price * r.quantity), 0);
               }
             }
 
@@ -231,13 +279,13 @@ export function useAdminData({
 
           if (subErr) console.error('抓取訂單失敗:', subErr);
 
-          const formattedSubs: OrderSubmissionAdmin[] = (allSubList || []).map((s: any) => ({
+          const formattedSubs: OrderSubmissionAdmin[] = (allSubList as unknown as RawSubmissionRow[] || []).map((s: RawSubmissionRow) => ({
             ...s,
             store_name: s.group_orders?.stores?.name || s.group_orders?.title || '',
             order_items: s.order_items || [],
           }));
 
-          (allSubList || []).forEach((s: any) => {
+          (allSubList as unknown as RawSubmissionRow[] || []).forEach((s: RawSubmissionRow) => {
             knownOrderIdsRef.current.add(s.id);
             processedNotificationIdsRef.current.add(s.id);
           });
@@ -246,7 +294,7 @@ export function useAdminData({
             isInitialLoadRef.current = false;
           }
 
-          const groupsWithStats: GroupOrderAdmin[] = openGroups.map((g: any) => {
+          const groupsWithStats: GroupOrderAdmin[] = (openGroups as RawGroupOrderRow[]).map((g: RawGroupOrderRow) => {
             const gSubs = formattedSubs.filter((s) => s.group_order_id === g.id);
             const storeObj = g.stores
               ? { ...g.stores, code: codeMap[g.store_id] || 'S-001' }

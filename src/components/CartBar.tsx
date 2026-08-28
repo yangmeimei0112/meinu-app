@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useMemo } from 'react';
 import Link from 'next/link';
 import { CartItem } from '@/types/cart';
 import { ShoppingCart, ArrowRight, Trash2 } from 'lucide-react';
@@ -9,11 +10,14 @@ interface CartBarProps {
   onClearCart: () => void;
 }
 
-export default function CartBar({ cartItems, onClearCart }: CartBarProps) {
+function CartBarInner({ cartItems, onClearCart }: CartBarProps) {
   if (cartItems.length === 0) return null;
 
-  const totalQuantity = cartItems.reduce((sum, item) => sum + item.quantity, 0);
-  const grandTotal = cartItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  // 避免重複計算
+  const { totalQuantity, grandTotal } = useMemo(() => ({
+    totalQuantity: cartItems.reduce((sum, item) => sum + item.quantity, 0),
+    grandTotal: cartItems.reduce((sum, item) => sum + item.totalPrice, 0),
+  }), [cartItems]);
 
   return (
     <div className="fixed bottom-4 left-0 right-0 z-40 px-4 max-w-md mx-auto">
@@ -36,6 +40,7 @@ export default function CartBar({ cartItems, onClearCart }: CartBarProps) {
             type="button"
             onClick={onClearCart}
             className="text-xs text-slate-400 hover:text-red-400 p-2 transition flex items-center gap-1 cursor-pointer"
+            aria-label="清空此店購物車"
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>清空</span>
@@ -52,3 +57,9 @@ export default function CartBar({ cartItems, onClearCart }: CartBarProps) {
     </div>
   );
 }
+
+// P1-D：React.memo 避免父層無關 state 觸發購物車條重渲染
+const CartBar = React.memo(CartBarInner);
+CartBar.displayName = 'CartBar';
+
+export default CartBar;

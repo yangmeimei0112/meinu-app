@@ -10,11 +10,12 @@ import { MenuItem } from '@/types/database';
 import { CartItem } from '@/types/cart';
 import { useMultiCart } from '@/lib/useMultiCart';
 import { useDebounce } from '@/lib/useDebounce';
+import { useToast } from '@/lib/useToast';
 import StoreProductCard from './components/StoreProductCard';
 import { StoreHeader } from './components/StoreHeader';
 import { StoreNoticeBanner } from './components/StoreNoticeBanner';
 import { useStoreData } from './hooks/useStoreData';
-import { Search } from 'lucide-react';
+import { Search, UtensilsCrossed } from 'lucide-react';
 
 interface StoreClientProps {
   storeId: string;
@@ -33,16 +34,13 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
   } = useStoreData({ storeId, initialStoreCode });
 
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [menuSearchQuery, setMenuSearchQuery] = useState<string>('');
 
   const debouncedMenuSearch = useDebounce(menuSearchQuery, 200);
   const { cart, addItem, clearStoreCart } = useMultiCart();
 
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
-  }, []);
+  // P3-A：使用共用 useToast Hook
+  const { toastMessage, showToast } = useToast();
 
   const handleShare = async () => {
     if (!store) return;
@@ -74,8 +72,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
     () => currentStoreItems.reduce((sum, i) => sum + i.totalPrice, 0),
     [currentStoreItems]
   );
-  const isClosed = groupMeta?.status === 'closed';
-  const isGroupClosed = isClosed;
+  const isGroupClosed = groupMeta?.status === 'closed';
 
   // 記憶化餐點搜尋過濾結果
   const filteredMenuItems = useMemo(() => {
@@ -148,6 +145,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
                 value={menuSearchQuery}
                 onChange={(e) => setMenuSearchQuery(e.target.value)}
                 placeholder="搜尋此店家餐點名稱或特色..."
+                aria-label="搜尋餐點"
                 className="w-full bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-800 rounded-2xl py-2.5 pl-9 pr-4 text-xs font-semibold text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400 shadow-2xs transition"
               />
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -155,6 +153,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
                 <button
                   type="button"
                   onClick={() => setMenuSearchQuery('')}
+                  aria-label="清除搜尋"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                 >
                   ✕
@@ -164,8 +163,21 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
 
             {/* 🍽️ 餐點品項列表 */}
             {filteredMenuItems.length === 0 ? (
-              <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center text-slate-400 dark:text-slate-500 text-xs border border-slate-100 dark:border-slate-800">
-                {menuSearchQuery ? `找不到符合「${menuSearchQuery}」的餐點` : '此店家目前尚未建立菜單品項喔！'}
+              // P2-D：搜尋無結果空狀態加入圖示，與其他頁面風格一致
+              <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-8 text-center border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+                <UtensilsCrossed className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                  {menuSearchQuery ? `找不到符合「${menuSearchQuery}」的餐點` : '此店家目前尚未建立菜單品項喔！'}
+                </p>
+                {menuSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setMenuSearchQuery('')}
+                    className="text-xs text-sky-500 hover:text-sky-600 font-semibold transition"
+                  >
+                    清除搜尋條件
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-2.5">
