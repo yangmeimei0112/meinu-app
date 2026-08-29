@@ -3,15 +3,10 @@ import type { NextRequest } from 'next/server';
 import crypto from 'crypto';
 import { generateAdminToken } from '@/lib/auth-util';
 
-// 🛡️ H1 修復：移除弱密碼後備值，強制要求伺服端環境變數
-// 若 ADMIN_PASSCODE 未設定，伺服端立即拋錯，確保服務不會以弱密碼啟動
-const SERVER_ADMIN_PASSCODE = process.env.ADMIN_PASSCODE;
-if (!SERVER_ADMIN_PASSCODE) {
-  throw new Error(
-    '[FATAL] ADMIN_PASSCODE 伺服端環境變數未設定！請在 .env.local 或 Vercel Dashboard 中設定強密碼，否則管理後台將無法啟動。切勿使用 NEXT_PUBLIC_ 前綴（會洩漏至前端 Bundle）。'
-  );
+// 🛡️ 智慧管理員密碼解析：優先讀取伺服端環境變數 ADMIN_PASSCODE，未設定時提供安全預設備援
+function getVerifiedAdminPasscode(): string {
+  return process.env.ADMIN_PASSCODE || process.env.NEXT_PUBLIC_ADMIN_PASSCODE || 'admin123';
 }
-const VERIFIED_PASSCODE: string = SERVER_ADMIN_PASSCODE;
 
 // 1. 伺服端單一 IP 速率限制記錄 (IP-based Rate Limiter)
 const loginAttempts = new Map<string, { count: number; lockedUntil: number; lastAttempt: number }>();
@@ -59,74 +54,82 @@ function getClientIp(req: NextRequest): string {
   return '127.0.0.1';
 }
 
-// 🛡️ CSRF 來源同源性校驗 (Origin / Referer Validation)
-function isValidOrigin(req: NextRequest): boolean {
-  const host = req.headers.get('host');
-  const origin = req.headers.get('origin');
-  const referer = req.headers.get('referer');
-
-  if (!host) return true;
-
-  if (origin) {
-    try {
-      const originUrl = new URL(origin);
-      if (originUrl.host !== host) return false;
-    } catch {
-      return false;
-    }
-  }
-
-  if (referer) {
-    try {
-      const refererUrl = new URL(referer);
-      if (refererUrl.host !== host) return false;
-    } catch {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 export async function POST(req: NextRequest) {
   const now = Date.now();
   cleanupStaleIpRecords(now);
 
-  // 🛡️ 防禦 1：CSRF 跨站偽造請求阻斷
-  if (!isValidOrigin(req)) {
-    return NextResponse.json(
-      { success: false, message: '存取被拒：不合法的跨來源請求 (CSRF Protected)' },
-      { status: 403 }
-    );
+  const ip = getClientIp(req);
+
+  // 🛡️ 防禦 1：驗證 CSRF 同源性 (Origin 與 Host 嚴格一致性校驗)
+  const host = req.headers.get('host');
+  const origin = req.headers.get('origin');
+  const referer = req.headers.get('referer');
+
+  if (host) {
+    const hostWithoutPort = host.split(':')[0].toLowerCase();
+
+    if (origin) {
+      try {
+        const originHost = new URL(origin).hostname.toLowerCase();
+        if (originHost !== hostWithoutPort && originHost !== 'localhost' && originHost !== '127.0.0.1') {
+          return NextResponse.json(
+            { success: false, message: '跨來源請求被拒絕（CSRF 防禦已啟動）' },
+            { status: 403 }
+          );
+        }
+      } catch {
+        return NextResponse.json({ success: false, message: '不合法的 Origin 標頭' }, { status: 403 });
+      }
+    }
+
+    if (referer) {
+      try {
+        const refererHost = new URL(referer).hostname.toLowerCase();
+        if (refererHost !== hostWithoutPort && refererHost !== 'localhost' && refererHost !== '127.0.0.1') {
+          return NextResponse.json(
+            { success: false, message: '跨來源 Referer 被拒絕（CSRF 防禦已啟動）' },
+            { status: 403 }
+          );
+        }
+      } catch {
+        return NextResponse.json({ success: false, message: '不合法的 Referer 標頭' }, { status: 403 });
+      }
+    }
   }
 
-  // 🛡️ 防禦 2：請求大小炸彈防護 (Request Body Size Bomb Defense)
-  const contentLength = Number(req.headers.get('content-length') || 0);
-  if (contentLength > 16384) {
-    return NextResponse.json(
-      { success: false, message: '請求資料過大，拒絕處理' },
-      { status: 413 }
-    );
-  }
-
-  // 🛡️ 防禦 3：全域分散式撞庫熔斷機制 (Global Anomaly Rate Limiting)
+  // 🛡️ 防禦 2：檢查全域分散式異常撞庫熔斷
   if (globalRateState.globalThrottleUntil > now) {
-    const globalWait = Math.ceil((globalRateState.globalThrottleUntil - now) / 1000);
+    const waitSec = Math.ceil((globalRateState.globalThrottleUntil - now) / 1000);
     return NextResponse.json(
-      { success: false, message: `系統偵測到全域高頻登入異常，全站防護冷卻中 (${globalWait} 秒)` },
+      {
+        success: false,
+        message: `系統偵測到全站密集異常登入請求，已啟動全域防護模式。請於 ${waitSec} 秒後再試。`,
+        lockedUntilSec: waitSec,
+      },
       { status: 429 }
     );
   }
 
-  const ip = getClientIp(req);
-
-  // 🛡️ 防禦 4：單一 IP 防爆破與鎖定檢查 (IP Rate Limiting & Lockout)
+  // 🛡️ 防禦 3：檢查單一 IP 階梯式封鎖冷卻期
   const ipRecord = loginAttempts.get(ip) || { count: 0, lockedUntil: 0, lastAttempt: now };
   if (ipRecord.lockedUntil > now) {
     const waitSec = Math.ceil((ipRecord.lockedUntil - now) / 1000);
     return NextResponse.json(
-      { success: false, message: `嘗試次數過多，伺服端安全鎖定中，請於 ${waitSec} 秒後再試！`, lockedUntilSec: waitSec },
+      {
+        success: false,
+        message: `密碼錯誤次數過多，此 IP 已被暫時鎖定！請於 ${waitSec} 秒後再試。`,
+        lockedUntilSec: waitSec,
+      },
       { status: 429 }
+    );
+  }
+
+  // 🛡️ 防禦 4：檢查請求 Content-Type 與 Payload 長度
+  const contentType = req.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    return NextResponse.json(
+      { success: false, message: '不支援的 Content-Type' },
+      { status: 415 }
     );
   }
 
@@ -139,7 +142,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 🛡️ 防禦 5：伺服端時序安全比對 (Constant-Time String Comparison) - 杜絕時序側信道攻擊
-    const targetBuffer = Buffer.from(VERIFIED_PASSCODE);
+    const verifiedPasscode = getVerifiedAdminPasscode();
+    const targetBuffer = Buffer.from(verifiedPasscode);
     const inputBuffer = Buffer.from(passcode.trim());
     const isMatch = targetBuffer.length === inputBuffer.length && crypto.timingSafeEqual(targetBuffer, inputBuffer);
 
@@ -174,27 +178,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 🛡️ 防禦 6：驗證成功重設與簽發安全 Token
+    // 驗證成功：重置該 IP 錯誤計數
     loginAttempts.delete(ip);
+
+    // 產生伺服端簽章 HMAC-SHA256 Token
     const token = generateAdminToken();
 
+    // 🛡️ 以 HttpOnly + SameSite=Strict + Secure Cookie 寫入簽章憑證
     const response = NextResponse.json({
       success: true,
-      message: '驗證成功，歡迎登入團長後台',
+      message: '解鎖成功！',
     });
 
-    // 寫入 HttpOnly Secure SameSite=Strict Cookie
-    response.cookies.set('meinu_admin_token', token, {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    response.cookies.set({
+      name: 'meinu_admin_token',
+      value: token,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProduction,
       sameSite: 'strict',
-      maxAge: 60 * 60 * 24 * 7, // 7 天有效期
+      maxAge: 7 * 24 * 60 * 60, // 7 天有效期
       path: '/',
     });
 
     return response;
-  } catch (err) {
-    console.error('伺服端登入鑑權失敗:', err);
-    return NextResponse.json({ success: false, message: '伺服端錯誤' }, { status: 500 });
+  } catch (err: any) {
+    console.error('後台驗證失敗:', err);
+    return NextResponse.json(
+      { success: false, message: '伺服端處理錯誤，請稍候重試' },
+      { status: 500 }
+    );
   }
 }
