@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import type { Store } from '@/types/database';
 import { Search, Store as StoreIcon, ChevronRight } from 'lucide-react';
+import { prefetchStoreData } from '@/lib/storeMenuCache';
 
 interface SearchResultsListProps {
   searchQuery: string;
@@ -62,6 +63,8 @@ export function SearchResultsList({
             <Link
               key={store.id}
               href={`/stores/${store.code || store.id}`}
+              onMouseEnter={() => prefetchStoreData(store.id)}
+              onTouchStart={() => prefetchStoreData(store.id)}
               onClick={() => onSelectStore(store.name)}
               className="bg-white dark:bg-[#131B2B] rounded-2xl p-3.5 border border-slate-100 dark:border-slate-800 shadow-2xs hover:border-sky-200 dark:hover:border-sky-500/40 hover:shadow-xs transition active:scale-[0.99] flex items-center justify-between gap-3 group cursor-pointer"
             >
@@ -71,6 +74,8 @@ export function SearchResultsList({
                     <img
                       src={store.image_url}
                       alt={store.name}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover"
                     />
                   ) : (

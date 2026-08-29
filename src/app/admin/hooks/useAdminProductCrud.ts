@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MenuItem, CustomGroup } from '@/types/database';
 import { AdminConfirmModalState } from '../admin-types';
+import { patchStoreMenuItem } from '@/lib/storeMenuCache';
 
 interface UseAdminProductCrudProps {
   allMenuItems: MenuItem[];
@@ -180,6 +181,10 @@ export function useAdminProductCrud({
   // 切換餐點售罄狀態
   const handleToggleProductSoldOut = async (productId: string, currentStatus: boolean) => {
     const newStatus = !currentStatus;
+    if (selectedCrudStoreId) {
+      patchStoreMenuItem(selectedCrudStoreId, productId, { is_sold_out: newStatus });
+    }
+
     const { error } = await supabase
       .from('menu_items')
       .update({ is_sold_out: newStatus })
