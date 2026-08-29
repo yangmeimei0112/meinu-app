@@ -81,16 +81,18 @@ function writeConfig(config: MaintenanceConfig): boolean {
   return written || !!memoryCache;
 }
 
-// 供前台訪客快速查詢維護狀態 (附帶目前伺服端部署 Build ID 與版本時間戳)
+// 供前台訪客快速查詢維護狀態
 export async function GET() {
   const config = readConfig();
-  const buildId = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || process.env.VERCEL_GIT_COMMIT_SHA || 'dev';
 
+  // 🛡️ M3 修復：移除 build_id（Git Commit Hash）與精確伺服器時間戳，
+  // 這些資訊對公眾訪客無必要，洩露後攻擊者可藉此確認部署版本並針對已知 CVE 發動攻擊。
   return NextResponse.json(
     {
-      ...config,
-      build_id: buildId,
-      server_timestamp: Date.now(),
+      is_maintenance: config.is_maintenance,
+      title: config.is_maintenance ? config.title : '',
+      message: config.is_maintenance ? config.message : '',
+      estimated_end_time: config.is_maintenance ? (config.estimated_end_time || '') : '',
     },
     {
       headers: {

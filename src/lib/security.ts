@@ -1,9 +1,6 @@
 /**
- * 咩nu 基礎資安防護與反機器人/反撞庫防禦工具函式庫
- */
-
-/**
- * 清洗與跳脫使用者文字輸入，防止 XSS 攻擊與惡意腳本注入
+ * 🛡️ M5 修復：清洗使用者文字輸入，防止 XSS 攻擊與惡意腳本注入
+ * 改採「拒絕危險字符」而非「嘗試替換標籤」策略，避免 regex 被 Unicode 等效字符繞過
  * @param input 原始使用者輸入字串
  * @param maxLength 最大允許長度（預設 100）
  */
@@ -12,14 +9,19 @@ export function sanitizeInput(input: string, maxLength: number = 100): string {
 
   return input
     .trim()
-    // 移除 Null Byte 與隱藏控制字元 (防範字串截斷攻擊)
+    // 移除 Null Byte 與隱藏控制字元（防範字串截斷攻擊）
     .replace(/[\0\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    // 移除危險的 HTML 標籤（如 <script>, <iframe>, <object>, <embed>, <svg>, <link> 等）
-    .replace(/<[^>]*>?/gm, '')
+    // 🛡️ M5 修復：直接移除所有 < > 字符（ASCII 及 Unicode 等效），
+    // 比嘗試 regex 匹配完整標籤更安全，根本上阻斷 HTML 注入
+    .replace(/[<>]/g, '')
+    // 移除 Unicode 的 HTML angle bracket 等效字符
+    .replace(/[\u003C\u003E\uFE64\uFE65\uFF1C\uFF1E]/g, '')
     // 移除 javascript: / vbscript: / data: 偽協定
-    .replace(/(javascript|vbscript):/gi, '')
+    .replace(/(javascript|vbscript|data):/gi, '')
     // 移除 inline event handlers 如 onload=, onclick=, onerror=
     .replace(/on\w+\s*=/gi, '')
+    // 移除反斜線轉義嘗試
+    .replace(/\\+/g, '')
     // 限制最大字串長度
     .slice(0, maxLength);
 }

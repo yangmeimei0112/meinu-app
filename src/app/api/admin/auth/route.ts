@@ -3,8 +3,15 @@ import type { NextRequest } from 'next/server';
 import crypto from 'crypto';
 import { generateAdminToken } from '@/lib/auth-util';
 
-// 伺服端專用密鑰（優先讀取伺服端環境變數 ADMIN_PASSCODE，不外洩給前端）
-const SERVER_ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || process.env.NEXT_PUBLIC_ADMIN_PASSCODE || '8888';
+// 🛡️ H1 修復：移除弱密碼後備值，強制要求伺服端環境變數
+// 若 ADMIN_PASSCODE 未設定，伺服端立即拋錯，確保服務不會以弱密碼啟動
+const SERVER_ADMIN_PASSCODE = process.env.ADMIN_PASSCODE;
+if (!SERVER_ADMIN_PASSCODE) {
+  throw new Error(
+    '[FATAL] ADMIN_PASSCODE 伺服端環境變數未設定！請在 .env.local 或 Vercel Dashboard 中設定強密碼，否則管理後台將無法啟動。切勿使用 NEXT_PUBLIC_ 前綴（會洩漏至前端 Bundle）。'
+  );
+}
+const VERIFIED_PASSCODE: string = SERVER_ADMIN_PASSCODE;
 
 // 1. 伺服端單一 IP 速率限制記錄 (IP-based Rate Limiter)
 const loginAttempts = new Map<string, { count: number; lockedUntil: number; lastAttempt: number }>();
@@ -132,7 +139,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 🛡️ 防禦 5：伺服端時序安全比對 (Constant-Time String Comparison) - 杜絕時序側信道攻擊
-    const targetBuffer = Buffer.from(SERVER_ADMIN_PASSCODE);
+    const targetBuffer = Buffer.from(VERIFIED_PASSCODE);
     const inputBuffer = Buffer.from(passcode.trim());
     const isMatch = targetBuffer.length === inputBuffer.length && crypto.timingSafeEqual(targetBuffer, inputBuffer);
 

@@ -1,6 +1,15 @@
 import crypto from 'crypto';
 
-const AUTH_SECRET_KEY = process.env.AUTH_SECRET_KEY || 'meinu-super-secret-auth-key-2026';
+// 🛡️ H2 修復：移除預設值後備，強制要求環境變數存在
+// 若 AUTH_SECRET_KEY 未設定，伺服器啟動時即失敗，阻止攻擊者使用已知的預設密鑰偽造 Token
+const _AUTH_SECRET_KEY = process.env.AUTH_SECRET_KEY;
+if (!_AUTH_SECRET_KEY) {
+  throw new Error(
+    '[FATAL] AUTH_SECRET_KEY 環境變數未設定！請在 .env.local (本機) 或 Vercel Dashboard (生產環境) 中設定一個至少 32 字元的強密鑰，否則服務無法啟動。'
+  );
+}
+// 通過 guard 之後斷言為 string（TypeScript 無法自動收窄 module-scope const）
+const AUTH_SECRET_KEY: string = _AUTH_SECRET_KEY;
 
 export function verifyAdminToken(token: string | undefined | null): boolean {
   if (!token || typeof token !== 'string' || !token.includes('.')) {

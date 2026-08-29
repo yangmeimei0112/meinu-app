@@ -180,8 +180,9 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
       return;
     }
 
-    if (!checkRateLimit('checkout_submit', 5, 60000)) {
-      showToast('您的操作次數過多，請稍候 1 分鐘後再送單');
+    const rateLimitResult = checkRateLimit('checkout_submit', 5, 60000);
+    if (!rateLimitResult.allowed) {
+      showToast(rateLimitResult.reason || '您的操作次數過多，請稍候 1 分鐘後再送單');
       return;
     }
 
@@ -204,6 +205,28 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
     if (!selectedSoldOut) {
       showToast('請選擇缺貨時的處理方式！');
       return;
+    }
+
+    // 🛡️ M1 修復：伺服端速率限制（補強純客戶端 localStorage 可被清除繞過的弱點）
+    // 查詢同暱稱在最近 5 分鐘內的訂單筆數，超過 5 筆視為異常刷單行為
+    if (activeGroupOrder?.id && cleanNickname) {
+      try {
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const { count } = await supabase
+          .from('order_submissions')
+          .select('id', { count: 'exact', head: true })
+          .eq('group_order_id', activeGroupOrder.id)
+          .ilike('user_nickname', cleanNickname)
+          .gte('created_at', fiveMinutesAgo);
+
+        if (count !== null && count >= 5) {
+          showToast('您在近期已多次送出訂單，請稍候 5 分鐘後再試，或聯繫團長協助處理。');
+          return;
+        }
+      } catch (rateCheckErr) {
+        // 伺服端速率查詢失敗不阻斷正常流程，降級繼續
+        console.warn('[Security] Server-side rate check failed, proceeding:', rateCheckErr);
+      }
     }
 
     if (hasDuplicateNickname) {

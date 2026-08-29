@@ -61,6 +61,19 @@ export function useAdminStoreCrud({
   const handleStoreImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // 🛡️ M4 修復：MIME 類型白名單驗證，防止偽裝副檔名的惡意文件上傳
+      const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+      if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+        showToast('不支援的圖片格式！僅允許 JPG、PNG、WebP、GIF 格式的圖片。');
+        e.target.value = ''; // 清除選取的文件
+        return;
+      }
+      // 限制文件大小：最大 10MB（防止 DoS 攻擊）
+      if (file.size > 10 * 1024 * 1024) {
+        showToast('圖片文件過大！最大允許 10MB。');
+        e.target.value = '';
+        return;
+      }
       try {
         const compressedWebPDataUrl = await compressImageToWebP(file);
         setStoreImagePreview(compressedWebPDataUrl);
