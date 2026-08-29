@@ -70,7 +70,7 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
     }
 
     if (menuRes.data) {
-      let items = menuRes.data as MenuItem[];
+      const items = menuRes.data as MenuItem[];
 
       // 讀取自訂排序：優先從 API，其次從 localStorage 快取雙重容災備援
       let customOrder: string[] | null = null;

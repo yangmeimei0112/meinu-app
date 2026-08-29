@@ -96,7 +96,13 @@ export function useAdminData({
   const knownOrderIdsRef = useRef<Set<string>>(new Set());
   const processedNotificationIdsRef = useRef<Set<string>>(new Set());
   const isInitialLoadRef = useRef<boolean>(true);
-  const sessionMountTimeRef = useRef<number>(Date.now());
+  const sessionMountTimeRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (sessionMountTimeRef.current === 0) {
+      sessionMountTimeRef.current = Date.now();
+    }
+  }, []);
 
   // 🔔 叮咚新訂單響鈴與 🗣️ 語音報單智慧分流
   const notifyNewOrder = useCallback(
@@ -105,7 +111,8 @@ export function useAdminData({
 
       if (orderCreatedAt) {
         const orderTime = typeof orderCreatedAt === 'number' ? orderCreatedAt : new Date(orderCreatedAt).getTime();
-        if (!isNaN(orderTime) && orderTime < sessionMountTimeRef.current - 3000) {
+        const baseMountTime = sessionMountTimeRef.current || Date.now();
+        if (!isNaN(orderTime) && orderTime < baseMountTime - 3000) {
           processedNotificationIdsRef.current.add(orderId);
           return;
         }

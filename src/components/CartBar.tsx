@@ -11,13 +11,13 @@ interface CartBarProps {
 }
 
 function CartBarInner({ cartItems, onClearCart }: CartBarProps) {
-  if (cartItems.length === 0) return null;
-
-  // 避免重複計算
+  // 避免重複計算 (Hook 必須在 early return 之前調用)
   const { totalQuantity, grandTotal } = useMemo(() => ({
     totalQuantity: cartItems.reduce((sum, item) => sum + item.quantity, 0),
     grandTotal: cartItems.reduce((sum, item) => sum + item.totalPrice, 0),
   }), [cartItems]);
+
+  if (cartItems.length === 0) return null;
 
   return (
     <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 px-4 max-w-md mx-auto">

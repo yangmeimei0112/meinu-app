@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "cross-env NEXT_PUBLIC_GIT_COMMIT_MSG=\"$(git log -1 --pretty=format:'%s' 2>/dev/null || echo 'v1.0.0')\" NEXT_PUBLIC_GIT_COMMIT_HASH=\"$(git rev-parse --short HEAD 2>/dev/null || echo 'dev')\" next build",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },

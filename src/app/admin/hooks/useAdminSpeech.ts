@@ -89,6 +89,8 @@ export function useAdminSpeech() {
     }
   }, [pickBestVoice]);
 
+  const processQueueRef = useRef<() => void>(() => {});
+
   // 3. 處理語音播放佇列（確保多筆訂單連續湧入時依序朗讀，不重疊打架）
   const processQueue = useCallback(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
@@ -121,23 +123,27 @@ export function useAdminSpeech() {
         isProcessingQueueRef.current = false;
         // 稍微間隔 180ms 播放下一筆
         setTimeout(() => {
-          processQueue();
+          processQueueRef.current();
         }, 180);
       };
 
       utterance.onerror = (e) => {
         console.warn('語音播報發生錯誤或中斷:', e);
         isProcessingQueueRef.current = false;
-        processQueue();
+        processQueueRef.current();
       };
 
       window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.error('執行語音播報失敗:', err);
       isProcessingQueueRef.current = false;
-      processQueue();
+      processQueueRef.current();
     }
   }, []);
+
+  useEffect(() => {
+    processQueueRef.current = processQueue;
+  }, [processQueue]);
 
   // 4. 文案組裝產生器 (文案自然、符合臺灣在地口語習慣)
   const buildSpeechScript = useCallback((order: SpeechOrderPayload, mode: SpeechMode = speechModeRef.current): string => {

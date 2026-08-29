@@ -25,7 +25,11 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
 
   // 🛡️ 資安防護：蜜罐陷阱欄位與人類互動載入時間戳
   const [honeypotTrap, setHoneypotTrap] = useState<string>('');
-  const [pageLoadTime] = useState<number>(() => Date.now());
+  const [pageLoadTime, setPageLoadTime] = useState<number>(0);
+
+  useEffect(() => {
+    setPageLoadTime(Date.now());
+  }, []);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
