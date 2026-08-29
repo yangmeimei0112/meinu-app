@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 // 取得實際網站網址（Vercel 部署後的網址）
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://meinu-app.vercel.app';
+const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://meinu2.vercel.app').replace(/\/$/, '');
 
 // 🍎 iOS & Android 視口與全螢幕 Safe Area 深度適配
 export const viewport: Viewport = {
@@ -14,14 +14,37 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
-  viewportFit: 'cover', // 關鍵：確保 iOS Safari 支援全螢幕 Safe Area Insets
+  viewportFit: 'cover', // 確保 iOS Safari 支援全螢幕 Safe Area Insets
   colorScheme: 'light dark',
 };
 
+// 🔍 Google 搜尋引擎優化 (SEO) 完整元數據配置
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "咩nu 揪團點餐平台",
-  description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
+  title: {
+    default: '咩nu 揪團點餐平台 | 辦公室、朋友輕鬆點餐外送',
+    template: '%s | 咩nu 揪團點餐平台',
+  },
+  description: '咩nu 是專為辦公室同事、親朋好友打造的團購點餐神器！支援多店家菜單、客製化甜度冰塊、即時對帳、外送費自動平攤與催繳通知。',
+  keywords: [
+    '咩nu',
+    'meinu',
+    '揪團點餐',
+    '團購點餐',
+    '線上菜單',
+    '飲料點餐',
+    '辦公室揪團',
+    '外送平攤',
+    '點餐對帳',
+    '團購外送',
+  ],
+  authors: [{ name: '咩nu 團隊' }],
+  creator: '咩nu (meinu)',
+  publisher: '咩nu 揪團點餐平台',
+  applicationName: '咩nu 揪團點餐',
+  alternates: {
+    canonical: siteUrl,
+  },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -40,8 +63,8 @@ export const metadata: Metadata = {
     apple: '/apple-icon.png',
   },
   openGraph: {
-    title: "咩nu 揪團點餐平台",
-    description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
+    title: '咩nu 揪團點餐平台 | 辦公室、朋友輕鬆點餐外送',
+    description: '快來看看今天想吃什麼！支援多店家菜單、客製化選項、即時對帳與外送費自動平攤。',
     url: siteUrl,
     siteName: '咩nu (meinu)',
     locale: 'zh_TW',
@@ -57,9 +80,23 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: "Today's Order 咩nu 團購點餐平台",
-    description: '快来看看今天想吃什麼！點擊連結選擇餐廳開始點餐。',
+    title: '咩nu 揪團點餐平台',
+    description: '快來看看今天想吃什麼！點擊連結選擇餐廳開始點餐。',
     images: ['/logo.png'],
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || '',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
 };
 
@@ -71,6 +108,39 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // 結構化數據 (Schema.org JSON-LD) - 幫助 Google 理解網站結構並給予精美搜尋摘要
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'WebSite',
+        '@id': `${siteUrl}/#website`,
+        url: siteUrl,
+        name: '咩nu 揪團點餐平台',
+        description: '辦公室與好友必備的線上揪團點餐外送系統',
+        inLanguage: 'zh-TW',
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: `${siteUrl}/search?q={search_term_string}`,
+          'query-input': 'required name=search_term_string',
+        },
+      },
+      {
+        '@type': 'WebApplication',
+        '@id': `${siteUrl}/#app`,
+        name: '咩nu (meinu)',
+        url: siteUrl,
+        applicationCategory: 'FoodAndDrinkApplication',
+        operatingSystem: 'All',
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'TWD',
+        },
+      },
+    ],
+  };
+
   return (
     <html lang="zh-TW" suppressHydrationWarning>
       <head>
@@ -79,6 +149,12 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
         <link rel="apple-touch-icon" href="/logo.png" />
+        {/* Google 結構化數據 (Schema.org) */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        {/* 主題與平台特徵識別腳本 */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -91,7 +167,6 @@ export default function RootLayout({
                   } else {
                     document.documentElement.classList.remove('dark');
                   }
-                  // 偵測 iOS 與 Android 並注入 class
                   var ua = navigator.userAgent || '';
                   var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
                   var isAndroid = /Android/i.test(ua);
