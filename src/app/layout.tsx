@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     default: '咩nu 揪團點餐平台 | 辦公室、朋友輕鬆點餐外送',
     template: '%s | 咩nu 揪團點餐平台',
   },
-  description: '咩nu 是專為辦公室同事、親朋好友打造的團購點餐神器！支援多店家菜單、客製化甜度冰塊、即時對帳、外送費自動平攤與催繳通知。',
+  description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
   keywords: [
     '咩nu',
     'meinu',
@@ -33,8 +33,6 @@ export const metadata: Metadata = {
     '團購點餐',
     '線上菜單',
     '飲料點餐',
-    '辦公室揪團',
-    '外送平攤',
     '點餐對帳',
     '團購外送',
   ],
@@ -64,7 +62,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: '咩nu 揪團點餐平台 | 辦公室、朋友輕鬆點餐外送',
-    description: '快來看看今天想吃什麼！支援多店家菜單、客製化選項、即時對帳與外送費自動平攤。',
+    description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
     url: siteUrl,
     siteName: '咩nu (meinu)',
     locale: 'zh_TW',

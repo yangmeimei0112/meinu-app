@@ -30,10 +30,10 @@ export default function HomeWelcomeBanner() {
             </span>
           </div>
 
-          {/* 主標題 */}
-          <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-snug">
-            「咩nu」開放點餐大廳
-          </h2>
+          {/* 主標題 (SEO H1 核心關鍵字) */}
+          <h1 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight leading-snug">
+            「咩nu」揪團點餐大廳
+          </h1>
 
           {/* 說明文字 */}
           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
