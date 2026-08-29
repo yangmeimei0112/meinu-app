@@ -359,7 +359,7 @@ export default function AdminPageContent() {
   return (
     <div
       onClick={initAudio}
-      className="min-h-screen bg-slate-50 dark:bg-[#080D1A] text-slate-800 dark:text-slate-100 flex flex-col pb-20 select-none transition-colors duration-200"
+      className="min-h-[100dvh] bg-slate-50 dark:bg-[#080D1A] text-slate-800 dark:text-slate-100 flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom,0px))] select-none transition-colors duration-200"
     >
       <Header />
       <OfflineBanner />

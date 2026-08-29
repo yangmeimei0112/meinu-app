@@ -137,13 +137,13 @@ export default function SearchPage() {
   const isSearching = debouncedQuery.trim().length > 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 transition-colors duration-200">
+    <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 transition-colors duration-200">
       <div className="sticky top-0 z-40">
         <OfflineBanner />
         <Header />
       </div>
 
-      <main className="max-w-md mx-auto w-full px-4 pt-3 space-y-5 pb-28">
+      <main className="max-w-md mx-auto w-full px-4 pt-3 space-y-5 pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
         {/* 頂部膠囊型常駐搜尋列 */}
         <SearchHeaderBar
           searchQuery={searchQuery}

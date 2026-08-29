@@ -7,7 +7,7 @@
   --foreground: #0f172a;
   --card-bg: #ffffff;
   --card-border: #e2e8f0;
-  color-scheme: light;
+  color-scheme: light dark;
 }
 
 html.dark {
@@ -22,17 +22,73 @@ html {
   /* 消除行動端 300ms 雙擊縮放延遲，確保點擊立即響應 */
   touch-action: manipulation;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   scroll-behavior: smooth;
+  /* 支援 iOS Dynamic Viewport Height */
+  min-height: 100dvh;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
-  /* 防止 iOS / Android 彈性滾動干擾 */
+  min-height: 100dvh;
+  /* 防止 iOS / Android 彈性滾動過度跳動 */
   overscroll-behavior-y: none;
   transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ========================================================
+   🍎 iOS & Android 跨平台安全區域適配 (Safe Area Insets)
+   ======================================================== */
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-pl {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-area-pr {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-area-bottom {
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ========================================================
+   📱 iOS Safari 自動縮放防禦 (Auto-Zoom Prevention)
+   iOS Safari 當表單輸入字體小於 16px 時會強制放大畫面破版。
+   在行動端強制輸入框字體為 16px，徹底解決輸入跳版問題。
+   ======================================================== */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="password"],
+  input[type="number"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="email"],
+  input[type="datetime-local"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* 表單元件跨平台外觀平整化（移除 iOS 預設內陰影與厚邊框） */
+input, select, textarea {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 /* 列表渲染加速：虛擬化未在視窗內的長列表 DOM，減少重排重繪開銷 */
@@ -41,15 +97,27 @@ body {
   contain-intrinsic-size: 0 100px;
 }
 
-/* 觸控微反饋硬體加速 */
+/* 觸控微反饋與手勢防誤觸 */
 button, a {
   -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* 自定義極簡滾動條 */
+/* 滾動容器在 iOS 上啟用原生流暢慣性滾動 (Momentum Scrolling) */
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 彈窗與抽屜隔離過度滾動 */
+.modal-scroll-lock {
+  overscroll-behavior: contain;
+}
+
+/* 自定義極簡滾動條（在 iOS 與 Android 上皆呈現精緻樣式） */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -57,12 +125,12 @@ button, a {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.4);
+  background: rgba(148, 163, 184, 0.35);
   border-radius: 9999px;
 }
 
 html.dark ::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.5);
+  background: rgba(71, 85, 105, 0.45);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -73,6 +141,18 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.8);
 }
 
+/* 隱藏滾動條專用 utility */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ========================================================
+   ✨ 精緻動畫效果
+   ======================================================== */
 @keyframes spinSlow {
   from {
     transform: rotate(0deg);

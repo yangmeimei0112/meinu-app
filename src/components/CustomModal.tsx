@@ -318,7 +318,7 @@ export default function CustomModal({
         )}
 
         {/* 客製選項主體 */}
-        <div className="p-4 overflow-y-auto space-y-4 flex-1 text-slate-700 dark:text-slate-200 divide-y divide-slate-100 dark:divide-slate-800">
+        <div className="p-4 overflow-y-auto scroll-touch overscroll-contain space-y-4 flex-1 text-slate-700 dark:text-slate-200 divide-y divide-slate-100 dark:divide-slate-800">
           {customGroups.length > 0 &&
             customGroups.map((group) => (
               <CustomModalOptionGroup
@@ -344,7 +344,7 @@ export default function CustomModal({
                 markInteracted();
                 setCustomNotes(e.target.value);
               }}
-              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2.5 px-3 text-sm sm:text-xs text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
 
@@ -378,7 +378,7 @@ export default function CustomModal({
         </div>
 
         {/* Modal 底部結算與按鈕 */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between gap-3">
+        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between gap-3">
           <div>
             <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">合計金額</span>
             <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">${itemTotalPrice} 元</span>
@@ -386,7 +386,7 @@ export default function CustomModal({
           <button
             type="button"
             onClick={handleConfirm}
-            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-3 rounded-2xl text-xs shadow-md transition active:scale-[0.99] flex items-center justify-center gap-1 cursor-pointer"
+            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-3 rounded-2xl text-xs sm:text-sm shadow-md transition active:scale-[0.99] flex items-center justify-center gap-1 cursor-pointer"
           >
             <span>{existingCartItem ? '儲存修改' : '加入購物車'}</span>
             <span>(${itemTotalPrice} 元)</span>
