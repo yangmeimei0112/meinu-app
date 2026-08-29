@@ -27,8 +27,11 @@ function IconChevronUp({ className = 'w-4 h-4' }: { className?: string }) {
   );
 }
 
-export default function MaintenanceGuard({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+/**
+ * 🌟 僅在前台使用者頁面掛載的維護狀態監聽器
+ * 嚴格與後台管理 (/admin) 隔離，後台管理完全不執行任何輪詢或自動重整
+ */
+function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode }) {
   const {
     maintenanceData,
     checking,
@@ -41,12 +44,7 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
     handleManualCheck,
   } = useMaintenanceStatus();
 
-  // 1. 後台路徑 (/admin) 不受維護模式阻斷
-  if (pathname.startsWith('/admin')) {
-    return <>{children}</>;
-  }
-
-  // 2. 伺服端維護中且倒數已結束：全螢幕鎖定畫面
+  // 伺服端維護中且倒數已結束：全螢幕鎖定畫面
   if (maintenanceData?.is_maintenance && isCountDownFinished) {
     return (
       <MaintenanceScreen
@@ -58,7 +56,6 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
     );
   }
 
-  // 3. 伺服端維護中但仍在 30 秒倒數緩衝期：展示倒數浮動提示與正常頁面
   return (
     <>
       {maintenanceData?.is_maintenance && countdown !== null && (
@@ -115,4 +112,15 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
       {children}
     </>
   );
+}
+
+export default function MaintenanceGuard({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  // 🛡️ 後台路徑 (/admin) 100% 完全直通，不掛載任何前台維護監聽與自動重整邏輯
+  if (pathname.startsWith('/admin')) {
+    return <>{children}</>;
+  }
+
+  return <FrontendMaintenanceWatcher>{children}</FrontendMaintenanceWatcher>;
 }
