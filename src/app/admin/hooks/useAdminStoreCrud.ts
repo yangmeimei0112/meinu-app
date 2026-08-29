@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Store, Category, MenuItem, PaymentMethod, SoldOutOption, CustomGroup } from '@/types/database';
+import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { compressImageToWebP } from '@/lib/image-compress';
 import { AdminConfirmModalState } from '../admin-types';
+import { useAdminCategoryCrud } from './useAdminCategoryCrud';
+import { useAdminProductCrud } from './useAdminProductCrud';
 
 interface UseAdminStoreCrudProps {
   stores: Store[];
@@ -22,8 +24,6 @@ interface UseAdminStoreCrudProps {
 export function useAdminStoreCrud({
   stores,
   categories,
-  paymentMethods,
-  soldOutOptions,
   allMenuItems,
   optimisticReorderMenuItems,
   fetchAdminData,
@@ -39,36 +39,68 @@ export function useAdminStoreCrud({
   const [storeImagePreview, setStoreImagePreview] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
 
-  // 分類 Modal 狀態
-  const [isCatModalOpen, setIsCatModalOpen] = useState<boolean>(false);
-  const [editingCat, setEditingCat] = useState<Category | null>(null);
-  const [catNameInput, setCatNameInput] = useState<string>('');
-
-  // 餐點 Modal 狀態
-  const [selectedCrudStoreId, setSelectedCrudStoreId] = useState<string | null>(null);
-  const [isProductModalOpen, setIsProductModalOpen] = useState<boolean>(false);
-  const [editingProduct, setEditingProduct] = useState<MenuItem | null>(null);
-  const [productForm, setProductForm] = useState({
-    name: '',
-    price: '',
-    description: '',
-    stock_quantity: '',
-    is_sold_out: false,
+  // 1. 分類 CRUD 子模組
+  const {
+    isCatModalOpen,
+    setIsCatModalOpen,
+    editingCat,
+    setEditingCat,
+    catNameInput,
+    setCatNameInput,
+    openCreateCategoryModal,
+    openEditCategoryModal,
+    handleSaveCategory,
+    handleDeleteCategory,
+    handleReorderCategories,
+  } = useAdminCategoryCrud({
+    categories,
+    fetchAdminData,
+    showToast,
+    openAdminConfirmModal,
+    closeAdminConfirmModal,
   });
-  const [productCustomGroups, setProductCustomGroups] = useState<CustomGroup[]>([]);
 
-  // 1. 店家圖片變更
+  // 2. 餐點 CRUD 子模組
+  const {
+    selectedCrudStoreId,
+    setSelectedCrudStoreId,
+    isProductModalOpen,
+    setIsProductModalOpen,
+    editingProduct,
+    setEditingProduct,
+    productForm,
+    setProductForm,
+    productCustomGroups,
+    setProductCustomGroups,
+    openCreateProductModal,
+    openEditProductModal,
+    handleAddCustomGroup,
+    handleRemoveCustomGroup,
+    handleAddOptionToGroup,
+    handleRemoveOptionFromGroup,
+    handleSaveProduct,
+    handleDeleteProduct,
+    handleToggleProductSoldOut,
+    handleReorderProducts,
+  } = useAdminProductCrud({
+    allMenuItems,
+    optimisticReorderMenuItems,
+    fetchAdminData,
+    showToast,
+    openAdminConfirmModal,
+    closeAdminConfirmModal,
+  });
+
+  // 3. 店家圖片變更
   const handleStoreImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // 🛡️ M4 修復：MIME 類型白名單驗證，防止偽裝副檔名的惡意文件上傳
       const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
       if (!ALLOWED_MIME_TYPES.includes(file.type)) {
         showToast('不支援的圖片格式！僅允許 JPG、PNG、WebP、GIF 格式的圖片。');
-        e.target.value = ''; // 清除選取的文件
+        e.target.value = '';
         return;
       }
-      // 限制文件大小：最大 10MB（防止 DoS 攻擊）
       if (file.size > 10 * 1024 * 1024) {
         showToast('圖片文件過大！最大允許 10MB。');
         e.target.value = '';
@@ -95,409 +127,161 @@ export function useAdminStoreCrud({
     }
   };
 
-  // 2. 儲存店家（含 S-??? 專屬編號保存與防重檢驗）
+  // 4. 儲存店家（含 S-??? 專屬編號保存與防重檢驗）
   const handleSaveStore = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      setUploadingImage(true);
-      let imageUrl = editingStore?.image_url || null;
+    if (!storeForm.name.trim()) return;
 
-      if (storeImageFile) {
-        const fileExt = storeImageFile.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+    setUploadingImage(true);
+    let imageUrl = editingStore?.image_url || null;
 
-        const { error: uploadError } = await supabase.storage.from('stores').upload(fileName, storeImageFile);
-        if (uploadError) {
-          console.error('上傳圖片錯誤:', uploadError);
-          showToast('圖片上傳失敗，請確認 Storage 設定');
-          setUploadingImage(false);
-          return;
-        }
+    if (storeImageFile) {
+      const fileExt = storeImageFile.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `stores/${fileName}`;
 
-        const { data: urlData } = supabase.storage.from('stores').getPublicUrl(fileName);
-        imageUrl = urlData.publicUrl;
-      }
+      const { error: uploadError } = await supabase.storage
+        .from('store-images')
+        .upload(filePath, storeImageFile);
 
-      const payload = {
-        name: storeForm.name.trim(),
-        image_url: imageUrl,
-        category_id: storeForm.category_id || null,
-        is_active: true,
-      };
-
-      let targetStoreId = editingStore?.id;
-
-      if (editingStore) {
-        const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id);
-        if (error) throw error;
+      if (uploadError) {
+        console.error('圖片上傳失敗:', uploadError);
+        showToast('店家封面圖片上傳失敗');
       } else {
-        const { data, error } = await supabase.from('stores').insert([payload]).select('id').single();
-        if (error) throw error;
-        targetStoreId = data.id;
+        const { data } = supabase.storage.from('store-images').getPublicUrl(filePath);
+        imageUrl = data.publicUrl;
       }
-
-      // 儲存 S-??? 商家編號
-      if (targetStoreId) {
-        const codeRes = await fetch('/api/stores/code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            storeId: targetStoreId,
-            codeNumber: storeForm.code_number || '001',
-          }),
-        });
-
-        const codeJson = await codeRes.json();
-        if (!codeRes.ok) {
-          throw new Error(codeJson?.message || '儲存商家編號失敗');
-        }
-      }
-
-      showToast(editingStore ? '店家資訊與編號已更新！' : '新增合作店家成功！');
-      setIsStoreModalOpen(false);
-      setEditingStore(null);
-      setStoreForm({ name: '', category_id: '', code_number: '001' });
-      setStoreImageFile(null);
-      setStoreImagePreview('');
-      fetchAdminData();
-    } catch (err: any) {
-      console.error('儲存店家失敗:', err);
-      showToast(`儲存店家失敗: ${err?.message || '請稍後重試'}`);
-    } finally {
-      setUploadingImage(false);
     }
-  };
 
-  // 3. 刪除店家
-  const handleDeleteStore = (storeId: string) => {
-    openAdminConfirmModal({
-      isOpen: true,
-      title: '刪除合作店家',
-      message: '確定要刪除此店家嗎？此動作將一併影響相關菜單且無法復原！',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        closeAdminConfirmModal();
-        try {
-          const { error } = await supabase.from('stores').delete().eq('id', storeId);
-          if (error) throw error;
-          showToast('店家已刪除');
-          fetchAdminData();
-        } catch (err) {
-          console.error('刪除店家失敗:', err);
-          showToast('刪除店家失敗');
-        }
-      },
-    });
-  };
+    const paddedNum = storeForm.code_number.padStart(3, '0');
+    const storeCode = `S-${paddedNum}`;
 
-  // 4. 分類增修
-  const handleSaveCategory = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!catNameInput.trim()) return;
     try {
-      if (editingCat) {
-        const { error } = await supabase.from('categories').update({ name: catNameInput.trim() }).eq('id', editingCat.id);
-        if (error) throw error;
-        showToast('類別名稱已修改！');
-      } else {
-        const { error } = await supabase.from('categories').insert([{ name: catNameInput.trim(), sort_order: categories.length + 1 }]);
-        if (error) throw error;
-        showToast('已新增類別！');
-      }
-      setIsCatModalOpen(false);
-      setEditingCat(null);
-      setCatNameInput('');
-      fetchAdminData();
-    } catch (err) {
-      console.error('儲存類別失敗:', err);
-    }
-  };
-
-  const handleDeleteCategory = (catId: string) => {
-    openAdminConfirmModal({
-      isOpen: true,
-      title: '刪除商品分類',
-      message: '確定要刪除此商品分類嗎？',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        closeAdminConfirmModal();
-        try {
-          const { error } = await supabase.from('categories').delete().eq('id', catId);
-          if (error) throw error;
-          showToast('類別已刪除');
-          fetchAdminData();
-        } catch (err) {
-          console.error('刪除類別失敗:', err);
-          showToast('刪除分類失敗');
-        }
-      },
-    });
-  };
-
-  const handleMoveCategory = async (cat: Category, direction: 'up' | 'down') => {
-    const index = categories.findIndex((c) => c.id === cat.id);
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= categories.length) return;
-
-    const targetCat = categories[targetIndex];
-    await supabase.from('categories').update({ sort_order: targetCat.sort_order }).eq('id', cat.id);
-    await supabase.from('categories').update({ sort_order: cat.sort_order }).eq('id', targetCat.id);
-    fetchAdminData();
-  };
-
-  // 5. 付款方式增修
-  const handleCreatePaymentMethod = async () => {
-    const payload = {
-      name: `新付款方式 ${paymentMethods.length + 1}`,
-      account_info: null,
-      is_active: true,
-    };
-    const { error } = await supabase.from('payment_methods').insert([payload]);
-    if (error) {
-      showToast('新增付款方式失敗');
-      return;
-    }
-    showToast('已新增付款方式');
-    fetchAdminData();
-  };
-
-  const handleSavePaymentMethod = async (id: string, payload: { name: string; account_info: string | null }) => {
-    const { error } = await supabase.from('payment_methods').update(payload).eq('id', id);
-    if (error) {
-      showToast('儲存付款方式失敗');
-      return;
-    }
-    showToast('付款方式已更新');
-    fetchAdminData();
-  };
-
-  const handleDeletePaymentMethod = (id: string) => {
-    openAdminConfirmModal({
-      isOpen: true,
-      title: '刪除付款方式',
-      message: '確定要刪除此付款方式嗎？',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        closeAdminConfirmModal();
-        const { error } = await supabase.from('payment_methods').delete().eq('id', id);
-        if (error) {
-          showToast('刪除付款方式失敗');
-          return;
-        }
-        showToast('付款方式已刪除');
-        fetchAdminData();
-      },
-    });
-  };
-
-  const handleTogglePaymentMethodActive = async (id: string, currentStatus: boolean) => {
-    const { error } = await supabase.from('payment_methods').update({ is_active: !currentStatus }).eq('id', id);
-    if (error) {
-      showToast('切換付款方式狀態失敗');
-      return;
-    }
-    showToast(!currentStatus ? '已啟用付款方式' : '已停用付款方式');
-    fetchAdminData();
-  };
-
-  // 6. 缺貨備案增修
-  const handleCreateSoldOutOption = async () => {
-    const nextOrder = soldOutOptions.length > 0 ? Math.max(...soldOutOptions.map((x) => x.sort_order)) + 1 : 1;
-    const payload = { title: '請團長聯繫我', sort_order: nextOrder };
-    const { error } = await supabase.from('sold_out_options').insert([payload]);
-    if (error) {
-      showToast('新增缺貨備案失敗');
-      return;
-    }
-    showToast('已新增缺貨備案');
-    fetchAdminData();
-  };
-
-  const handleSaveSoldOutOption = async (id: string, title: string) => {
-    const { error } = await supabase.from('sold_out_options').update({ title: title.trim() }).eq('id', id);
-    if (error) {
-      showToast('儲存缺貨備案失敗');
-      return;
-    }
-    showToast('缺貨備案已更新');
-    fetchAdminData();
-  };
-
-  const handleDeleteSoldOutOption = (id: string) => {
-    openAdminConfirmModal({
-      isOpen: true,
-      title: '刪除缺貨備案',
-      message: '確定要刪除此缺貨備案嗎？',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        closeAdminConfirmModal();
-        const { error } = await supabase.from('sold_out_options').delete().eq('id', id);
-        if (error) {
-          showToast('刪除缺貨備案失敗');
-          return;
-        }
-        showToast('缺貨備案已刪除');
-        fetchAdminData();
-      },
-    });
-  };
-
-  const handleMoveSoldOutOption = async (id: string, direction: 'up' | 'down') => {
-    const index = soldOutOptions.findIndex((o) => o.id === id);
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= soldOutOptions.length) return;
-
-    const currentOpt = soldOutOptions[index];
-    const targetOpt = soldOutOptions[targetIndex];
-
-    await supabase.from('sold_out_options').update({ sort_order: targetOpt.sort_order }).eq('id', currentOpt.id);
-    await supabase.from('sold_out_options').update({ sort_order: currentOpt.sort_order }).eq('id', targetOpt.id);
-    fetchAdminData();
-  };
-
-  // 7. 餐點規格群組操作
-  const handleAddCustomGroup = () => {
-    const newGroup: CustomGroup = {
-      id: Date.now().toString(),
-      title: '新客製化群組',
-      type: 'single',
-      options: [{ id: Date.now().toString() + '_1', name: '', price_adjustment: 0 }],
-    };
-    setProductCustomGroups([...productCustomGroups, newGroup]);
-  };
-
-  const handleRemoveCustomGroup = (groupId: string) => {
-    setProductCustomGroups(productCustomGroups.filter((g) => g.id !== groupId));
-  };
-
-  const handleAddOptionToGroup = (groupId: string) => {
-    setProductCustomGroups(
-      productCustomGroups.map((g) =>
-        g.id === groupId
-          ? { ...g, options: [...g.options, { id: Date.now().toString(), name: '', price_adjustment: 0 }] }
-          : g
-      )
-    );
-  };
-
-  const handleRemoveOptionFromGroup = (groupId: string, optionId: string) => {
-    setProductCustomGroups(
-      productCustomGroups.map((g) =>
-        g.id === groupId ? { ...g, options: g.options.filter((o) => o.id !== optionId) } : g
-      )
-    );
-  };
-
-  // 8. 儲存餐點品項
-  const handleSaveProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const targetStoreId = selectedCrudStoreId || editingProduct?.store_id;
-    if (!targetStoreId || !productForm.name.trim()) {
-      showToast('請確認已選擇店家並填寫餐點名稱！');
-      return;
-    }
-    try {
-      const payload = {
-        store_id: targetStoreId,
-        name: productForm.name.trim(),
-        price: parseFloat(productForm.price) || 0,
-        description: productForm.description.trim() || null,
-        stock_quantity: productForm.stock_quantity ? parseInt(productForm.stock_quantity) : null,
-        is_sold_out: productForm.is_sold_out,
-        custom_groups: productCustomGroups,
-      };
-
-      if (editingProduct) {
-        const { error } = await supabase.from('menu_items').update(payload).eq('id', editingProduct.id);
-        if (error) throw error;
-        showToast('餐點與客製化選項已更新！');
-      } else {
-        const { error } = await supabase.from('menu_items').insert([payload]);
-        if (error) throw error;
-        showToast('新增餐點成功！');
-      }
-      setIsProductModalOpen(false);
-      fetchAdminData();
-    } catch (err: any) {
-      console.error('儲存餐點失敗:', err);
-      showToast(`儲存餐點失敗: ${err?.message || '請檢查格式'}`);
-    }
-  };
-
-  // 9. 刪除餐點品項
-  const handleDeleteProduct = (productId: string) => {
-    openAdminConfirmModal({
-      isOpen: true,
-      title: '刪除餐點品項',
-      message: '確定要刪除此餐點品項嗎？此動作無法復原！',
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        closeAdminConfirmModal();
-        try {
-          const { error } = await supabase.from('menu_items').delete().eq('id', productId);
-          if (error) throw error;
-          showToast('品項已刪除');
-          fetchAdminData();
-        } catch (err) {
-          console.error('刪除品項失敗:', err);
-          showToast('刪除品項失敗');
-        }
-      },
-    });
-  };
-
-  // 10. 切換餐點售罄狀態
-  const handleToggleProductStatus = async (productId: string) => {
-    try {
-      const item = allMenuItems.find((m) => m.id === productId);
-      if (!item) return;
-      const { error } = await supabase.from('menu_items').update({ is_sold_out: !item.is_sold_out }).eq('id', productId);
-      if (error) throw error;
-      fetchAdminData();
-    } catch (err) {
-      console.error('切換狀態失敗:', err);
-    }
-  };
-
-  // 11. 重新排列菜單品項順序
-  const handleReorderMenuItems = async (storeId: string, orderedItemIds: string[]) => {
-    // 1. 立即樂觀更新全域狀態，0ms 響應且保證順序穩定
-    optimisticReorderMenuItems?.(storeId, orderedItemIds);
-
-    // 2. 寫入本地客戶端快取，確保重新整理時雙重保險
-    if (typeof window !== 'undefined') {
-      try {
-        const cachedOrders = JSON.parse(localStorage.getItem('menu_app_store_sort_orders') || '{}');
-        cachedOrders[storeId] = orderedItemIds;
-        localStorage.setItem('menu_app_store_sort_orders', JSON.stringify(cachedOrders));
-      } catch {}
-    }
-
-    // 3. 背景非同步同步至伺服端
-    try {
-      const res = await fetch('/api/menu/sort-order', {
+      const res = await fetch('/api/stores/code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId, itemIds: orderedItemIds }),
+        body: JSON.stringify({
+          code: storeCode,
+          storeId: editingStore ? editingStore.id : undefined,
+        }),
       });
+
+      const json = await res.json();
       if (!res.ok) {
-        throw new Error('伺服器儲存排序失敗');
+        showToast(json.error || '店家代號已存在，請更換其他編號！');
+        setUploadingImage(false);
+        return;
       }
-      showToast('菜單順序已更新！');
-    } catch (err: any) {
-      console.error('儲存菜單排序失敗:', err);
-      showToast(`儲存順序失敗: ${err?.message || '未知錯誤'}`);
+    } catch (err) {
+      console.error('檢查代號失敗:', err);
     }
+
+    const payload = {
+      name: storeForm.name.trim(),
+      category_id: storeForm.category_id || null,
+      image_url: imageUrl,
+      code: storeCode,
+    };
+
+    if (editingStore) {
+      const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id);
+      if (error) {
+        console.error('更新店家失敗:', error);
+        showToast('更新店家失敗');
+        setUploadingImage(false);
+        return;
+      }
+      showToast('店家資料已更新！');
+    } else {
+      const { error } = await supabase.from('stores').insert([{ ...payload, is_active: true }]);
+      if (error) {
+        console.error('新增店家失敗:', error);
+        showToast('新增店家失敗');
+        setUploadingImage(false);
+        return;
+      }
+      showToast('店家新增成功！');
+    }
+
+    setUploadingImage(false);
+    setIsStoreModalOpen(false);
+    fetchAdminData();
+  };
+
+  // 5. 刪除店家
+  const handleDeleteStore = (storeId: string, name: string) => {
+    openAdminConfirmModal({
+      isOpen: true,
+      title: '刪除店家',
+      message: `確定要刪除「${name}」嗎？此動作將一併刪除該店家的所有餐點菜單，且無法復原。`,
+      confirmText: '確定刪除',
+      cancelText: '取消',
+      isDanger: true,
+      onConfirm: async () => {
+        closeAdminConfirmModal();
+        try {
+          await supabase.from('menu_items').delete().eq('store_id', storeId);
+          const { error } = await supabase.from('stores').delete().eq('id', storeId);
+          if (error) throw error;
+          showToast(`已刪除店家「${name}」`);
+          fetchAdminData();
+        } catch (err: any) {
+          console.error('刪除店家失敗:', err);
+          showToast(`刪除店家失敗：${err?.message || err}`);
+        }
+      },
+    });
+  };
+
+  // 6. 開啟新增/編輯店家 Modal
+  const openCreateStoreModal = () => {
+    const existingCodes = stores.map((s) => s.code).filter(Boolean);
+    let candidateNum = 1;
+    while (existingCodes.includes(`S-${String(candidateNum).padStart(3, '0')}`)) {
+      candidateNum++;
+    }
+
+    setEditingStore(null);
+    setStoreForm({
+      name: '',
+      category_id: categories.length > 0 ? categories[0].id : '',
+      code_number: String(candidateNum).padStart(3, '0'),
+    });
+    setStoreImageFile(null);
+    setStoreImagePreview('');
+    setIsStoreModalOpen(true);
+  };
+
+  const openEditStoreModal = (store: Store) => {
+    let currentCodeNum = '001';
+    if (store.code && store.code.startsWith('S-')) {
+      currentCodeNum = store.code.replace('S-', '');
+    }
+
+    setEditingStore(store);
+    setStoreForm({
+      name: store.name,
+      category_id: store.category_id || '',
+      code_number: currentCodeNum,
+    });
+    setStoreImageFile(null);
+    setStoreImagePreview(store.image_url || '');
+    setIsStoreModalOpen(true);
+  };
+
+  // 7. 切換店家上下架狀態
+  const handleToggleStoreActive = async (storeId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    const { error } = await supabase.from('stores').update({ is_active: newStatus }).eq('id', storeId);
+
+    if (error) {
+      console.error('更新店家狀態失敗:', error);
+      showToast('更新店家狀態失敗');
+      return;
+    }
+
+    showToast(newStatus ? '已開啟店家' : '已關閉店家');
+    fetchAdminData();
   };
 
   return {
@@ -515,23 +299,24 @@ export function useAdminStoreCrud({
     handleStoreImageChange,
     handleSaveStore,
     handleDeleteStore,
+    openCreateStoreModal,
+    openEditStoreModal,
+    handleToggleStoreActive,
+
+    // 分類子模組
     isCatModalOpen,
     setIsCatModalOpen,
     editingCat,
     setEditingCat,
     catNameInput,
     setCatNameInput,
+    openCreateCategoryModal,
+    openEditCategoryModal,
     handleSaveCategory,
     handleDeleteCategory,
-    handleMoveCategory,
-    handleCreatePaymentMethod,
-    handleSavePaymentMethod,
-    handleDeletePaymentMethod,
-    handleTogglePaymentMethodActive,
-    handleCreateSoldOutOption,
-    handleSaveSoldOutOption,
-    handleDeleteSoldOutOption,
-    handleMoveSoldOutOption,
+    handleReorderCategories,
+
+    // 餐點子模組
     selectedCrudStoreId,
     setSelectedCrudStoreId,
     isProductModalOpen,
@@ -542,13 +327,17 @@ export function useAdminStoreCrud({
     setProductForm,
     productCustomGroups,
     setProductCustomGroups,
+    openCreateProductModal,
+    openEditProductModal,
     handleAddCustomGroup,
     handleRemoveCustomGroup,
     handleAddOptionToGroup,
     handleRemoveOptionFromGroup,
     handleSaveProduct,
     handleDeleteProduct,
-    handleToggleProductStatus,
-    handleReorderMenuItems,
+    handleToggleProductSoldOut,
+    handleToggleProductStatus: handleToggleProductSoldOut,
+    handleReorderProducts,
+    handleReorderMenuItems: handleReorderProducts,
   };
 }

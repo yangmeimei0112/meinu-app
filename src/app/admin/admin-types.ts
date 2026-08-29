@@ -40,6 +40,7 @@ export interface GroupOrderAdmin {
   stores?: { name: string; code?: string } | null;
   order_count?: number;
   total_sales?: number;
+  created_at?: string;
 }
 
 export type AdminViewMode = 'desktop' | 'mobile';

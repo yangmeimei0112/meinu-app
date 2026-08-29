@@ -6,7 +6,9 @@ import { MenuItem, CustomGroup } from '@/types/database';
 import { CartItem, SelectedOption } from '@/types/cart';
 import { useCustomModalDraft } from './custom-modal/useCustomModalDraft';
 import { CustomModalOptionGroup } from './custom-modal/CustomModalOptionGroup';
-import { History as IconHistory, Check as IconCheck, AlertCircle as IconAlertCircle, X } from 'lucide-react';
+import { CustomModalHeader } from './custom-modal/CustomModalHeader';
+import { CustomModalDraftBanner } from './custom-modal/CustomModalDraftBanner';
+import { CustomModalFooter } from './custom-modal/CustomModalFooter';
 
 interface CustomModalProps {
   item: MenuItem | null;
@@ -80,122 +82,117 @@ export default function CustomModal({
   useEffect(() => {
     if (!item) return;
 
-    const groups = item.custom_groups && Array.isArray(item.custom_groups) ? item.custom_groups : [];
-
-    if (groups.length === 0) {
-      supabase
-        .from('option_groups')
-        .select(`
-          id,
-          title,
-          min_select,
-          max_select,
-          option_items (
-            id,
-            name,
-            extra_price
-          )
-        `)
-        .eq('menu_item_id', item.id)
-        .order('sort_order', { ascending: true })
-        .then(({ data }) => {
-          if (data && data.length > 0) {
-            interface OptionGroupRow {
-              id: string;
-              title: string;
-              min_select: number;
-              max_select: number;
-              option_items: Array<{
-                id: string;
-                name: string;
-                extra_price: number;
-              }>;
-            }
-            const mappedGroups: CustomGroup[] = (data as unknown as OptionGroupRow[]).map((g) => ({
-              id: g.id,
-              title: g.title,
-              type: g.max_select === 1 ? 'single' : g.max_select > 1 ? 'limit' : 'any',
-              limit_number: g.max_select,
-              options: (g.option_items || []).map((opt) => ({
-                id: opt.id,
-                name: opt.name,
-                price_adjustment: opt.extra_price || 0,
-              })),
-            }));
-            setCustomGroups(mappedGroups);
-            initializeStateAndDraft(mappedGroups);
+    const initial: Record<string, string[]> = {};
+    if (existingCartItem && existingCartItem.rawCustomSelections) {
+      Object.assign(initial, existingCartItem.rawCustomSelections);
+    } else if (existingCartItem && existingCartItem.selectedOptions) {
+      existingCartItem.selectedOptions.forEach((opt) => {
+        const matchedGroup = customGroups.find((g) => g.title === opt.groupTitle);
+        if (matchedGroup) {
+          const matchedItem = matchedGroup.options.find((i) => i.name === opt.itemName);
+          if (matchedItem) {
+            if (!initial[matchedGroup.id]) initial[matchedGroup.id] = [];
+            initial[matchedGroup.id].push(matchedItem.id);
           }
-        });
-    } else {
-      setCustomGroups(groups);
-      initializeStateAndDraft(groups);
-    }
-
-    function initializeStateAndDraft(currentGroups: CustomGroup[]) {
-      if (existingCartItem && existingCartItem.rawCustomSelections) {
-        setSelectedOptions(existingCartItem.rawCustomSelections);
-        setDetectedDraft(null);
-        return;
-      }
-
-      const initialSelections: Record<string, string[]> = {};
-      currentGroups.forEach((g) => {
-        initialSelections[g.id] = [];
+        }
       });
-      setSelectedOptions(initialSelections);
-      checkForDraft(currentGroups);
+    } else {
+      customGroups.forEach((group) => {
+        if (group.type === 'single' && group.options.length > 0) {
+          initial[group.id] = [group.options[0].id];
+        } else {
+          initial[group.id] = [];
+        }
+      });
     }
-  }, [item, existingCartItem, checkForDraft, setDetectedDraft]);
+
+    setSelectedOptions(initial);
+
+    if (!existingCartItem) {
+      checkForDraft(customGroups);
+    }
+  }, [item, customGroups, existingCartItem, checkForDraft]);
+
+  // 2. 實時從資料庫同步最新規格
+  useEffect(() => {
+    if (!item?.id) return;
+    let isMounted = true;
+
+    async function fetchLatestGroups() {
+      try {
+        const { data, error } = await supabase
+          .from('menu_items')
+          .select('custom_groups')
+          .eq('id', item!.id)
+          .single();
+
+        if (!error && data?.custom_groups && isMounted) {
+          setCustomGroups(data.custom_groups as CustomGroup[]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch latest custom groups', err);
+      }
+    }
+
+    fetchLatestGroups();
+    return () => {
+      isMounted = false;
+    };
+  }, [item?.id]);
 
   if (!item) return null;
 
+  // 3. 處理選項切換
   const handleSelectOption = (group: CustomGroup, optionId: string) => {
     markInteracted();
     setErrorMsg(null);
-    if (detectedDraft) setDetectedDraft(null);
 
-    const currentList = selectedOptions[group.id] || [];
+    setSelectedOptions((prev) => {
+      const current = prev[group.id] || [];
 
-    if (group.type === 'single') {
-      setSelectedOptions((prev) => ({ ...prev, [group.id]: [optionId] }));
-    } else if (group.type === 'any') {
-      const updated = currentList.includes(optionId)
-        ? currentList.filter((id) => id !== optionId)
-        : [...currentList, optionId];
-      setSelectedOptions((prev) => ({ ...prev, [group.id]: updated }));
-    } else if (group.type === 'limit') {
-      const limitMax = group.limit_number || 1;
-      if (currentList.includes(optionId)) {
-        setSelectedOptions((prev) => ({
-          ...prev,
-          [group.id]: currentList.filter((id) => id !== optionId),
-        }));
-      } else {
-        if (currentList.length >= limitMax) {
-          setErrorMsg(`「${group.title}」最多只能選擇 ${limitMax} 個選項！`);
-          return;
-        }
-        setSelectedOptions((prev) => ({
-          ...prev,
-          [group.id]: [...currentList, optionId],
-        }));
+      if (group.type === 'single') {
+        return { ...prev, [group.id]: [optionId] };
       }
-    }
+
+      if (group.type === 'any') {
+        if (current.includes(optionId)) {
+          return { ...prev, [group.id]: current.filter((id) => id !== optionId) };
+        } else {
+          return { ...prev, [group.id]: [...current, optionId] };
+        }
+      }
+
+      if (group.type === 'limit') {
+        const max = group.limit_number || 1;
+        if (current.includes(optionId)) {
+          return { ...prev, [group.id]: current.filter((id) => id !== optionId) };
+        } else {
+          if (current.length >= max) {
+            setErrorMsg(`此選項最多只能選擇 ${max} 項！`);
+            return prev;
+          }
+          return { ...prev, [group.id]: [...current, optionId] };
+        }
+      }
+
+      return prev;
+    });
   };
 
-  // 計算加價總額與選取項目文字
+  // 4. 計算總金額與結構化選項資料
   let totalExtraPrice = 0;
   const formattedSelectedOptions: SelectedOption[] = [];
 
   customGroups.forEach((group) => {
     const selectedIds = selectedOptions[group.id] || [];
-    group.options.forEach((opt) => {
-      if (selectedIds.includes(opt.id)) {
-        totalExtraPrice += opt.price_adjustment || 0;
+    selectedIds.forEach((id) => {
+      const option = group.options.find((item) => item.id === id);
+      if (option) {
+        totalExtraPrice += option.price_adjustment;
         formattedSelectedOptions.push({
           groupTitle: group.title,
-          itemName: opt.name,
-          extraPrice: opt.price_adjustment || 0,
+          itemName: option.name,
+          extraPrice: option.price_adjustment,
         });
       }
     });
@@ -245,77 +242,21 @@ export default function CustomModal({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center sm:items-center p-0 sm:p-4 animate-in fade-in duration-150">
       <div className="bg-white dark:bg-[#131B2B] text-slate-800 dark:text-slate-100 w-full max-w-md rounded-t-3xl sm:rounded-3xl max-h-[88vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom duration-200 shadow-2xl border border-slate-100 dark:border-slate-800">
         {/* Modal 頂部標題 */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50">
-          <div>
-            <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <span>{item.name}</span>
-              {existingCartItem && (
-                <span className="text-[10px] bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded-full font-bold">
-                  修改規格
-                </span>
-              )}
-            </h3>
-            <p className="text-xs text-sky-600 dark:text-sky-400 font-extrabold mt-0.5">
-              ${item.price} 元
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition flex items-center justify-center active:scale-95 cursor-pointer"
-            aria-label="關閉"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+        <CustomModalHeader
+          name={item.name}
+          price={item.price}
+          isEditMode={!!existingCartItem}
+          onClose={onClose}
+        />
 
-        {/* 📋 草稿恢復提示條 */}
-        {detectedDraft && (
-          <div className="bg-amber-50 dark:bg-amber-950/50 border-b border-amber-200 dark:border-amber-900/60 px-4 py-2.5 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200 animate-in fade-in slide-in-from-top-2 duration-200 gap-3">
-            <div className="min-w-0 space-y-0.5">
-              <div className="flex items-center gap-1.5 font-black text-amber-800 dark:text-amber-300">
-                <IconHistory className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span>偵測到上次選到一半的草稿</span>
-              </div>
-              <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 truncate font-medium max-w-[210px] sm:max-w-[240px]">
-                {detectedDraft.summaryText}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={handleRestoreDraft}
-                className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-xl font-extrabold text-[11px] transition shadow-xs active:scale-95 cursor-pointer"
-              >
-                恢復選擇
-              </button>
-              <button
-                type="button"
-                onClick={handleDiscardDraft}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-[11px] font-bold px-1.5 py-1 transition cursor-pointer"
-              >
-                捨棄
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ✅ 草稿恢復成功提示 */}
-        {restoredToast && (
-          <div className="bg-emerald-50 dark:bg-emerald-950/50 border-b border-emerald-200 dark:border-emerald-900/60 px-4 py-2 flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300 font-bold animate-in fade-in duration-150">
-            <IconCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>已成功為您恢復上次選取的客製化草稿！</span>
-          </div>
-        )}
-
-        {/* ⚠️ 錯誤警告 */}
-        {errorMsg && (
-          <div className="mx-4 mt-3 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 text-xs font-bold p-2.5 rounded-xl border border-rose-100 dark:border-rose-900/60 flex items-center gap-1.5 animate-shake">
-            <IconAlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMsg}</span>
-          </div>
-        )}
+        {/* 📋 草稿恢復提示與錯誤提示 */}
+        <CustomModalDraftBanner
+          detectedDraft={detectedDraft}
+          restoredToast={restoredToast}
+          errorMsg={errorMsg}
+          onRestoreDraft={handleRestoreDraft}
+          onDiscardDraft={handleDiscardDraft}
+        />
 
         {/* 客製選項主體 */}
         <div className="p-4 overflow-y-auto scroll-touch overscroll-contain space-y-4 flex-1 text-slate-700 dark:text-slate-200 divide-y divide-slate-100 dark:divide-slate-800">
@@ -378,20 +319,11 @@ export default function CustomModal({
         </div>
 
         {/* Modal 底部結算與按鈕 */}
-        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between gap-3">
-          <div>
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">合計金額</span>
-            <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">${itemTotalPrice} 元</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            className="flex-1 bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold py-3 rounded-2xl text-xs sm:text-sm shadow-md transition active:scale-[0.99] flex items-center justify-center gap-1 cursor-pointer"
-          >
-            <span>{existingCartItem ? '儲存修改' : '加入購物車'}</span>
-            <span>(${itemTotalPrice} 元)</span>
-          </button>
-        </div>
+        <CustomModalFooter
+          itemTotalPrice={itemTotalPrice}
+          isEditMode={!!existingCartItem}
+          onConfirm={handleConfirm}
+        />
       </div>
     </div>
   );

@@ -1,21 +1,21 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
-import { Store, MenuItem, Category } from '@/types/database';
+import { Store, MenuItem } from '@/types/database';
 import { AdminArchiveSection } from './AdminArchiveSection';
 import { AdminCrudSection } from './AdminCrudSection';
 import { AdminDashboardSection } from './AdminDashboardSection';
-import { AdminViewMode, AdminTabType, AdminConfirmModalState } from './admin-types';
+import { AdminViewMode, AdminTabType } from './admin-types';
 import { useTheme } from '@/lib/theme';
 import { useAdminSound } from './hooks/useAdminSound';
 import { useAdminSpeech } from './hooks/useAdminSpeech';
 import { useAdminData } from './hooks/useAdminData';
 import { useAdminStoreCrud } from './hooks/useAdminStoreCrud';
 import { useAdminOrderActions } from './hooks/useAdminOrderActions';
+import { useAdminModalState } from './hooks/useAdminModalState';
+import { useAdminGlobalSettingsCrud } from './hooks/useAdminGlobalSettingsCrud';
 
 // 子元件與彈窗
 import AdminAuthLock from './components/AdminAuthLock';
@@ -42,7 +42,6 @@ export default function AdminPageContent() {
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<AdminTabType>('active');
   const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
-  const [showVoiceSettingsModal, setShowVoiceSettingsModal] = useState<boolean>(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const showToast = useCallback((msg: string) => {
@@ -50,41 +49,39 @@ export default function AdminPageContent() {
     setTimeout(() => setToastMessage(null), 2500);
   }, []);
 
-  const [adminConfirmModal, setAdminConfirmModal] = useState<AdminConfirmModalState>({
-    isOpen: false,
-    title: '',
-    message: '',
-    confirmText: '確定',
-    cancelText: '取消',
-    isDanger: false,
-    onConfirm: () => {},
-  });
+  // 1. Modal 狀態管理 Hook
+  const {
+    isPrintModalOpen,
+    setIsPrintModalOpen,
+    isManualOrderModalOpen,
+    setIsManualOrderModalOpen,
+    isBatchImportModalOpen,
+    setIsBatchImportModalOpen,
+    isGroupSettingsModalOpen,
+    setIsGroupSettingsModalOpen,
+    showVoiceSettingsModal,
+    setShowVoiceSettingsModal,
+    signatureTarget,
+    setSignatureTarget,
+    changeModalTarget,
+    setChangeModalTarget,
+    receivedCash,
+    setReceivedCash,
+    adminConfirmModal,
+    openAdminConfirmModal,
+    closeAdminConfirmModal,
+  } = useAdminModalState();
 
-  const openAdminConfirmModal = useCallback((modal: AdminConfirmModalState) => {
-    setAdminConfirmModal({
-      ...modal,
-      confirmText: modal.confirmText || '確定',
-      cancelText: modal.cancelText || '取消',
-      isDanger: modal.isDanger ?? false,
-    });
-  }, []);
-
-  const closeAdminConfirmModal = useCallback(() => {
-    setAdminConfirmModal((prev) => ({ ...prev, isOpen: false }));
-  }, []);
-
-  // 1. 後台核心資料與 Realtime Hook (傳入音效與語音獨立分流狀態)
+  // 2. 後台核心資料與 Realtime Hook
   const {
     activeGroup,
     setActiveGroup,
     activeGroups,
-    setActiveGroups,
     selectedActiveGroupId,
     setSelectedActiveGroupId,
     selectedActiveGroupIdRef,
     archivedGroups,
     stores,
-    setStores,
     categories,
     setCategories,
     paymentMethods,
@@ -92,7 +89,6 @@ export default function AdminPageContent() {
     soldOutOptions,
     setSoldOutOptions,
     allMenuItems,
-    setAllMenuItems,
     optimisticReorderMenuItems,
     allSubmissions,
     setAllSubmissions,
@@ -133,7 +129,7 @@ export default function AdminPageContent() {
     return submissions.filter((s) => s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
   }, [submissions]);
 
-  // 2. 店家、分類、餐點品項 CRUD 操作 Hook
+  // 3. 店家、分類、餐點品項 CRUD 操作 Hook
   const {
     isStoreModalOpen,
     setIsStoreModalOpen,
@@ -149,23 +145,18 @@ export default function AdminPageContent() {
     handleStoreImageChange,
     handleSaveStore,
     handleDeleteStore,
+    openCreateStoreModal,
+    openEditStoreModal,
     isCatModalOpen,
     setIsCatModalOpen,
     editingCat,
     setEditingCat,
     catNameInput,
     setCatNameInput,
+    openCreateCategoryModal,
+    openEditCategoryModal,
     handleSaveCategory,
     handleDeleteCategory,
-    handleMoveCategory,
-    handleCreatePaymentMethod,
-    handleSavePaymentMethod,
-    handleDeletePaymentMethod,
-    handleTogglePaymentMethodActive,
-    handleCreateSoldOutOption,
-    handleSaveSoldOutOption,
-    handleDeleteSoldOutOption,
-    handleMoveSoldOutOption,
     selectedCrudStoreId,
     setSelectedCrudStoreId,
     isProductModalOpen,
@@ -176,14 +167,16 @@ export default function AdminPageContent() {
     setProductForm,
     productCustomGroups,
     setProductCustomGroups,
+    openCreateProductModal,
+    openEditProductModal,
     handleAddCustomGroup,
     handleRemoveCustomGroup,
     handleAddOptionToGroup,
     handleRemoveOptionFromGroup,
     handleSaveProduct,
     handleDeleteProduct,
-    handleToggleProductStatus,
-    handleReorderMenuItems,
+    handleToggleProductSoldOut,
+    handleReorderProducts,
   } = useAdminStoreCrud({
     stores,
     categories,
@@ -197,22 +190,29 @@ export default function AdminPageContent() {
     closeAdminConfirmModal,
   });
 
-  // 3. 訂單對帳、平攤、簽名與匯出 Hook
+  // 4. 全域設定（付款方式、缺貨備案、分類順序）Hook
   const {
-    isPrintModalOpen,
-    setIsPrintModalOpen,
-    isManualOrderModalOpen,
-    setIsManualOrderModalOpen,
-    isBatchImportModalOpen,
-    setIsBatchImportModalOpen,
-    isGroupSettingsModalOpen,
-    setIsGroupSettingsModalOpen,
-    signatureTarget,
-    setSignatureTarget,
-    changeModalTarget,
-    setChangeModalTarget,
-    receivedCash,
-    setReceivedCash,
+    handleMoveCategory,
+    handleCreatePaymentMethod,
+    handleSavePaymentMethod,
+    handleDeletePaymentMethod,
+    handleTogglePaymentMethodActive,
+    onCreateSoldOutOption,
+    onSaveSoldOutOption,
+    onDeleteSoldOutOption,
+    onMoveSoldOutOption,
+  } = useAdminGlobalSettingsCrud({
+    categories,
+    paymentMethods,
+    soldOutOptions,
+    fetchAdminData,
+    showToast,
+    openAdminConfirmModal,
+    closeAdminConfirmModal,
+  });
+
+  // 5. 訂單對帳、平攤、簽名與匯出 Hook
+  const {
     selectedSubmissionIds,
     setSelectedSubmissionIds,
     selectedArchivedGroupId,
@@ -289,66 +289,6 @@ export default function AdminPageContent() {
     showToast('已安全登出團長後台');
   };
 
-  const handleOpenStoreModal = (store?: Store) => {
-    if (store) {
-      setEditingStore(store);
-      const currentCodeNumber = store.code ? store.code.replace(/\D/g, '') : '001';
-      setStoreForm({
-        name: store.name,
-        category_id: store.category_id || '',
-        code_number: currentCodeNumber,
-      });
-      setStoreImagePreview(store.image_url || '');
-    } else {
-      setEditingStore(null);
-      // 智慧推薦最小可用正整數 (Min Available Gap)
-      const usedNumbers = new Set<number>();
-      stores.forEach((s) => {
-        if (s.code) {
-          const num = parseInt(s.code.replace(/\D/g, ''), 10);
-          if (!isNaN(num) && num > 0) usedNumbers.add(num);
-        }
-      });
-      let minAvail = 1;
-      while (usedNumbers.has(minAvail)) minAvail++;
-      setStoreForm({
-        name: '',
-        category_id: '',
-        code_number: String(minAvail).padStart(3, '0'),
-      });
-      setStoreImagePreview('');
-    }
-    setStoreImageFile(null);
-    setIsStoreModalOpen(true);
-  };
-
-  const handleOpenItemModal = (item?: MenuItem, storeId?: string) => {
-    if (item) {
-      setEditingProduct(item);
-      setProductForm({
-        name: item.name,
-        price: item.price.toString(),
-        description: item.description || '',
-        stock_quantity: item.stock_quantity ? item.stock_quantity.toString() : '',
-        is_sold_out: item.is_sold_out || false,
-      });
-      setProductCustomGroups(item.custom_groups || []);
-      setSelectedCrudStoreId(item.store_id);
-    } else {
-      setEditingProduct(null);
-      setProductForm({
-        name: '',
-        price: '',
-        description: '',
-        stock_quantity: '',
-        is_sold_out: false,
-      });
-      setProductCustomGroups([]);
-      if (storeId) setSelectedCrudStoreId(storeId);
-    }
-    setIsProductModalOpen(true);
-  };
-
   const isDesktop = viewMode === 'desktop';
 
   // 🔒 若尚未解鎖後台密碼，渲染安全驗證卡片
@@ -371,7 +311,7 @@ export default function AdminPageContent() {
         </div>
       )}
 
-      {/* 團長控制台頂部功能列 (Frosted Glassmorphism Header) */}
+      {/* 團長控制台頂部功能列 */}
       <AdminTopBar
         isSoundEnabled={isSoundEnabled}
         handleToggleSound={handleToggleSound}
@@ -387,7 +327,7 @@ export default function AdminPageContent() {
         showToast={showToast}
       />
 
-      {/* 分頁 Tab 導覽切換 (即時對帳 / 店家菜單 / 歷史歸檔 / 系統維護) */}
+      {/* 分頁 Tab 導覽切換 */}
       <AdminTabsNav
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -470,28 +410,36 @@ export default function AdminPageContent() {
                 soldOutOptions={soldOutOptions}
                 selectedStudioStoreId={selectedCrudStoreId}
                 onSelectStudioStore={(storeId) => setSelectedCrudStoreId(storeId)}
-                onCreateStore={() => handleOpenStoreModal()}
-                onEditStore={(store: Store) => handleOpenStoreModal(store)}
-                onDeleteStore={handleDeleteStore}
-                onCreateCategory={() => {
-                  setEditingCat(null);
-                  setCatNameInput('');
-                  setIsCatModalOpen(true);
+                onCreateStore={openCreateStoreModal}
+                onEditStore={(store: Store) => openEditStoreModal(store)}
+                onDeleteStore={(id: string) => {
+                  const store = stores.find((s) => s.id === id);
+                  if (store) handleDeleteStore(id, store.name);
                 }}
+                onCreateCategory={openCreateCategoryModal}
                 onMoveCategory={(id: string, direction: 'up' | 'down') => {
                   const category = categories.find((c) => c.id === id);
                   if (category) handleMoveCategory(category, direction);
                 }}
-                onDeleteCategory={handleDeleteCategory}
-                onCreateMenuItem={(storeId) => handleOpenItemModal(undefined, storeId)}
-                onEditMenuItem={(item: MenuItem) => handleOpenItemModal(item)}
+                onDeleteCategory={(id: string) => {
+                  const category = categories.find((c) => c.id === id);
+                  if (category) handleDeleteCategory(id, category.name);
+                }}
+                onCreateMenuItem={(storeId) => openCreateProductModal(storeId || (stores[0]?.id ?? ''))}
+                onEditMenuItem={(item: MenuItem) => openEditProductModal(item)}
                 onOpenBatchImportModal={(storeId) => {
                   if (storeId) setSelectedCrudStoreId(storeId);
                   setIsBatchImportModalOpen(true);
                 }}
-                onDeleteMenuItem={handleDeleteProduct}
-                onToggleMenuItemActive={(id: string) => handleToggleProductStatus(id)}
-                onReorderMenuItems={handleReorderMenuItems}
+                onDeleteMenuItem={(id: string) => {
+                  const product = allMenuItems.find((p) => p.id === id);
+                  if (product) handleDeleteProduct(id, product.name);
+                }}
+                onToggleMenuItemActive={(id: string) => {
+                  const product = allMenuItems.find((p) => p.id === id);
+                  if (product) handleToggleProductSoldOut(id, product.is_sold_out);
+                }}
+                onReorderMenuItems={handleReorderProducts}
                 onCreatePaymentMethod={handleCreatePaymentMethod}
                 onDeletePaymentMethod={handleDeletePaymentMethod}
                 onTogglePaymentMethodActive={handleTogglePaymentMethodActive}
@@ -508,13 +456,13 @@ export default function AdminPageContent() {
                   );
                 }}
                 onSavePaymentMethod={handleSavePaymentMethod}
-                onCreateSoldOutOption={handleCreateSoldOutOption}
-                onDeleteSoldOutOption={handleDeleteSoldOutOption}
-                onMoveSoldOutOption={handleMoveSoldOutOption}
+                onCreateSoldOutOption={onCreateSoldOutOption}
+                onDeleteSoldOutOption={onDeleteSoldOutOption}
+                onMoveSoldOutOption={onMoveSoldOutOption}
                 onUpdateSoldOutOption={(id: string, title: string) => {
                   setSoldOutOptions((prev) => prev.map((x) => (x.id === id ? { ...x, title } : x)));
                 }}
-                onSaveSoldOutOption={handleSaveSoldOutOption}
+                onSaveSoldOutOption={onSaveSoldOutOption}
                 onUpdateCategory={(id: string, field: 'name', value: string) => {
                   if (field === 'name' && typeof value === 'string') {
                     setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, name: value } : cat)));
