@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ExternalLink,
+  XCircle,
 } from 'lucide-react';
 import { compressMenuImage } from '@/lib/imageCompressor';
 import { AdminAiMenuReviewTable, RecognizedItem } from './AdminAiMenuReviewTable';
@@ -47,6 +48,8 @@ export default function AdminAiMenuScannerModal({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const stageTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 讀取本地儲存之自訂 API Key
   useEffect(() => {
@@ -82,19 +85,24 @@ export default function AdminAiMenuScannerModal({
       setCurrentStep('processing');
       setProcessStage(1);
 
+      // 建立可中斷之 AbortController
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
       // 1. 本地 Canvas 智慧壓縮
       const compressed = await compressMenuImage(file, 1600, 0.85);
 
       // 2. 模擬多階段視覺反饋
       setProcessStage(2);
-      const stageTimer = setTimeout(() => {
+      stageTimerRef.current = setTimeout(() => {
         setProcessStage(3);
       }, 1500);
 
-      // 3. 發送至後端 API
+      // 3. 發送至後端 API (支援隨時中斷)
       const res = await fetch('/api/admin/menu/ai-parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: abortController.signal,
         body: JSON.stringify({
           imageBase64: compressed.base64,
           mimeType: compressed.mimeType,
@@ -103,7 +111,7 @@ export default function AdminAiMenuScannerModal({
         }),
       });
 
-      clearTimeout(stageTimer);
+      if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
       const json = await res.json();
 
       if (!res.ok || !json.success) {
@@ -120,10 +128,27 @@ export default function AdminAiMenuScannerModal({
       setRecognizedItems(json.items);
       setCurrentStep('review');
     } catch (e: any) {
+      if (e.name === 'AbortError' || e.message?.includes('aborted') || e.message?.includes('中斷')) {
+        console.log('使用者已手動取消 AI 菜單掃描');
+        setCurrentStep('upload');
+        return;
+      }
       console.error('AI 辨識失敗:', e);
       setErrorMessage(e.message || '處理圖片時發生錯誤');
       setCurrentStep('upload');
+    } finally {
+      abortControllerRef.current = null;
     }
+  };
+
+  // 手動取消當前 AI 掃描
+  const handleCancelScan = () => {
+    if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    handleReset();
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,6 +160,11 @@ export default function AdminAiMenuScannerModal({
 
   // 重置回上傳步驟
   const handleReset = () => {
+    if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setCurrentStep('upload');
     setRecognizedItems([]);
     setErrorMessage(null);
@@ -362,6 +392,18 @@ export default function AdminAiMenuScannerModal({
                   <span className="w-2 h-2 rounded-full bg-current" />
                   <span>3. 規格生成</span>
                 </div>
+              </div>
+
+              {/* 🛑 取消掃描按鍵 */}
+              <div className="pt-4">
+                <button
+                  type="button"
+                  onClick={handleCancelScan}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800/90 dark:hover:bg-rose-950/40 px-4 py-2 rounded-xl transition border border-slate-200 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-800 shadow-2xs active:scale-95 cursor-pointer"
+                >
+                  <XCircle className="w-4 h-4 text-slate-400 group-hover:text-rose-500" />
+                  <span>取消當前掃描</span>
+                </button>
               </div>
             </div>
           )}
