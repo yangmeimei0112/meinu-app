@@ -225,7 +225,7 @@ export default function HomePage() {
                     <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate group-hover:text-sky-500 transition-colors">
                       {store.name}
                     </h4>
-                    <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">點擊瀏覽完整菜單與選購</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">點擊瀏覽完整菜單與選購</p>
                     <div className="mt-2 flex items-center gap-2">
                       <span className="inline-block bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">
                         開放揪團中

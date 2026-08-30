@@ -49,7 +49,7 @@ function StoreProductCardInner({ item, popularQty, onSelect }: StoreProductCardP
           )}
         </div>
         {item.description && (
-          <p className="text-xs text-slate-400 dark:text-slate-400 line-clamp-2">{item.description}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{item.description}</p>
         )}
         <p className="text-sm font-extrabold text-sky-600 dark:text-sky-400">${item.price} 元</p>
       </div>

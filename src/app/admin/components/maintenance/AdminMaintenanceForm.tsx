@@ -67,7 +67,7 @@ export function AdminMaintenanceForm({
   return (
     <div className="space-y-4">
       {/* 1. 主開關卡片 */}
-      <div className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-850/80 border border-slate-200/80 dark:border-slate-800 space-y-3">
+      <div className="p-5 rounded-3xl bg-slate-50 dark:bg-[#131B2B] border border-slate-200/80 dark:border-slate-800 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">維護模式總開關</span>
@@ -93,7 +93,7 @@ export function AdminMaintenanceForm({
       </div>
 
       {/* 2. 🌟 維護生效範圍選擇器 (單頁或全站維護) */}
-      <div className="space-y-2 p-4 rounded-3xl bg-slate-50 dark:bg-slate-850/80 border border-slate-200/80 dark:border-slate-800">
+      <div className="space-y-2 p-4 rounded-3xl bg-slate-50 dark:bg-[#131B2B] border border-slate-200/80 dark:border-slate-800">
         <label className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-sky-500" />
@@ -173,7 +173,7 @@ export function AdminMaintenanceForm({
           type="text"
           value={config.title}
           onChange={(e) => setConfig((prev) => ({ ...prev, title: e.target.value }))}
-          className="w-full bg-slate-50 dark:bg-slate-850/80 border border-slate-200 dark:border-slate-700 rounded-2xl py-2.5 px-3.5 text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-sky-400"
+          className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-2xl py-2.5 px-3.5 text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-sky-400"
           placeholder="例如：網站例行升級中..."
         />
       </div>
@@ -189,7 +189,7 @@ export function AdminMaintenanceForm({
           rows={3}
           value={config.message}
           onChange={(e) => setConfig((prev) => ({ ...prev, message: e.target.value }))}
-          className="w-full bg-slate-50 dark:bg-slate-850/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-3 text-xs text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-sky-400"
+          className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-2xl p-3 text-xs text-slate-800 dark:text-slate-100 font-medium focus:outline-none focus:ring-2 focus:ring-sky-400"
           placeholder="請輸入欲向點餐成員說明的維護原因或注意事項..."
         />
       </div>
@@ -205,7 +205,7 @@ export function AdminMaintenanceForm({
           type="text"
           value={config.estimated_end_time || ''}
           onChange={(e) => setConfig((prev) => ({ ...prev, estimated_end_time: e.target.value }))}
-          className="w-full bg-slate-50 dark:bg-slate-850/80 border border-slate-200 dark:border-slate-700 rounded-2xl py-2 px-3 text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-sky-400"
+          className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-2xl py-2 px-3 text-xs text-slate-800 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-sky-400"
           placeholder="例如：預計 12:30 恢復點餐 或 預計 15 分鐘完成"
         />
       </div>

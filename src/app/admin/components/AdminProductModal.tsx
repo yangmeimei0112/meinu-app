@@ -106,8 +106,8 @@ export default function AdminProductModal({
                 onChange={(e) => setProductForm({ ...productForm, is_sold_out: e.target.value === 'true' })}
                 className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-xl py-2 px-3 text-xs font-bold mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
               >
-                <option value="false">正常供應中</option>
-                <option value="true">暫時售完 / 下架</option>
+                <option value="false" className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">正常供應中</option>
+                <option value="true" className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">暫時售完 / 下架</option>
               </select>
             </div>
           </div>

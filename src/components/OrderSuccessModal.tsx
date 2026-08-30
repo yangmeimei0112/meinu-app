@@ -148,7 +148,7 @@ export default function OrderSuccessModal({
           </div>
 
           {/* 右下角翠綠成功打勾印章徽章 */}
-          <div className="absolute -bottom-0.5 right-2 z-20 w-8 h-8 rounded-full bg-linear-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-850 animate-in zoom-in-50 duration-300 delay-100">
+          <div className="absolute -bottom-0.5 right-2 z-20 w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-lg border-2 border-white dark:border-slate-800 animate-in zoom-in-50 duration-300 delay-100">
             <svg className="w-5 h-5 stroke-white" fill="none" viewBox="0 0 24 24" strokeWidth="3">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
@@ -171,7 +171,7 @@ export default function OrderSuccessModal({
         {/* 單號與金額標籤卡片 */}
         <div className="bg-slate-50 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/80 rounded-2xl p-3.5 flex items-center justify-between shadow-inner">
           <div className="text-left">
-            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 block">
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">
               專屬訂單編號
             </span>
             <span className="text-base font-black font-mono text-emerald-600 dark:text-emerald-400 tracking-wide">
@@ -181,7 +181,7 @@ export default function OrderSuccessModal({
 
           {typeof totalAmount === 'number' && (
             <div className="text-right">
-              <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 block">
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 block">
                 應付總金額
               </span>
               <span className="text-base font-black font-mono text-slate-800 dark:text-slate-100">
@@ -195,12 +195,12 @@ export default function OrderSuccessModal({
         <div className="space-y-2 pt-1">
           <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
             <div
-              className="bg-linear-to-r from-emerald-400 via-teal-400 to-sky-500 h-full rounded-full transition-all duration-75 ease-out shadow-xs"
+              className="bg-gradient-to-r from-emerald-400 via-teal-400 to-sky-500 h-full rounded-full transition-all duration-75 ease-out shadow-xs"
               style={{ width: `${progress}%` }}
             />
           </div>
 
-          <p className="text-[11px] text-slate-400 dark:text-slate-400 flex items-center justify-center gap-1.5 font-medium">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-center gap-1.5 font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
             <span>正在前往即時對帳與訂單明細頁面...</span>
           </p>

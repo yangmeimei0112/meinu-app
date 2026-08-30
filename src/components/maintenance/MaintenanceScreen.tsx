@@ -97,7 +97,7 @@ export function MaintenanceScreen({
             type="button"
             onClick={toggleTheme}
             aria-label="切換深淺色主題"
-            className="w-8 h-8 rounded-xl font-bold bg-white/80 dark:bg-slate-900/80 backdrop-blur-md text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-850 transition flex items-center justify-center cursor-pointer active:scale-95"
+            className="w-8 h-8 rounded-xl font-bold bg-white/80 dark:bg-slate-900/80 backdrop-blur-md text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center cursor-pointer active:scale-95"
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
           </button>
@@ -146,7 +146,7 @@ export function MaintenanceScreen({
           </div>
 
           {/* 大標題 */}
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-850 dark:text-white leading-snug">
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white leading-snug">
             {data.title.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim() || '網站升級中，請稍候再下單'}
           </h1>
 

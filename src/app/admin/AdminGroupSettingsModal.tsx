@@ -166,7 +166,7 @@ export default function AdminGroupSettingsModal({
               className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl p-2.5 font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {stores.map((s) => (
-                <option key={s.id} value={s.id}>
+                <option key={s.id} value={s.id} className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">
                   [{s.code || 'S-001'}] {s.name}
                 </option>
               ))}

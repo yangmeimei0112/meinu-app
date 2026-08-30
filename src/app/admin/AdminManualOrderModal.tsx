@@ -157,7 +157,7 @@ export default function AdminManualOrderModal({
               className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {menuItems.map((item) => (
-                <option key={item.id} value={item.id}>
+                <option key={item.id} value={item.id} className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">
                   {item.name} (${item.price} 元) {item.is_sold_out ? '【已售完】' : ''}
                 </option>
               ))}
@@ -213,7 +213,7 @@ export default function AdminManualOrderModal({
               className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {paymentMethods.map((pm) => (
-                <option key={pm.id} value={pm.name}>
+                <option key={pm.id} value={pm.name} className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">
                   {stripEmojis(pm.name)}
                 </option>
               ))}
@@ -231,7 +231,7 @@ export default function AdminManualOrderModal({
               className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
               {soldOutOptions.map((so) => (
-                <option key={so.id} value={so.title}>
+                <option key={so.id} value={so.title} className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">
                   {stripEmojis(so.title)}
                 </option>
               ))}

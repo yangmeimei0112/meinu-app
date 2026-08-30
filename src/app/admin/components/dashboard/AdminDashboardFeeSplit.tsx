@@ -142,9 +142,9 @@ export function AdminDashboardFeeSplit({
               onChange={(e) => setRoundingRule(e.target.value as 'floor' | 'ceil' | 'round')}
               className="w-full bg-white dark:bg-[#110E24] border border-indigo-200 dark:border-indigo-900/80 rounded-2xl py-2 px-2 text-xs font-black text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-2xs cursor-pointer"
             >
-              <option value="floor">無條件捨去</option>
-              <option value="ceil">無條件進位</option>
-              <option value="round">四捨五入</option>
+              <option value="floor" className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">無條件捨去</option>
+              <option value="ceil" className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">無條件進位</option>
+              <option value="round" className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">四捨五入</option>
             </select>
           </div>
         </div>

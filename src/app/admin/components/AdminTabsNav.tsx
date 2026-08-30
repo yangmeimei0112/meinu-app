@@ -30,7 +30,13 @@ export default function AdminTabsNav({
           <BarChart3 className="w-4 h-4" />
           <span>即時對帳</span>
           {activeSubmissionsCount > 0 && (
-            <span className="bg-sky-500 dark:bg-white text-white dark:text-sky-800 text-[10px] px-2 py-0.2 rounded-full font-black">
+            <span
+              className={`text-[10px] px-2 py-0.2 rounded-full font-black transition-colors ${
+                activeTab === 'active'
+                  ? 'bg-sky-500 text-white dark:bg-white dark:text-sky-900 shadow-2xs'
+                  : 'bg-sky-100 text-sky-700 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-200 dark:border-sky-800/80'
+              }`}
+            >
               {activeSubmissionsCount}
             </span>
           )}
