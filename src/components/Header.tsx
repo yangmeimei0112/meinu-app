@@ -123,8 +123,8 @@ export default function Header() {
         </Link>
 
         {/* 快碼搜尋 */}
-        <form onSubmit={handleSearchCode} className="flex-1 max-w-[105px]">
-          <div className="relative">
+        <form onSubmit={handleSearchCode} className="flex-1 max-w-[108px] h-[32px]">
+          <div className="relative w-full h-full">
             <label htmlFor="header-shortcode-input" className="sr-only">活動快碼</label>
             <input
               id="header-shortcode-input"
@@ -135,11 +135,11 @@ export default function Header() {
               placeholder="#快碼"
               value={shortCode}
               onChange={(e) => setShortCode(e.target.value.toUpperCase())}
-              className="w-full bg-slate-50 dark:bg-[#182234] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl py-1 px-2.5 text-xs text-center font-mono font-bold tracking-wider placeholder:font-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
+              className="w-full h-full bg-slate-50 dark:bg-[#182234] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-700 rounded-xl px-2 text-xs text-center font-mono font-bold tracking-wider placeholder:font-normal placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
             <button
               type="submit"
-              className="absolute right-1 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-500 p-0.5 transition cursor-pointer"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-500 p-0.5 transition cursor-pointer"
             >
               <Search className="w-3.5 h-3.5" />
             </button>
@@ -150,7 +150,7 @@ export default function Header() {
           {/* 我的訂單按鈕 (僅在有全新歷史訂單時閃爍紅點) */}
           <Link
             href="/my-orders"
-            className="relative bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 dark:border-slate-700 active:scale-95"
+            className="relative h-[32px] bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 px-2.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 dark:border-slate-700 active:scale-95"
             title="查看我的送訂紀錄與付款狀態"
           >
             <ClipboardList className="w-3.5 h-3.5 stroke-[2.2]" />
@@ -164,7 +164,7 @@ export default function Header() {
           <button
             type="button"
             onClick={handleSharePlatform}
-            className="bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 px-2 py-1.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 dark:border-slate-700 active:scale-95 cursor-pointer"
+            className="h-[32px] bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 px-2.5 rounded-xl text-[11px] font-extrabold transition flex items-center gap-1 border border-sky-100 dark:border-slate-700 active:scale-95 cursor-pointer"
             title="分享平台"
           >
             <Share2 className="w-3.5 h-3.5 stroke-[2.2]" />
@@ -175,7 +175,7 @@ export default function Header() {
           <button
             type="button"
             onClick={() => setIsQrModalOpen(true)}
-            className="bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 p-1.5 rounded-xl transition flex items-center justify-center border border-sky-100 dark:border-slate-700 active:scale-95 cursor-pointer"
+            className="h-[32px] w-[32px] bg-sky-50 hover:bg-sky-100 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-sky-600 dark:text-sky-300 rounded-xl transition flex items-center justify-center border border-sky-100 dark:border-slate-700 active:scale-95 cursor-pointer"
             title="顯示現場 QR Code"
           >
             <QrCode className="w-4 h-4 text-sky-600 dark:text-sky-300 stroke-[2.2]" />
