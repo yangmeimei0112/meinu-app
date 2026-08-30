@@ -1,4 +1,4 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyAdminToken } from '@/lib/auth-util';
 
@@ -76,6 +76,73 @@ const SYSTEM_PROMPT = `
 }
 `;
 
+// 🔍 動態探測該 API Key 支援的 Gemini 模型清單
+async function getAvailableGeminiModels(apiKey: string): Promise<string[]> {
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      if (Array.isArray(listData.models)) {
+        const supported = listData.models
+          .filter((m: any) =>
+            Array.isArray(m.supportedGenerationMethods) &&
+            m.supportedGenerationMethods.includes('generateContent')
+          )
+          .map((m: any) => m.name.replace(/^models\//, ''));
+
+        // 依推薦順序排序
+        const preference = [
+          'gemini-2.0-flash',
+          'gemini-1.5-flash',
+          'gemini-1.5-flash-latest',
+          'gemini-2.0-flash-exp',
+          'gemini-1.5-flash-8b',
+          'gemini-1.5-pro',
+          'gemini-1.5-pro-latest',
+        ];
+
+        const sorted = preference.filter((p) => supported.includes(p));
+        // 加入其他支援的模型
+        for (const name of supported) {
+          if (!sorted.includes(name)) {
+            sorted.push(name);
+          }
+        }
+
+        if (sorted.length > 0) {
+          return sorted;
+        }
+      }
+    } else {
+      const errText = await listRes.text();
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson?.error?.message) {
+          const msg = errJson.error.message;
+          if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
+            throw new Error('填入的 Google Gemini API Key 無效，請檢查是否複製完整！');
+          }
+          if (msg.includes('PERMISSION_DENIED') || msg.includes('has not used the API')) {
+            throw new Error(`Google API 權限被拒：${msg}，請確認專案已啟用 Generative Language API。`);
+          }
+        }
+      } catch (parseErr: any) {
+        if (parseErr.message && !parseErr.message.includes('JSON')) {
+          throw parseErr;
+        }
+      }
+    }
+  } catch (e: any) {
+    if (e.message && (e.message.includes('API Key') || e.message.includes('Google API 權限'))) {
+      throw e;
+    }
+    console.warn('[AI-Parse] 動態取得模型清單失敗，使用預設備援模型清單:', e.message);
+  }
+
+  // 兜底預設清單
+  return ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash-exp'];
+}
+
 // 🧠 呼叫 Google Gemini Vision API
 async function callGeminiVision(
   imageBase64: string,
@@ -83,8 +150,7 @@ async function callGeminiVision(
   apiKey: string,
   storeName?: string
 ): Promise<AiParseResponse> {
-  // 嘗試模型清單 (優先使用 2.5-flash，備援使用 1.5-flash)
-  const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+  const models = await getAvailableGeminiModels(apiKey);
   let lastError: Error | null = null;
 
   for (const model of models) {
@@ -122,7 +188,26 @@ async function callGeminiVision(
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Gemini API 錯誤 (${response.status}): ${errorText}`);
+        let errMsg = `Gemini API (${model}) 錯誤 (${response.status}): ${errorText}`;
+        try {
+          const errJson = JSON.parse(errorText);
+          if (errJson?.error?.message) {
+            errMsg = errJson.error.message;
+            if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
+              throw new Error('填入的 Google Gemini API Key 無效，請檢查是否複製完整！');
+            }
+          }
+        } catch (jsonErr: any) {
+          if (jsonErr.message && jsonErr.message.includes('API Key')) throw jsonErr;
+        }
+
+        // 若為 404 (該模型名稱不支援)，嘗試下一個可用模型
+        if (response.status === 404) {
+          console.warn(`[AI-Parse] 模型 ${model} 不支援 generateContent，嘗試下一個...`);
+          continue;
+        }
+
+        throw new Error(errMsg);
       }
 
       const json = await response.json();
@@ -146,11 +231,15 @@ async function callGeminiVision(
     } catch (e: any) {
       console.warn(`[AI-Parse] 模型 ${model} 呼叫失敗:`, e.message);
       lastError = e;
+      if (e.message && e.message.includes('API Key')) {
+        throw e;
+      }
     }
   }
 
   throw lastError || new Error('所有 Gemini 模型解析皆失敗，請檢查 API Key 或圖片清晰度');
 }
+
 
 // 🧠 呼叫 OpenAI Vision API (備援)
 async function callOpenAiVision(
