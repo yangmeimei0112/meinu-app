@@ -318,6 +318,7 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
             payment_method_name: sanitizeInput(selectedPayment, 40),
             sold_out_option: sanitizeInput(selectedSoldOut, 40),
             total_amount: safeGrandTotal,
+            final_amount: safeGrandTotal,
             order_number: orderNumber,
             is_paid: false,
           },
@@ -329,7 +330,6 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
 
       const itemsPayload = cartItems.map((item) => ({
         submission_id: submission.id,
-        menu_item_id: item.menuItemId || null,
         item_name: sanitizeInput(item.name, 60),
         quantity: Math.max(1, Math.min(99, item.quantity)),
         unit_price: Math.max(0, Math.round(item.unitPrice)),
