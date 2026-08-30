@@ -11,11 +11,20 @@ import { ClipboardList, ChevronLeft } from 'lucide-react';
 import { useToast } from '@/lib/useToast';
 import { MyOrderHistoryCard, OrderHistoryRecord } from './components/MyOrderHistoryCard';
 import { MyOrdersEmptyState } from './components/MyOrdersEmptyState';
+import {
+  getOrderHistoryCache,
+  setOrderHistoryCache,
+  subscribeOrderHistory,
+  prefetchOrderHistory,
+} from '@/lib/storeMenuCache';
 
 export default function MyOrdersPage() {
   const router = useRouter();
-  const [orders, setOrders] = useState<OrderHistoryRecord[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+
+  // 🌟 1. 優先自記憶體/本地快照同步初始化（0ms 秒開，免等資料庫檢索）
+  const initialOrders = getOrderHistoryCache();
+  const [orders, setOrders] = useState<OrderHistoryRecord[]>(initialOrders || []);
+  const [loading, setLoading] = useState<boolean>(!initialOrders);
 
   // 使用共用 useToast Hook
   const { toastMessage, showToast } = useToast();
@@ -28,75 +37,24 @@ export default function MyOrdersPage() {
       window.dispatchEvent(new Event('storage'));
     } catch {}
 
-    async function fetchOrders() {
+    // 🌟 2. 訂閱歷史訂單變更
+    const unsub = subscribeOrderHistory((cached) => {
+      setOrders(cached);
+      setLoading(false);
+    });
+
+    // 🌟 3. 背景執行 SWR 靜默校驗
+    const hasCache = !!getOrderHistoryCache();
+    if (!hasCache) {
       setLoading(true);
-
-      try {
-        let orderIds: string[] = [];
-
-        const historyRaw = localStorage.getItem('menu_app_order_history');
-        if (historyRaw) {
-          try {
-            const parsed = JSON.parse(historyRaw);
-            if (Array.isArray(parsed)) orderIds = parsed;
-          } catch {}
-        }
-
-        const lastId = localStorage.getItem('menu_app_last_order_id');
-        if (lastId && !orderIds.includes(lastId)) {
-          orderIds.unshift(lastId);
-        }
-
-        if (orderIds.length === 0) {
-          setOrders([]);
-          setLoading(false);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from('order_submissions')
-          .select(`
-            id,
-            group_order_id,
-            order_number,
-            user_nickname,
-            payment_method_name,
-            sold_out_option,
-            total_amount,
-            final_amount,
-            is_paid,
-            created_at,
-            order_items (
-              id,
-              item_name,
-              quantity,
-              unit_price,
-              custom_notes
-            ),
-            group_orders (
-              id,
-              store_id,
-              stores (
-                id,
-                name,
-                image_url
-              )
-            )
-          `)
-          .in('id', orderIds)
-          .order('created_at', { ascending: false });
-
-        if (!error && data) {
-          setOrders(data as unknown as OrderHistoryRecord[]);
-        }
-      } catch (err) {
-        console.error('Fetch history orders error:', err);
-      } finally {
-        setLoading(false);
-      }
     }
 
-    fetchOrders();
+    prefetchOrderHistory()
+      .then((records) => {
+        if (records) setOrders(records);
+      })
+      .catch((err) => console.error('Prefetch order history error in page:', err))
+      .finally(() => setLoading(false));
 
     // ⚡ 訂閱 Realtime 更新付款狀態
     const channel = supabase
@@ -106,15 +64,18 @@ export default function MyOrdersPage() {
         { event: 'UPDATE', schema: 'public', table: 'order_submissions' },
         (payload) => {
           if (payload.new) {
-            setOrders((prev) =>
-              prev.map((o) => (o.id === payload.new.id ? { ...o, ...payload.new } : o))
-            );
+            setOrders((prev) => {
+              const updated = prev.map((o) => (o.id === payload.new.id ? { ...o, ...payload.new } : o));
+              setOrderHistoryCache(updated);
+              return updated;
+            });
           }
         }
       )
       .subscribe();
 
     return () => {
+      unsub();
       supabase.removeChannel(channel);
     };
   }, []);
