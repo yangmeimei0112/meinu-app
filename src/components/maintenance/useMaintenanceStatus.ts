@@ -2,10 +2,25 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { MaintenanceData } from './MaintenanceScreen';
+import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
 
 const STORAGE_KEY_LOCKED = 'meinu_maintenance_locked';
 const STORAGE_KEY_DATA = 'meinu_maintenance_data';
 const STORAGE_KEY_DEADLINE = 'meinu_maintenance_deadline';
+
+export function isRouteInMaintenance(pathname: string, scope?: MaintenanceScope): boolean {
+  if (!pathname || pathname.startsWith('/admin')) return false; // 後台永遠不攔截
+  if (!scope || scope === 'all') return true;
+
+  if (scope === 'home') return pathname === '/';
+  if (scope === 'search') return pathname === '/search' || pathname.startsWith('/search/');
+  if (scope === 'stores') return pathname.startsWith('/stores/');
+  if (scope === 'cart') return pathname === '/cart' || pathname.startsWith('/cart/');
+  if (scope === 'checkout') return pathname === '/checkout' || pathname.startsWith('/checkout/');
+  if (scope === 'my-orders') return pathname === '/my-orders' || pathname.startsWith('/my-orders/');
+
+  return false;
+}
 
 // 🧹 強制清除所有快取並帶隨機時間戳硬重整至最新版本
 export async function forceHardReloadToLatestVersion(targetUrl?: string) {
@@ -41,8 +56,8 @@ export async function forceHardReloadToLatestVersion(targetUrl?: string) {
   }
 }
 
-export function useMaintenanceStatus() {
-  // 🌟 1. 同步自 localStorage / sessionStorage 讀取維護狀態（0ms 瞬間鎖定，杜絕重整時首幀閃現前台）
+export function useMaintenanceStatus(currentPathname: string = '/') {
+  // 🌟 1. 同步自 localStorage / sessionStorage 讀取維護狀態（0ms 瞬間鎖定）
   const [maintenanceData, setMaintenanceData] = useState<MaintenanceData | null>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -69,7 +84,6 @@ export function useMaintenanceStatus() {
         const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
         if (raw) {
           const parsed = JSON.parse(raw);
-          // 🛡️ 若系統處於維護中且使用者重整頁面，立即視為倒數已結束直接鎖定全螢幕！
           if (parsed && parsed.is_maintenance) {
             return true;
           }
@@ -106,7 +120,7 @@ export function useMaintenanceStatus() {
             sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
           } catch {}
 
-          // 🛡️ 關鍵防禦：若使用者是剛進入網站或「重新載入 (Reload) 頁面」，直接鎖定全螢幕，絕不重新給 30 秒倒數繞過！
+          // 🛡️ 若使用者是剛進入網站或「重新載入 (Reload) 頁面」，直接鎖定全螢幕
           if (!initialCheckDoneRef.current) {
             setIsCountDownFinished(true);
             setCountdown(null);
@@ -115,7 +129,6 @@ export function useMaintenanceStatus() {
               sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
             } catch {}
           } else if (!maintenanceData?.is_maintenance && !deadlineRef.current) {
-            // 只有在使用者「已經在線且原本非維護」，後台突然開啟維護時，才提供 30 秒緩衝倒數
             const targetDeadline = Date.now() + 30000;
             deadlineRef.current = targetDeadline;
             try {
@@ -221,10 +234,12 @@ export function useMaintenanceStatus() {
       const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
       if (res.ok) {
         const json: MaintenanceData = await res.json();
-        if (!json.is_maintenance) {
-          setCheckMessage('✅ 網站維護已完成！即將自動為您整理並載入最新版本...');
+        const isInMaintenance = json.is_maintenance && isRouteInMaintenance(currentPathname, json.scope);
+
+        if (!isInMaintenance) {
+          setCheckMessage('✅ 該頁面維護已完成！即將自動為您整理並載入最新版本...');
           setTimeout(() => {
-            forceHardReloadToLatestVersion('/');
+            forceHardReloadToLatestVersion(currentPathname || '/');
           }, 800);
           return;
         } else {

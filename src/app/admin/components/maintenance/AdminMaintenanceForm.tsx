@@ -2,7 +2,21 @@
 
 import React from 'react';
 import { MaintenanceData } from '@/components/MaintenanceGuard';
-import { Settings, X, Lightbulb, Upload, Save } from 'lucide-react';
+import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
+import {
+  X,
+  Lightbulb,
+  Upload,
+  Save,
+  Globe,
+  Home,
+  Search,
+  Store,
+  ShoppingBag,
+  CreditCard,
+  ClipboardList,
+  Layers,
+} from 'lucide-react';
 
 const QUICK_REASONS = [
   '系統例行升級',
@@ -10,6 +24,23 @@ const QUICK_REASONS = [
   '效能優化更新',
   '金流維護升級',
   '資料庫同步維護',
+];
+
+interface ScopeOption {
+  id: MaintenanceScope;
+  label: string;
+  desc: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const SCOPE_OPTIONS: ScopeOption[] = [
+  { id: 'all', label: '全站所有頁面', desc: '封鎖全站前台（預設）', icon: Globe },
+  { id: 'home', label: '首頁大廳', desc: '僅鎖定首頁 (/)', icon: Home },
+  { id: 'search', label: '探索搜尋頁', desc: '僅鎖定搜尋 (/search)', icon: Search },
+  { id: 'stores', label: '店家菜單頁', desc: '僅鎖定菜單 (/stores/*)', icon: Store },
+  { id: 'cart', label: '購物車功能', desc: '僅鎖定購物車 (/cart)', icon: ShoppingBag },
+  { id: 'checkout', label: '結帳送單頁', desc: '僅鎖定結帳 (/checkout)', icon: CreditCard },
+  { id: 'my-orders', label: '歷史訂單頁', desc: '僅鎖定訂單 (/my-orders)', icon: ClipboardList },
 ];
 
 interface AdminMaintenanceFormProps {
@@ -31,6 +62,8 @@ export function AdminMaintenanceForm({
   onRemoveImage,
   onSaveConfig,
 }: AdminMaintenanceFormProps) {
+  const currentScope = config.scope || 'all';
+
   return (
     <div className="space-y-4">
       {/* 1. 主開關卡片 */}
@@ -39,7 +72,7 @@ export function AdminMaintenanceForm({
           <div>
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">維護模式總開關</span>
             <span className="text-[11px] text-slate-400">
-              開啟後全站將顯示維護全螢幕，所有使用者皆無法送單
+              開啟後將依據下方選定之「維護範圍」進行阻擋與鎖定
             </span>
           </div>
 
@@ -59,7 +92,47 @@ export function AdminMaintenanceForm({
         </div>
       </div>
 
-      {/* 2. 快速套用維護事由 */}
+      {/* 2. 🌟 維護生效範圍選擇器 (單頁或全站維護) */}
+      <div className="space-y-2 p-4 rounded-3xl bg-slate-50 dark:bg-slate-850/80 border border-slate-200/80 dark:border-slate-800">
+        <label className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-sky-500" />
+            <span>維護生效範圍（支援單頁維護）</span>
+          </div>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold font-mono">
+            {SCOPE_OPTIONS.find((s) => s.id === currentScope)?.label}
+          </span>
+        </label>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+          {SCOPE_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const isSelected = currentScope === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setConfig((prev) => ({ ...prev, scope: opt.id }))}
+                className={`p-2.5 rounded-2xl border text-left transition active:scale-95 cursor-pointer flex flex-col justify-between gap-1 ${
+                  isSelected
+                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-800 dark:text-amber-300 shadow-xs ring-1 ring-amber-400/40'
+                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:border-sky-400'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 font-bold text-xs">
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-amber-500' : 'text-slate-400'}`} />
+                  <span>{opt.label}</span>
+                </div>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                  {opt.desc}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. 快速套用維護事由 */}
       <div className="space-y-1.5">
         <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
           <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
@@ -89,7 +162,7 @@ export function AdminMaintenanceForm({
         </div>
       </div>
 
-      {/* 3. 維護標題 */}
+      {/* 4. 維護標題 */}
       <div className="space-y-1">
         <label htmlFor="maint-title-input" className="text-xs font-bold text-slate-700 dark:text-slate-300">
           維護大標題
@@ -105,7 +178,7 @@ export function AdminMaintenanceForm({
         />
       </div>
 
-      {/* 4. 維護詳細說明 */}
+      {/* 5. 維護詳細說明 */}
       <div className="space-y-1">
         <label htmlFor="maint-message-textarea" className="text-xs font-bold text-slate-700 dark:text-slate-300">
           維護廣播說明文字
@@ -121,7 +194,7 @@ export function AdminMaintenanceForm({
         />
       </div>
 
-      {/* 5. 預計完成時間 */}
+      {/* 6. 預計完成時間 */}
       <div className="space-y-1">
         <label htmlFor="maint-time-input" className="text-xs font-bold text-slate-700 dark:text-slate-300">
           預計完成時間
@@ -137,7 +210,7 @@ export function AdminMaintenanceForm({
         />
       </div>
 
-      {/* 6. 自訂圖片 / GIF 上傳 */}
+      {/* 7. 自訂圖片 / GIF 上傳 */}
       <div className="space-y-1.5 pt-1">
         <label htmlFor="maint-image-file-input" className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
           <Upload className="w-3.5 h-3.5 text-sky-500" />
@@ -183,7 +256,7 @@ export function AdminMaintenanceForm({
         )}
       </div>
 
-      {/* 儲存設定按鈕 */}
+      {/* 8. 儲存設定按鈕 */}
       <div className="pt-2">
         <button
           type="button"

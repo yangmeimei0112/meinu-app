@@ -4,7 +4,7 @@ import React from 'react';
 import { usePathname } from 'next/navigation';
 import { MaintenanceData, MaintenanceScreen } from './maintenance/MaintenanceScreen';
 import { DraggableFloatingCapsule } from './maintenance/DraggableFloatingCapsule';
-import { useMaintenanceStatus } from './maintenance/useMaintenanceStatus';
+import { useMaintenanceStatus, isRouteInMaintenance } from './maintenance/useMaintenanceStatus';
 
 export type { MaintenanceData };
 export { MaintenanceScreen };
@@ -29,9 +29,10 @@ function IconChevronUp({ className = 'w-4 h-4' }: { className?: string }) {
 
 /**
  * 🌟 僅在前台使用者頁面掛載的維護狀態監聽器
- * 嚴格與後台管理 (/admin) 隔離，後台管理完全不執行任何輪詢或自動重整
+ * 嚴格與後台管理 (/admin) 隔離，支援「全站維護」與「單一頁面特定維護」
  */
 function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const {
     maintenanceData,
     checking,
@@ -42,10 +43,14 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
     isMinimized,
     setIsMinimized,
     handleManualCheck,
-  } = useMaintenanceStatus();
+  } = useMaintenanceStatus(pathname);
 
-  // 伺服端維護中且倒數已結束：全螢幕鎖定畫面
-  if (maintenanceData?.is_maintenance && isCountDownFinished) {
+  // 判定當前頁面是否處於維護範圍內
+  const isCurrentRouteLocked =
+    maintenanceData?.is_maintenance && isRouteInMaintenance(pathname, maintenanceData.scope);
+
+  // 伺服端維護中、命中當前頁面範圍且倒數已結束：全螢幕鎖定畫面
+  if (isCurrentRouteLocked && isCountDownFinished) {
     return (
       <MaintenanceScreen
         data={maintenanceData}
@@ -58,7 +63,7 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
 
   return (
     <>
-      {maintenanceData?.is_maintenance && countdown !== null && (
+      {isCurrentRouteLocked && countdown !== null && (
         <>
           {/* 中央大提示彈窗 (前 3 秒醒目提示) */}
           {isCenterPopup && (
@@ -68,13 +73,13 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
                   <IconAlertTriangle className="w-7 h-7" />
                 </div>
                 <div className="space-y-1.5">
-                  <h3 className="text-lg font-black text-amber-400">系統即將進入維護模式</h3>
+                  <h3 className="text-lg font-black text-amber-400">該頁面即將進入維護模式</h3>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    {maintenanceData.message || '系統預計於倒數結束後開始維護，請儘速完成並送出您的點餐！'}
+                    {maintenanceData.message || '該頁面預計於倒數結束後開始維護，請儘速完成並送出您的操作！'}
                   </p>
                 </div>
                 <div className="bg-slate-800/80 rounded-2xl p-3 border border-slate-700">
-                  <span className="text-[11px] text-slate-400 block mb-1">距離正式關閉前台點餐</span>
+                  <span className="text-[11px] text-slate-400 block mb-1">距離正式關閉該頁面</span>
                   <span className="text-2xl font-black text-amber-400 font-mono tracking-wider">{countdown} 秒</span>
                 </div>
                 <button
@@ -82,7 +87,7 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
                   onClick={() => {}}
                   className="text-xs text-slate-400 hover:text-slate-200 transition underline underline-offset-4"
                 >
-                  我知道了，繼續填單
+                  我知道了，繼續操作
                 </button>
               </div>
             </div>

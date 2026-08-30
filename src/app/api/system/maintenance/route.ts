@@ -7,8 +7,11 @@ import { verifyAdminToken } from '@/lib/auth-util';
 const configFilePath = path.join(process.cwd(), 'src', 'data', 'maintenance.json');
 const tmpFilePath = path.join('/tmp', 'meinu_maintenance.json');
 
+export type MaintenanceScope = 'all' | 'home' | 'search' | 'stores' | 'cart' | 'checkout' | 'my-orders';
+
 export interface MaintenanceConfig {
   is_maintenance: boolean;
+  scope?: MaintenanceScope; // 'all' (全站) | 'home' | 'search' | 'stores' | 'cart' | 'checkout' | 'my-orders'
   title: string;
   message: string;
   estimated_end_time?: string;
@@ -19,6 +22,7 @@ export interface MaintenanceConfig {
 
 const defaultConfig: MaintenanceConfig = {
   is_maintenance: false,
+  scope: 'all',
   title: '網站更新維護中，請稍後再下單',
   message: '為了提供更好的揪團點餐體驗，網站目前正在進行例行升級維護。暫停點餐服務，請稍後再下單，感謝您的耐心等候。',
   estimated_end_time: '預計 15-30 分鐘內完成',
@@ -81,18 +85,22 @@ function writeConfig(config: MaintenanceConfig): boolean {
   return written || !!memoryCache;
 }
 
-// 供前台訪客快速查詢維護狀態
+const VALID_SCOPES: MaintenanceScope[] = ['all', 'home', 'search', 'stores', 'cart', 'checkout', 'my-orders'];
+
+// 供前台訪客快速查詢維護狀態與生效範圍
 export async function GET() {
   const config = readConfig();
 
-  // 🛡️ M3 修復：移除 build_id（Git Commit Hash）與精確伺服器時間戳，
-  // 這些資訊對公眾訪客無必要，洩露後攻擊者可藉此確認部署版本並針對已知 CVE 發動攻擊。
   return NextResponse.json(
     {
       is_maintenance: config.is_maintenance,
+      scope: config.is_maintenance ? (config.scope || 'all') : 'all',
       title: config.is_maintenance ? config.title : '',
       message: config.is_maintenance ? config.message : '',
       estimated_end_time: config.is_maintenance ? (config.estimated_end_time || '') : '',
+      reason: config.is_maintenance ? (config.reason || '') : '',
+      custom_image_url: config.is_maintenance ? (config.custom_image_url || '') : '',
+      updated_at: config.updated_at,
     },
     {
       headers: {
@@ -132,7 +140,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const current = readConfig();
 
-    // 3. 嚴格 Payload 字串長度限制與協議防禦 (防範惡意大型緩衝區灌水注入與 javascript: 偽協定)
+    // 3. 嚴格 Payload 字串長度限制與協議防禦
     const rawTitle = typeof body.title === 'string' ? body.title.trim().slice(0, 100) : current.title;
     const rawMessage = typeof body.message === 'string' ? body.message.trim().slice(0, 500) : current.message;
     const rawEstimated =
@@ -140,6 +148,9 @@ export async function POST(req: NextRequest) {
         ? body.estimated_end_time.trim().slice(0, 60)
         : current.estimated_end_time;
     const rawReason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 50) : current.reason;
+
+    // 4. 維護範圍校驗 (預設為 'all')
+    const rawScope: MaintenanceScope = VALID_SCOPES.includes(body.scope) ? body.scope : (current.scope || 'all');
     
     let rawCustomImage = current.custom_image_url || '';
     if (typeof body.custom_image_url === 'string') {
@@ -152,6 +163,7 @@ export async function POST(req: NextRequest) {
 
     const updatedConfig: MaintenanceConfig = {
       is_maintenance: typeof body.is_maintenance === 'boolean' ? body.is_maintenance : current.is_maintenance,
+      scope: rawScope,
       title: rawTitle,
       message: rawMessage,
       estimated_end_time: rawEstimated,
@@ -165,9 +177,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: '儲存設定失敗' }, { status: 500 });
     }
 
+    const scopeLabels: Record<MaintenanceScope, string> = {
+      all: '全站所有頁面',
+      home: '首頁大廳',
+      search: '探索搜尋頁',
+      stores: '店家菜單頁',
+      cart: '購物車頁',
+      checkout: '結帳送單頁',
+      'my-orders': '歷史訂單頁',
+    };
+
     return NextResponse.json({
       success: true,
-      message: updatedConfig.is_maintenance ? '已開啟前台系統維護模式' : '已關閉維護模式，前台恢復正常點餐',
+      message: updatedConfig.is_maintenance
+        ? `已開啟「${scopeLabels[rawScope] || '特定頁面'}」系統維護模式`
+        : '已關閉維護模式，前台恢復正常點餐',
       config: updatedConfig,
       build_id: process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || process.env.VERCEL_GIT_COMMIT_SHA || 'dev',
     });

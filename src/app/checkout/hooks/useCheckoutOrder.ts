@@ -178,12 +178,13 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
       return;
     }
 
-    // 🛡️ 檢查全站系統維護狀態，維護中禁止送單
+    // 🛡️ 檢查全站/結帳頁維護狀態，維護中禁止送單
     try {
       const maintRes = await fetch('/api/system/maintenance', { cache: 'no-store' });
       if (maintRes.ok) {
         const mData = await maintRes.json();
-        if (mData?.is_maintenance) {
+        const isCheckoutBlocked = mData?.is_maintenance && (!mData.scope || mData.scope === 'all' || mData.scope === 'checkout');
+        if (isCheckoutBlocked) {
           showToast(mData.message || '網站系統目前維護中，暫停受理新訂單！');
           return;
         }
