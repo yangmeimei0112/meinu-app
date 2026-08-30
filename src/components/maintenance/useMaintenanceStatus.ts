@@ -188,7 +188,7 @@ export function useMaintenanceStatus(currentPathname: string = '/') {
     return null;
   }, [isCountDownFinished, maintenanceData]);
 
-  // 3. 背景定時輪詢 (背景分頁智慧暫停：切到背景或縮小視窗時自動暫停，切回網站時立即查詢並繼續每 3 秒發送)
+  // 3. 背景定時輪詢 (背景分頁智慧暫停：切到背景或縮小視窗時自動暫停，切回網站時立即查詢並繼續每 1 秒發送)
   useEffect(() => {
     fetchMaintenanceStatus();
 
@@ -202,11 +202,11 @@ export function useMaintenanceStatus(currentPathname: string = '/') {
     window.addEventListener('focus', handleVisibilityOrFocus);
     document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
-    // 每 3 秒輪詢一次；分頁處於背景時智慧暫停發送
+    // 每 1 秒輪詢一次；分頁處於背景時智慧暫停發送
     const timer = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       fetchMaintenanceStatus();
-    }, 3000);
+    }, 1000);
 
     return () => {
       clearInterval(timer);
