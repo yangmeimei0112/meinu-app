@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ⚡ 瀏覽器端原生圖片智慧壓縮器
  * 無須引入肥大套件，純 HTML5 Canvas 實現高畫質、低體積與 EXIF 旋轉適配
  */
@@ -13,8 +13,8 @@ export interface CompressedImageResult {
 
 export async function compressMenuImage(
   file: File | Blob,
-  maxDimension = 1600,
-  quality = 0.85
+  maxDimension = 2400,
+  quality = 0.90
 ): Promise<CompressedImageResult> {
   return new Promise((resolve, reject) => {
     const originalSize = file.size;
