@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useSyncExternalStore, FormEvent } from 'react';
+import { useState, useEffect, useSyncExternalStore, FormEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Search, ClipboardList, Share2, QrCode } from 'lucide-react';
 import QRCodeModal from './QRCodeModal';
 
@@ -28,7 +29,6 @@ function subscribeStorage(callback: () => void) {
 function getHasNewOrdersSnapshot() {
   if (typeof window === 'undefined') return false;
   try {
-    // 1. 嚴格檢查歷史訂單紀錄是否存在且長度大於 0 (防範 "[]" 空陣列誤判)
     let hasActualOrders = false;
     const historyRaw = localStorage.getItem('menu_app_order_history');
     if (historyRaw) {
@@ -42,12 +42,10 @@ function getHasNewOrdersSnapshot() {
       hasActualOrders = true;
     }
 
-    // 若完全沒有任何訂單，絕對不閃爍紅點
     if (!hasActualOrders) {
       return false;
     }
 
-    // 2. 只有在有新送出且尚未進入「我的訂單」頁面查看時，才閃爍紅點
     return localStorage.getItem('menu_app_has_new_order') === 'true';
   } catch {
     return false;
@@ -55,10 +53,22 @@ function getHasNewOrdersSnapshot() {
 }
 
 export default function Header() {
+  const router = useRouter();
   const [shortCode, setShortCode] = useState<string>('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const hasNewOrder = useSyncExternalStore(subscribeStorage, getHasNewOrdersSnapshot, () => false);
+
+  // 🌟 全域路由背景預載：讓使用者在點擊「訂單」、「搜尋」或「購物車」時 0ms 秒開
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        router.prefetch('/search');
+        router.prefetch('/my-orders');
+        router.prefetch('/cart');
+      } catch {}
+    }
+  }, [router]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);

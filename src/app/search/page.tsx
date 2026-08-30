@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
-import { supabase } from '@/lib/supabase';
 import { Store, Category } from '@/types/database';
 import { useDebounce } from '@/lib/useDebounce';
 import { SearchHeaderBar } from './components/SearchHeaderBar';
@@ -12,15 +10,22 @@ import { SearchCategoryGrid } from './components/SearchCategoryGrid';
 import { SearchHistoryList } from './components/SearchHistoryList';
 import { SearchFeaturedStores } from './components/SearchFeaturedStores';
 import { SearchResultsList } from './components/SearchResultsList';
+import {
+  getAppIndexCache,
+  subscribeAppIndex,
+  prefetchAppIndex,
+} from '@/lib/storeMenuCache';
 
 export default function SearchPage() {
-  const router = useRouter();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // 🌟 1. 優先自全域 AppIndex 快取同步初始化（0ms 秒開，免等資料庫檢索）
+  const initialIndex = getAppIndexCache();
+
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [stores, setStores] = useState<Store[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [stores, setStores] = useState<Store[]>(initialIndex?.stores || []);
+  const [categories, setCategories] = useState<Category[]>(initialIndex?.categories || []);
+  const [loading, setLoading] = useState<boolean>(!initialIndex);
 
   // 🕒 搜尋歷史紀錄 (儲存於 localStorage)
   const [searchHistory, setSearchHistory] = useState<string[]>(() => {
@@ -35,43 +40,24 @@ export default function SearchPage() {
 
   const debouncedQuery = useDebounce(searchQuery, 160);
 
-  // 載入店家與分類資料
+  // 🌟 2. 訂閱全域 AppIndex 變更並在背景執行 SWR 靜默校驗
   useEffect(() => {
-    async function fetchSearchMeta() {
-      setLoading(true);
-      try {
-        const [catRes, storeRes, codeRes] = await Promise.all([
-          supabase
-            .from('categories')
-            .select('id, name, sort_order')
-            .order('sort_order', { ascending: true }),
-          supabase
-            .from('stores')
-            .select('id, name, image_url, category_id, is_active')
-            .eq('is_active', true),
-          fetch('/api/stores/code', { cache: 'no-store' })
-            .then((r) => r.json())
-            .catch(() => null),
-        ]);
+    const unsub = subscribeAppIndex((cache) => {
+      setStores(cache.stores);
+      setCategories(cache.categories);
+      setLoading(false);
+    });
 
-        if (catRes.data) setCategories(catRes.data as Category[]);
-        if (storeRes.data) {
-          const rawStores = storeRes.data as Store[];
-          const codeMap: Record<string, string> = codeRes?.codeMap || {};
-          const formatted = rawStores.map((s) => ({
-            ...s,
-            code: codeMap[s.id] || 'S-001',
-          }));
-          setStores(formatted);
-        }
-      } catch (err) {
-        console.error('載入搜尋資料庫失敗', err);
-      } finally {
-        setLoading(false);
-      }
+    const hasCache = !!getAppIndexCache();
+    if (!hasCache) {
+      setLoading(true);
     }
 
-    fetchSearchMeta();
+    prefetchAppIndex()
+      .catch((err) => console.error('Prefetch AppIndex error in search:', err))
+      .finally(() => setLoading(false));
+
+    return unsub;
   }, []);
 
   const saveSearchKeyword = (keyword: string) => {
@@ -84,27 +70,11 @@ export default function SearchPage() {
     } catch {}
   };
 
-  const removeSearchHistoryItem = (e: React.MouseEvent, target: string) => {
-    e.stopPropagation();
-    const updated = searchHistory.filter((k) => k !== target);
-    setSearchHistory(updated);
-    try {
-      localStorage.setItem('menu_app_search_history', JSON.stringify(updated));
-    } catch {}
-  };
-
-  const clearAllSearchHistory = () => {
+  const clearSearchHistory = () => {
     setSearchHistory([]);
     try {
       localStorage.removeItem('menu_app_search_history');
     } catch {}
-  };
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      saveSearchKeyword(searchQuery.trim());
-    }
   };
 
   const handleSelectKeyword = (keyword: string) => {
@@ -112,81 +82,96 @@ export default function SearchPage() {
     saveSearchKeyword(keyword);
   };
 
+  // 建立分類 ID -> 名稱映射字典
   const categoryMap = useMemo(() => {
     const map: Record<string, string> = {};
-    categories.forEach((c) => {
-      map[c.id] = c.name;
+    categories.forEach((cat) => {
+      map[cat.id] = cat.name;
     });
     return map;
   }, [categories]);
 
+  // 即時搜尋過濾邏輯 (支援店名、代號 S-001 與數字模糊搜尋)
   const searchResults = useMemo(() => {
-    const query = debouncedQuery.trim().toLowerCase();
-    if (!query) return [];
+    const q = debouncedQuery.trim().toLowerCase();
+    if (!q) return [];
 
-    return stores.filter((store) => {
-      const matchName = store.name.toLowerCase().includes(query);
-      const matchCode = (store.code || '').toLowerCase().includes(query);
-      const catName = store.category_id && categoryMap[store.category_id] ? categoryMap[store.category_id] : '';
-      const matchCat = catName.toLowerCase().includes(query);
-      return matchName || matchCode || matchCat;
+    return stores.filter((s) => {
+      const matchName = s.name.toLowerCase().includes(q);
+      const matchCode = s.code && s.code.toLowerCase().includes(q);
+      const matchCodeNum = s.code && s.code.replace(/\D/g, '').includes(q);
+      const matchCategory = s.category_id && categoryMap[s.category_id]?.toLowerCase().includes(q);
+      return matchName || matchCode || matchCodeNum || matchCategory;
     });
-  }, [stores, debouncedQuery, categoryMap]);
+  }, [debouncedQuery, stores, categoryMap]);
 
-  const featuredStores = useMemo(() => stores.slice(0, 6), [stores]);
-  const isSearching = debouncedQuery.trim().length > 0;
+  // 精選/矚目店家 (取前 6 家)
+  const featuredStores = useMemo(() => {
+    return stores.slice(0, 6);
+  }, [stores]);
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      <div className="sticky top-0 z-40">
+    <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 flex flex-col justify-between transition-colors duration-200">
+      <div>
         <OfflineBanner />
         <Header />
-      </div>
 
-      <main className="max-w-md mx-auto w-full px-4 pt-3 space-y-5 pb-[calc(7rem+env(safe-area-inset-bottom,0px))]">
-        {/* 頂部膠囊型常駐搜尋列 */}
-        <SearchHeaderBar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onSubmit={handleSearchSubmit}
-          inputRef={searchInputRef}
-        />
+        <main className="flex-1 max-w-md mx-auto w-full px-4 pt-3 space-y-4 pb-20">
+          {/* 頂部搜尋列與返回按鈕 */}
+          <SearchHeaderBar
+            searchQuery={searchQuery}
+            inputRef={searchInputRef}
+            onSearchChange={(val) => setSearchQuery(val)}
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveSearchKeyword(searchQuery);
+            }}
+          />
 
-        {!isSearching ? (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            {/* 1. 店家分類 */}
-            <SearchCategoryGrid
-              categories={categories}
+          {/* 根據是否處於搜尋狀態展示不同內容 */}
+          {!searchQuery.trim() ? (
+            <div className="space-y-5">
+              {/* 1. 分類探索網格 */}
+              <SearchCategoryGrid
+                categories={categories}
+                loading={loading}
+                onSelectCategory={handleSelectKeyword}
+              />
+
+              {/* 2. 歷史搜尋紀錄 */}
+              <SearchHistoryList
+                searchHistory={searchHistory}
+                onSelectKeyword={handleSelectKeyword}
+                onRemoveItem={(e, item) => {
+                  e.stopPropagation();
+                  const updated = searchHistory.filter((k) => k !== item);
+                  setSearchHistory(updated);
+                  try {
+                    localStorage.setItem('menu_app_search_history', JSON.stringify(updated));
+                  } catch {}
+                }}
+                onClearAll={clearSearchHistory}
+              />
+
+              {/* 3. 本月矚目店家 */}
+              <SearchFeaturedStores
+                stores={featuredStores}
+                onSelectStore={saveSearchKeyword}
+              />
+            </div>
+          ) : (
+            /* 4. 搜尋結果列表 */
+            <SearchResultsList
+              searchQuery={searchQuery}
+              searchResults={searchResults}
+              categoryMap={categoryMap}
               loading={loading}
-              onSelectCategory={handleSelectKeyword}
-            />
-
-            {/* 2. 搜尋歷史紀錄 */}
-            <SearchHistoryList
-              searchHistory={searchHistory}
-              onSelectKeyword={handleSelectKeyword}
-              onRemoveItem={removeSearchHistoryItem}
-              onClearAll={clearAllSearchHistory}
-            />
-
-            {/* 3. 本月矚目店家 */}
-            <SearchFeaturedStores
-              stores={featuredStores}
+              onClearQuery={() => setSearchQuery('')}
               onSelectStore={saveSearchKeyword}
             />
-          </div>
-        ) : (
-          /* 即時搜尋結果清單 */
-          <SearchResultsList
-            searchQuery={searchQuery}
-            searchResults={searchResults}
-            categoryMap={categoryMap}
-            loading={loading}
-            onClearQuery={() => setSearchQuery('')}
-            onSelectStore={saveSearchKeyword}
-          />
-        )}
-      </main>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

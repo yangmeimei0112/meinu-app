@@ -17,6 +17,8 @@ import {
   idlePrefetchQueue,
   prefetchStoreData,
   initGlobalRealtimeCache,
+  getAppIndexCache,
+  setAppIndexCache,
 } from '@/lib/storeMenuCache';
 
 // 首頁店家列表骨架屏（Skeleton UI）
@@ -35,11 +37,12 @@ function StoreCardSkeleton() {
 }
 
 export default function HomePage() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [stores, setStores] = useState<Store[]>([]);
+  const initialIndex = getAppIndexCache();
+  const [categories, setCategories] = useState<Category[]>(initialIndex?.categories || []);
+  const [stores, setStores] = useState<Store[]>(initialIndex?.stores || []);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(!initialIndex);
   const { theme, toggleTheme } = useTheme();
 
   // 搜尋關鍵字輕量防抖，避免高頻輸入時造成卡頓
@@ -57,7 +60,8 @@ export default function HomePage() {
 
   useEffect(() => {
     async function fetchData() {
-      setLoading(true);
+      const hasCache = !!getAppIndexCache();
+      if (!hasCache) setLoading(true);
 
       // 並行發送查詢，消除網路請求瀑布流延遲
       const [catRes, storeRes, codeRes] = await Promise.all([
@@ -72,7 +76,9 @@ export default function HomePage() {
         fetch('/api/stores/code', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
       ]);
 
-      if (catRes.data) setCategories(catRes.data as Category[]);
+      const catList = (catRes.data as Category[]) || [];
+      setCategories(catList);
+
       if (storeRes.data) {
         const rawStores = storeRes.data as Store[];
         const codeMap: Record<string, string> = codeRes?.codeMap || {};
@@ -81,6 +87,14 @@ export default function HomePage() {
           code: codeMap[s.id] || 'S-001',
         }));
         setStores(formatted);
+
+        // 寫入全域 AppIndex 快取供搜尋頁與全站秒開使用
+        setAppIndexCache({
+          categories: catList,
+          stores: formatted,
+          codeMap,
+          timestamp: Date.now(),
+        });
 
         // 🌟 核心升級：排定 CPU 閒置期背景漸進預抓店家菜單 JSON
         const activeStoreIds = formatted.map((s) => s.id);

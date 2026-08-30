@@ -14,8 +14,30 @@ import { CartEmptyState } from './components/CartEmptyState';
 import { CartStoreGroup } from './components/CartStoreGroup';
 
 export default function MultiCartPage() {
-  const [multiCart, setMultiCart] = useState<MultiStoreCart>({});
-  const [activeStoreId, setActiveStoreId] = useState<string>('');
+  const [multiCart, setMultiCart] = useState<MultiStoreCart>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('menu_app_multi_cart');
+        return saved ? JSON.parse(saved) : {};
+      } catch {}
+    }
+    return {};
+  });
+
+  const [activeStoreId, setActiveStoreId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('menu_app_multi_cart');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          const keys = Object.keys(parsed);
+          if (keys.length > 0) return keys[0];
+        }
+      } catch {}
+    }
+    return '';
+  });
+
   const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
   const [editingMenuItem, setEditingMenuItem] = useState<MenuItem | null>(null);
   const [activeGroupOrder, setActiveGroupOrder] = useState<GroupOrder | null>(null);
@@ -36,14 +58,14 @@ export default function MultiCartPage() {
         const parsed: MultiStoreCart = JSON.parse(saved);
         setMultiCart(parsed);
         const storeIds = Object.keys(parsed);
-        if (storeIds.length > 0) {
+        if (storeIds.length > 0 && !activeStoreId) {
           setActiveStoreId(storeIds[0]);
         }
       } catch (e) {
         console.error('讀取購物車失敗', e);
       }
     }
-  }, []);
+  }, [activeStoreId]);
 
   // 抓取當前店家開放中的團購活動
   useEffect(() => {

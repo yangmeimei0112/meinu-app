@@ -1,7 +1,7 @@
 'use client';
 
 import { supabase } from '@/lib/supabase';
-import { Store, MenuItem } from '@/types/database';
+import { Store, MenuItem, Category } from '@/types/database';
 
 export interface StoreCacheEntry {
   store: Store;
@@ -10,20 +10,103 @@ export interface StoreCacheEntry {
   timestamp: number;
 }
 
-// 🌟 1. 全域單例記憶體快取 (Normalized In-Memory Store Map)
+export interface AppIndexCache {
+  categories: Category[];
+  stores: Store[];
+  codeMap: Record<string, string>;
+  timestamp: number;
+}
+
+// 🌟 1. 全域單例記憶體快取 (Normalized In-Memory Store & App Map)
 const storeCacheMap = new Map<string, StoreCacheEntry>();
+let globalAppIndexCache: AppIndexCache | null = null;
 
 // 🌟 2. 訂閱發布事件中心 (Pub/Sub Event Dispatcher)
 const storeListeners = new Map<string, Set<(entry: StoreCacheEntry) => void>>();
 const globalListeners = new Set<() => void>();
+const appIndexListeners = new Set<(cache: AppIndexCache) => void>();
 
 // 🌟 3. 正在進行中的請求承諾 (In-Flight Request Deduplication)
 const inFlightRequests = new Map<string, Promise<StoreCacheEntry | null>>();
+let inFlightAppIndexRequest: Promise<AppIndexCache | null> | null = null;
 
-// 讀取快取
+// ================= 全站分類與店家搜尋索引快取 (App Index Cache) =================
+export function getAppIndexCache(): AppIndexCache | null {
+  return globalAppIndexCache;
+}
+
+export function setAppIndexCache(cache: AppIndexCache): void {
+  globalAppIndexCache = cache;
+  appIndexListeners.forEach((cb) => {
+    try {
+      cb(cache);
+    } catch (e) {
+      console.error('AppIndex listener callback error:', e);
+    }
+  });
+}
+
+export function subscribeAppIndex(callback: (cache: AppIndexCache) => void): () => void {
+  appIndexListeners.add(callback);
+  return () => {
+    appIndexListeners.delete(callback);
+  };
+}
+
+export async function prefetchAppIndex(forceRefresh: boolean = false): Promise<AppIndexCache | null> {
+  if (globalAppIndexCache && !forceRefresh && Date.now() - globalAppIndexCache.timestamp < 5 * 60 * 1000) {
+    return globalAppIndexCache;
+  }
+
+  if (inFlightAppIndexRequest) {
+    return inFlightAppIndexRequest;
+  }
+
+  inFlightAppIndexRequest = (async () => {
+    try {
+      const [catRes, storeRes, codeRes] = await Promise.all([
+        supabase
+          .from('categories')
+          .select('id, name, sort_order')
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('stores')
+          .select('id, name, image_url, category_id, is_active')
+          .eq('is_active', true),
+        fetch('/api/stores/code', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+      ]);
+
+      const categories = (catRes.data as Category[]) || [];
+      const rawStores = (storeRes.data as Store[]) || [];
+      const codeMap: Record<string, string> = codeRes?.codeMap || {};
+      const formattedStores = rawStores.map((s) => ({
+        ...s,
+        code: codeMap[s.id] || 'S-001',
+      }));
+
+      const cacheObj: AppIndexCache = {
+        categories,
+        stores: formattedStores,
+        codeMap,
+        timestamp: Date.now(),
+      };
+
+      setAppIndexCache(cacheObj);
+      return cacheObj;
+    } catch (err) {
+      console.error('[StoreMenuCache] Prefetch AppIndex failed:', err);
+      return null;
+    } finally {
+      inFlightAppIndexRequest = null;
+    }
+  })();
+
+  return inFlightAppIndexRequest;
+}
+
+// ================= 個別店家菜單快取 (Store Menu Cache) =================
 export function getStoreCache(storeIdOrCode: string): StoreCacheEntry | null {
   if (!storeIdOrCode) return null;
-  // 同步比對 ID 或 S-??? 編號
   if (storeCacheMap.has(storeIdOrCode)) {
     return storeCacheMap.get(storeIdOrCode)!;
   }
@@ -35,14 +118,12 @@ export function getStoreCache(storeIdOrCode: string): StoreCacheEntry | null {
   return null;
 }
 
-// 寫入快取並廣播
 export function setStoreCache(storeId: string, entry: StoreCacheEntry): void {
   storeCacheMap.set(storeId, entry);
   if (entry.store.code) {
     storeCacheMap.set(entry.store.code.toUpperCase(), entry);
   }
 
-  // 廣播給該店家的監聽組件
   const subs = storeListeners.get(storeId);
   if (subs) {
     subs.forEach((cb) => {
@@ -63,7 +144,6 @@ export function setStoreCache(storeId: string, entry: StoreCacheEntry): void {
   });
 }
 
-// 訂閱特定店家的快取變更
 export function subscribeStoreCache(
   storeId: string,
   callback: (entry: StoreCacheEntry) => void
@@ -78,7 +158,6 @@ export function subscribeStoreCache(
   };
 }
 
-// 訂閱全域快取更新
 export function subscribeGlobalCache(callback: () => void): () => void {
   globalListeners.add(callback);
   return () => {
@@ -86,20 +165,17 @@ export function subscribeGlobalCache(callback: () => void): () => void {
   };
 }
 
-// 🌟 4. SWR 核心：靜默預載/拉取店家與菜單資料 (帶去重與容災)
 export async function prefetchStoreData(
   storeIdOrCode: string,
   forceRefresh: boolean = false
 ): Promise<StoreCacheEntry | null> {
   if (!storeIdOrCode) return null;
 
-  // 1. 若已有快取且未強制更新，直接命中返回
   const cached = getStoreCache(storeIdOrCode);
   if (cached && !forceRefresh && Date.now() - cached.timestamp < 5 * 60 * 1000) {
     return cached;
   }
 
-  // 2. 若已有相同的在途請求，複用 Promise 杜絕並發重複查詢 (Request Deduplication)
   const dedupeKey = storeIdOrCode.toUpperCase();
   if (inFlightRequests.has(dedupeKey)) {
     return inFlightRequests.get(dedupeKey)!;
@@ -109,7 +185,6 @@ export async function prefetchStoreData(
     try {
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(storeIdOrCode);
 
-      // 步驟 A: 解析店家主檔
       let resolvedStore: Store | null = null;
       if (isUUID) {
         const { data: sData } = await supabase
@@ -155,7 +230,6 @@ export async function prefetchStoreData(
 
       const storeId = resolvedStore.id;
 
-      // 步驟 B: 並行抓取菜單品項、編號與排序設定
       const [menuRes, sortRes, codeRes] = await Promise.all([
         supabase
           .from('menu_items')
@@ -195,7 +269,6 @@ export async function prefetchStoreData(
         timestamp: Date.now(),
       };
 
-      // 寫入快取並通知所有訂閱者
       setStoreCache(storeId, entry);
 
       return entry;
@@ -211,7 +284,6 @@ export async function prefetchStoreData(
   return fetchPromise;
 }
 
-// 🌟 5. Realtime 局部補丁更新器 (In-Place Selective Patching)
 export function patchStoreMenuItem(
   storeId: string,
   menuItemId: string,
@@ -238,7 +310,7 @@ export function patchStoreMenuItem(
   }
 }
 
-// 🌟 6. 批次漸進式預載佇列（利用 requestIdleCallback 分批預抓）
+// 🌟 批次漸進式預載佇列（利用 requestIdleCallback 分批預抓）
 class IdlePrefetchQueue {
   private queue: string[] = [];
   private isRunning: boolean = false;
@@ -264,7 +336,6 @@ class IdlePrefetchQueue {
           .catch(() => {})
           .finally(() => {
             this.isRunning = false;
-            // 稍作微小間隔 120ms，繼續排定下一個
             setTimeout(() => this.scheduleNext(), 120);
           });
       } else {
@@ -282,7 +353,7 @@ class IdlePrefetchQueue {
 
 export const idlePrefetchQueue = new IdlePrefetchQueue();
 
-// 🌟 7. 全域 Realtime 快取監聽器（單例維持連線）
+// 🌟 全域 Realtime 快取監聽器
 let isRealtimeInitialized = false;
 
 export function initGlobalRealtimeCache() {
@@ -305,7 +376,6 @@ export function initGlobalRealtimeCache() {
             if (payload.eventType === 'UPDATE' && newRecord) {
               patchStoreMenuItem(storeId, newRecord.id, newRecord);
             } else {
-              // INSERT 或 DELETE 時進行背景靜默重新拉取
               prefetchStoreData(storeId, true);
             }
           }
@@ -327,6 +397,8 @@ export function initGlobalRealtimeCache() {
             });
           }
         }
+        // 同步刷新 AppIndex
+        prefetchAppIndex(true);
       }
     )
     .subscribe();
