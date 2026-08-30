@@ -178,6 +178,18 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
       return;
     }
 
+    // 🛡️ 檢查全站系統維護狀態，維護中禁止送單
+    try {
+      const maintRes = await fetch('/api/system/maintenance', { cache: 'no-store' });
+      if (maintRes.ok) {
+        const mData = await maintRes.json();
+        if (mData?.is_maintenance) {
+          showToast(mData.message || '網站系統目前維護中，暫停受理新訂單！');
+          return;
+        }
+      }
+    } catch {}
+
     if (honeypotTrap) {
       console.warn('[Security] Honeypot triggered in checkout');
       showToast('送單請求無效');

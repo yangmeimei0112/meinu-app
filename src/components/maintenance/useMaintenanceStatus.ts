@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { MaintenanceData } from './MaintenanceScreen';
 
+const STORAGE_KEY_LOCKED = 'meinu_maintenance_locked';
+const STORAGE_KEY_DATA = 'meinu_maintenance_data';
+const STORAGE_KEY_DEADLINE = 'meinu_maintenance_deadline';
+
 // 🧹 強制清除所有快取並帶隨機時間戳硬重整至最新版本
 export async function forceHardReloadToLatestVersion(targetUrl?: string) {
   try {
@@ -15,8 +19,12 @@ export async function forceHardReloadToLatestVersion(targetUrl?: string) {
       await Promise.all(cacheNames.map((name) => caches.delete(name)));
     }
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('meinu_maintenance_locked');
-      sessionStorage.removeItem('meinu_maintenance_deadline');
+      sessionStorage.removeItem(STORAGE_KEY_LOCKED);
+      sessionStorage.removeItem(STORAGE_KEY_DATA);
+      sessionStorage.removeItem(STORAGE_KEY_DEADLINE);
+      localStorage.removeItem(STORAGE_KEY_LOCKED);
+      localStorage.removeItem(STORAGE_KEY_DATA);
+      localStorage.removeItem(STORAGE_KEY_DEADLINE);
     }
   } catch (e) {
     console.error('快取清理出錯:', e);
@@ -34,13 +42,48 @@ export async function forceHardReloadToLatestVersion(targetUrl?: string) {
 }
 
 export function useMaintenanceStatus() {
-  const [maintenanceData, setMaintenanceData] = useState<MaintenanceData | null>(null);
+  // 🌟 1. 同步自 localStorage / sessionStorage 讀取維護狀態（0ms 瞬間鎖定，杜絕重整時首幀閃現前台）
+  const [maintenanceData, setMaintenanceData] = useState<MaintenanceData | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.is_maintenance) {
+            return parsed;
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
+
+  const [isCountDownFinished, setIsCountDownFinished] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const isLocked =
+          localStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
+          sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true';
+        if (isLocked) return true;
+
+        const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          // 🛡️ 若系統處於維護中且使用者重整頁面，立即視為倒數已結束直接鎖定全螢幕！
+          if (parsed && parsed.is_maintenance) {
+            return true;
+          }
+        }
+      } catch {}
+    }
+    return false;
+  });
+
   const [checking, setChecking] = useState<boolean>(false);
   const [checkMessage, setCheckMessage] = useState<string | null>(null);
 
   const [countdown, setCountdown] = useState<number | null>(null);
   const [smoothProgress, setSmoothProgress] = useState<number>(100);
-  const [isCountDownFinished, setIsCountDownFinished] = useState<boolean>(false);
   const [isCenterPopup, setIsCenterPopup] = useState<boolean>(false);
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
 
@@ -48,94 +91,80 @@ export function useMaintenanceStatus() {
   const deadlineRef = useRef<number | null>(null);
   const wasInMaintenanceRef = useRef<boolean>(false);
 
-  // 1. 初始化讀取 SessionStorage
-  useEffect(() => {
-    try {
-      const savedLocked = sessionStorage.getItem('meinu_maintenance_locked');
-      if (savedLocked === 'true') {
-        setIsCountDownFinished(true);
-        wasInMaintenanceRef.current = true;
-      }
-      const savedDeadline = sessionStorage.getItem('meinu_maintenance_deadline');
-      if (savedDeadline) {
-        const dl = Number(savedDeadline);
-        if (Date.now() >= dl) {
-          setIsCountDownFinished(true);
-          wasInMaintenanceRef.current = true;
-          sessionStorage.setItem('meinu_maintenance_locked', 'true');
-        } else {
-          deadlineRef.current = dl;
-          setCountdown(Math.max(1, Math.ceil((dl - Date.now()) / 1000)));
-        }
-      }
-    } catch {}
-  }, []);
-
   // 2. 輪詢查詢伺服端維護狀態
   const fetchMaintenanceStatus = useCallback(async () => {
     try {
       const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
       if (res.ok) {
         const json: MaintenanceData = await res.json();
-        setMaintenanceData((prev) => {
-          if (json.is_maintenance) {
-            wasInMaintenanceRef.current = true;
 
-            if (!initialCheckDoneRef.current) {
-              const savedDeadline = sessionStorage.getItem('meinu_maintenance_deadline');
-              if (savedDeadline && Number(savedDeadline) > Date.now()) {
-                const dl = Number(savedDeadline);
-                deadlineRef.current = dl;
-                setCountdown(Math.max(1, Math.ceil((dl - Date.now()) / 1000)));
-              } else {
-                setIsCountDownFinished(true);
-                sessionStorage.setItem('meinu_maintenance_locked', 'true');
-              }
-            } else if (!prev?.is_maintenance && !deadlineRef.current) {
-              const targetDeadline = Date.now() + 30000;
-              deadlineRef.current = targetDeadline;
-              try {
-                sessionStorage.setItem('meinu_maintenance_deadline', String(targetDeadline));
-              } catch {}
+        if (json.is_maintenance) {
+          wasInMaintenanceRef.current = true;
 
-              setCountdown(30);
-              setSmoothProgress(100);
-              setIsCenterPopup(true);
+          try {
+            localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
+            sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
+          } catch {}
 
-              setTimeout(() => {
-                setIsCenterPopup(false);
-              }, 3000);
-            }
-          } else {
-            // 只有在使用者確實處於維護鎖定畫面時，解除維護才需要重整恢復前台
-            const wasActuallyLocked =
-              sessionStorage.getItem('meinu_maintenance_locked') === 'true' ||
-              (wasInMaintenanceRef.current && isCountDownFinished);
-
-            if (wasActuallyLocked) {
-              wasInMaintenanceRef.current = false;
-              deadlineRef.current = null;
-              try {
-                sessionStorage.removeItem('meinu_maintenance_deadline');
-                sessionStorage.removeItem('meinu_maintenance_locked');
-              } catch {}
-              forceHardReloadToLatestVersion();
-              return json;
-            }
-
-            deadlineRef.current = null;
+          // 🛡️ 關鍵防禦：若使用者是剛進入網站或「重新載入 (Reload) 頁面」，直接鎖定全螢幕，絕不重新給 30 秒倒數繞過！
+          if (!initialCheckDoneRef.current) {
+            setIsCountDownFinished(true);
             setCountdown(null);
-            setSmoothProgress(100);
-            setIsCountDownFinished(false);
-            setIsCenterPopup(false);
-            setIsMinimized(false);
             try {
-              sessionStorage.removeItem('meinu_maintenance_deadline');
-              sessionStorage.removeItem('meinu_maintenance_locked');
+              localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
+              sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
             } catch {}
+          } else if (!maintenanceData?.is_maintenance && !deadlineRef.current) {
+            // 只有在使用者「已經在線且原本非維護」，後台突然開啟維護時，才提供 30 秒緩衝倒數
+            const targetDeadline = Date.now() + 30000;
+            deadlineRef.current = targetDeadline;
+            try {
+              sessionStorage.setItem(STORAGE_KEY_DEADLINE, String(targetDeadline));
+              localStorage.setItem(STORAGE_KEY_DEADLINE, String(targetDeadline));
+            } catch {}
+
+            setCountdown(30);
+            setSmoothProgress(100);
+            setIsCenterPopup(true);
+
+            setTimeout(() => {
+              setIsCenterPopup(false);
+            }, 3000);
           }
-          return json;
-        });
+
+          setMaintenanceData(json);
+        } else {
+          // 伺服端已關閉維護模式
+          const wasActuallyLocked =
+            sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
+            localStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
+            (wasInMaintenanceRef.current && isCountDownFinished);
+
+          try {
+            sessionStorage.removeItem(STORAGE_KEY_DEADLINE);
+            sessionStorage.removeItem(STORAGE_KEY_LOCKED);
+            sessionStorage.removeItem(STORAGE_KEY_DATA);
+            localStorage.removeItem(STORAGE_KEY_DEADLINE);
+            localStorage.removeItem(STORAGE_KEY_LOCKED);
+            localStorage.removeItem(STORAGE_KEY_DATA);
+          } catch {}
+
+          if (wasActuallyLocked) {
+            wasInMaintenanceRef.current = false;
+            deadlineRef.current = null;
+            forceHardReloadToLatestVersion();
+            return json;
+          }
+
+          wasInMaintenanceRef.current = false;
+          deadlineRef.current = null;
+          setCountdown(null);
+          setSmoothProgress(100);
+          setIsCountDownFinished(false);
+          setIsCenterPopup(false);
+          setIsMinimized(false);
+          setMaintenanceData(json);
+        }
 
         initialCheckDoneRef.current = true;
         return json;
@@ -144,14 +173,14 @@ export function useMaintenanceStatus() {
       console.error('查詢維護狀態失敗', e);
     }
     return null;
-  }, [isCountDownFinished]);
+  }, [isCountDownFinished, maintenanceData]);
 
-  // 3. 背景定時輪詢
+  // 3. 背景定時輪詢 (每 3 秒檢查一次)
   useEffect(() => {
     fetchMaintenanceStatus();
     const timer = setInterval(() => {
       fetchMaintenanceStatus();
-    }, 4000);
+    }, 3000);
     return () => clearInterval(timer);
   }, [fetchMaintenanceStatus]);
 
@@ -169,7 +198,8 @@ export function useMaintenanceStatus() {
         setIsCountDownFinished(true);
         wasInMaintenanceRef.current = true;
         try {
-          sessionStorage.setItem('meinu_maintenance_locked', 'true');
+          sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
+          localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
         } catch {}
         return;
       }
@@ -200,6 +230,7 @@ export function useMaintenanceStatus() {
         } else {
           setCheckMessage('⏳ 系統仍在維護升級中，請稍候再試...');
           setMaintenanceData(json);
+          setIsCountDownFinished(true);
         }
       } else {
         setCheckMessage('連線異常，請稍後再試');
