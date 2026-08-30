@@ -188,13 +188,31 @@ export function useMaintenanceStatus(currentPathname: string = '/') {
     return null;
   }, [isCountDownFinished, maintenanceData]);
 
-  // 3. 背景定時輪詢 (每 3 秒檢查一次)
+  // 3. 背景定時輪詢 (背景分頁智慧暫停：切到背景或縮小視窗時自動暫停，切回網站時立即查詢並繼續每 3 秒發送)
   useEffect(() => {
     fetchMaintenanceStatus();
+
+    // 視窗重新獲得焦點或分頁切換回前景時，立即查詢一次
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchMaintenanceStatus();
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    // 每 3 秒輪詢一次；分頁處於背景時智慧暫停發送
     const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       fetchMaintenanceStatus();
     }, 3000);
-    return () => clearInterval(timer);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
   }, [fetchMaintenanceStatus]);
 
   // 4. 60fps 平滑進度條
