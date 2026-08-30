@@ -1,8 +1,10 @@
 {
   "is_maintenance": false,
-  "title": "🚧 系統更新維護中",
-  "message": "為了提供更好的揪團點餐體驗，網站目前正在進行例行升級維護。暫停點餐服務，請稍後再下單，感謝您的耐心等候！",
-  "estimated_end_time": "預計 15-30 分鐘內完成",
-  "reason": "系統例行升級",
-  "updated_at": "2026-08-18T05:59:00.000Z"
+  "scope": "stores",
+  "title": "",
+  "message": "",
+  "estimated_end_time": "",
+  "reason": "",
+  "custom_image_url": "",
+  "updated_at": "2026-08-30T14:42:07.468Z"
 }

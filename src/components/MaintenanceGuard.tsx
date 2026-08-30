@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { MaintenanceData, MaintenanceScreen } from './maintenance/MaintenanceScreen';
 import { DraggableFloatingCapsule } from './maintenance/DraggableFloatingCapsule';
 import { useMaintenanceStatus, isRouteInMaintenance } from './maintenance/useMaintenanceStatus';
+import MobileBottomNav from './MobileBottomNav';
 
 export type { MaintenanceData };
 export { MaintenanceScreen };
@@ -49,15 +50,36 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
   const isCurrentRouteLocked =
     maintenanceData?.is_maintenance && isRouteInMaintenance(pathname, maintenanceData.scope);
 
-  // 伺服端維護中、命中當前頁面範圍且倒數已結束：全螢幕鎖定畫面
+  const isSinglePageMaintenance =
+    maintenanceData?.is_maintenance && maintenanceData.scope && maintenanceData.scope !== 'all';
+
+  // 伺服端維護中、命中當前頁面範圍且倒數已結束：
   if (isCurrentRouteLocked && isCountDownFinished) {
+    // 1. 若為「全站維護」：全螢幕鎖定畫面（不掛載導覽列）
+    if (!isSinglePageMaintenance) {
+      return (
+        <MaintenanceScreen
+          data={maintenanceData}
+          onCheckStatus={handleManualCheck}
+          checking={checking}
+          checkMessage={checkMessage}
+          isSinglePage={false}
+        />
+      );
+    }
+
+    // 2. 若為「單一頁面維護」：顯示該頁維護畫面，但保留底部導覽列供訪客前往其他正常頁面
     return (
-      <MaintenanceScreen
-        data={maintenanceData}
-        onCheckStatus={handleManualCheck}
-        checking={checking}
-        checkMessage={checkMessage}
-      />
+      <div className="min-h-[100dvh] flex flex-col justify-between">
+        <MaintenanceScreen
+          data={maintenanceData}
+          onCheckStatus={handleManualCheck}
+          checking={checking}
+          checkMessage={checkMessage}
+          isSinglePage={true}
+        />
+        <MobileBottomNav />
+      </div>
     );
   }
 

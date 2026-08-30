@@ -25,6 +25,7 @@ interface MaintenanceScreenProps {
   checking?: boolean;
   checkMessage?: string | null;
   isPreview?: boolean;
+  isSinglePage?: boolean;
 }
 
 const SCOPE_LABELS: Record<MaintenanceScope, string> = {
@@ -47,6 +48,7 @@ export function MaintenanceScreen({
   checking = false,
   checkMessage = null,
   isPreview = false,
+  isSinglePage = false,
 }: MaintenanceScreenProps) {
   const { theme, toggleTheme } = useTheme();
   const currentScope = data.scope || 'all';
@@ -56,7 +58,7 @@ export function MaintenanceScreen({
     <div
       className={`relative min-h-[100dvh] w-full bg-gradient-to-b from-slate-50 via-amber-50/20 to-slate-100 dark:from-[#060911] dark:via-[#0E1524] dark:to-[#060911] text-slate-800 dark:text-slate-100 flex flex-col justify-between p-4 sm:p-6 transition-colors duration-300 overflow-hidden select-none ${
         isPreview ? 'min-h-[520px] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl' : ''
-      }`}
+      } ${isSinglePage ? 'pb-28' : ''}`}
     >
       {/* 🌟 1. 微矩陣網格紋理 (Subtle Cyber Dot Matrix Grid) */}
       <div
@@ -163,17 +165,6 @@ export function MaintenanceScreen({
               <span>{data.estimated_end_time.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim()}</span>
             </div>
           )}
-
-          {/* 雷射動態掃描進度線 (Cyber Laser Scanning Bar) */}
-          <div className="space-y-1.5 pt-1">
-            <div className="h-1.5 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden relative border border-slate-300/40 dark:border-slate-750">
-              <div className="absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-amber-500 dark:via-amber-400 to-transparent animate-laser-scan shadow-[0_0_8px_#f59e0b]" />
-            </div>
-            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 dark:text-slate-500 font-bold px-1">
-              <span>SYSTEM CALIBRATION</span>
-              <span className="text-amber-600 dark:text-amber-400 font-black">MAINT ACTIVE</span>
-            </div>
-          </div>
         </div>
 
         {/* 3. 重新檢查狀態互動按鈕 */}
