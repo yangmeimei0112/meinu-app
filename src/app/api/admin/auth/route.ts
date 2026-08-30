@@ -3,9 +3,9 @@ import type { NextRequest } from 'next/server';
 import crypto from 'crypto';
 import { generateAdminToken } from '@/lib/auth-util';
 
-// 🛡️ 智慧管理員密碼解析：優先讀取伺服端環境變數 ADMIN_PASSCODE，未設定時提供安全預設備援
+// 🛡️ 智慧管理員密碼解析：優先讀取伺服端環境變數 ADMIN_PASSCODE，未設定時預設為 8888
 function getVerifiedAdminPasscode(): string {
-  return process.env.ADMIN_PASSCODE || process.env.NEXT_PUBLIC_ADMIN_PASSCODE || 'admin123';
+  return process.env.ADMIN_PASSCODE || process.env.NEXT_PUBLIC_ADMIN_PASSCODE || '8888';
 }
 
 // 1. 伺服端單一 IP 速率限制記錄 (IP-based Rate Limiter)
