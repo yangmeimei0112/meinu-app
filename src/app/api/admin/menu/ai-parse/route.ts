@@ -76,14 +76,6 @@ const SYSTEM_PROMPT = `
 }
 `;
 
-// 🛡️ 全帳號相容的安全審查等級設定 (BLOCK_ONLY_HIGH 在所有免費與付費 API Key 皆 100% 支援)
-const SAFETY_SETTINGS = [
-  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-];
-
 // 🛡️ 深度容錯 JSON 提取與救援解析引擎
 function extractAndCleanJson(rawText: string): AiParseResponse {
   if (!rawText || typeof rawText !== 'string') {
@@ -181,18 +173,24 @@ function extractAndCleanJson(rawText: string): AiParseResponse {
 
 // 🔍 智慧金鑰診斷與端對端微探針 (End-to-End Diagnostic Probe)
 async function diagnoseGeminiKey(apiKey: string) {
+  const cleanKey = apiKey.trim().replace(/^["']|["']$/g, '');
   const startTime = Date.now();
+  const trace: string[] = [];
+
   try {
-    // 1. 探測模型清單
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+    trace.push(`開始探測 Google Generative AI API (Key 前綴: ${cleanKey.slice(0, 7)}...)`);
+
+    // 1. 探測可用模型清單
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`, {
       cache: 'no-store',
     });
 
     const latency = Date.now() - startTime;
+    trace.push(`模型清單查詢回應狀態碼: ${listRes.status} (耗時 ${latency}ms)`);
 
     if (!listRes.ok) {
       const errText = await listRes.text();
-      let errorMsg = `Google API 回應狀態碼 ${listRes.status}`;
+      let errorMsg = `Google API 回應狀態碼 ${listRes.status}: ${errText}`;
       try {
         const errJson = JSON.parse(errText);
         if (errJson?.error?.message) {
@@ -200,6 +198,7 @@ async function diagnoseGeminiKey(apiKey: string) {
         }
       } catch {}
 
+      trace.push(`探測失敗: ${errorMsg}`);
       return {
         healthy: false,
         latency,
@@ -207,6 +206,7 @@ async function diagnoseGeminiKey(apiKey: string) {
         message: errorMsg,
         inferenceTest: '未通過',
         supportedModels: [],
+        trace,
       };
     }
 
@@ -227,11 +227,17 @@ async function diagnoseGeminiKey(apiKey: string) {
       }
     }
 
+    trace.push(`共找到 ${supportedModels.length} 款可用視覺/文字生成模型: ${supportedModels.slice(0, 3).join(', ')}...`);
+
     // 2. 進行微探針生成測試 (Test Inference)
     let inferencePassed = false;
+    let inferenceMsg = '';
+    const testModel = supportedModels.includes('gemini-1.5-flash') ? 'gemini-1.5-flash' : supportedModels[0] || 'gemini-1.5-flash';
+    
     try {
+      trace.push(`發送微探針至模型 ${testModel}...`);
       const testRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${cleanKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -242,20 +248,29 @@ async function diagnoseGeminiKey(apiKey: string) {
       );
       if (testRes.ok) {
         inferencePassed = true;
+        inferenceMsg = '端對端文字生成測試成功！';
+        trace.push(`微探針生成測試成功 (200 OK)`);
+      } else {
+        const testErr = await testRes.text();
+        inferenceMsg = `微探針狀態碼 ${testRes.status}: ${testErr.slice(0, 80)}`;
+        trace.push(`微探針測試未通過: ${inferenceMsg}`);
       }
-    } catch {}
+    } catch (ie: any) {
+      inferenceMsg = ie.message || '測試連線失敗';
+      trace.push(`微探針拋出例外: ${inferenceMsg}`);
+    }
 
     return {
       healthy: true,
       latency,
       status: 200,
-      message: inferencePassed
-        ? 'API Key 連線正常，端對端生成測試通過！'
-        : 'API Key 連線成功（但生成測試稍有延遲）',
-      inferenceTest: inferencePassed ? '✅ 成功' : '⚠️ 延遲',
+      message: inferencePassed ? 'API Key 授權完整且生成正常！' : `API Key 連線成功但生成異常 (${inferenceMsg})`,
+      inferenceTest: inferencePassed ? '✅ 成功' : '⚠️ 異常',
       supportedModels,
+      trace,
     };
   } catch (e: any) {
+    trace.push(`診斷過程發生例外: ${e.message}`);
     return {
       healthy: false,
       latency: Date.now() - startTime,
@@ -263,17 +278,22 @@ async function diagnoseGeminiKey(apiKey: string) {
       message: e.message || '連線至 Google API 伺服器逾時',
       inferenceTest: '失敗',
       supportedModels: [],
+      trace,
     };
   }
 }
 
-// 🧠 呼叫 Google Gemini Vision API（雙層智慧降級重試架構）
+// 🧠 呼叫 Google Gemini Vision API（多重保險與完整診斷追蹤）
 async function callGeminiVision(
   imageBase64: string,
   mimeType: string,
   apiKey: string,
   storeName?: string
-): Promise<AiParseResponse> {
+): Promise<{ result: AiParseResponse; trace: string[] }> {
+  const cleanKey = apiKey.trim().replace(/^["']|["']$/g, '');
+  const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '').trim();
+  const trace: string[] = [];
+
   const userPrompt = storeName
     ? `請辨識這張【${storeName}】的實體菜單圖片，提取所有餐點、價格與客製化加料/甜度冰塊規格，輸出為規範的 JSON。`
     : '請辨識這張菜單圖片，提取所有餐點、價格與客製化規格，輸出為規範的 JSON。';
@@ -289,23 +309,17 @@ async function callGeminiVision(
   let lastError: Error | null = null;
 
   for (const model of models) {
-    // 策略 1: 帶 JSON Mode 與標準 Safety Settings
-    // 策略 2: 若 400 降級為純文字 Prompt Mode
+    // 雙策略嘗試：先嘗試標準 JSON 模式，若失敗則降級為純文字 Prompt 模式
     const attempts = [
-      {
-        useJsonMode: true,
-        useSafety: true,
-        endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      },
-      {
-        useJsonMode: false,
-        useSafety: false,
-        endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      },
+      { mode: '標準模式', useJsonMime: true, useSafety: true },
+      { mode: '降級純文字模式', useJsonMime: false, useSafety: false },
     ];
 
     for (const attempt of attempts) {
       try {
+        trace.push(`正在嘗試模型 [${model}] (${attempt.mode})...`);
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
+
         const bodyPayload: any = {
           contents: [
             {
@@ -315,7 +329,7 @@ async function callGeminiVision(
                 {
                   inlineData: {
                     mimeType: mimeType || 'image/jpeg',
-                    data: imageBase64,
+                    data: cleanBase64,
                   },
                 },
               ],
@@ -324,24 +338,30 @@ async function callGeminiVision(
           generationConfig: {
             temperature: 0.1,
             maxOutputTokens: 8192,
-            ...(attempt.useJsonMode ? { responseMimeType: 'application/json' } : {}),
+            ...(attempt.useJsonMime ? { responseMimeType: 'application/json' } : {}),
           },
         };
 
         if (attempt.useSafety) {
-          bodyPayload.safetySettings = SAFETY_SETTINGS;
+          bodyPayload.safetySettings = [
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+          ];
         }
 
-        const response = await fetch(attempt.endpoint, {
+        const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(bodyPayload),
         });
 
         const rawResponseBody = await response.text();
+        trace.push(`模型 [${model}] 回應狀態碼: ${response.status}`);
 
         if (!response.ok) {
-          let errMsg = `Google API (${model}) 回應 ${response.status}`;
+          let errMsg = `Google API (${model}) 回應 ${response.status}: ${rawResponseBody.slice(0, 100)}`;
           try {
             const errJson = JSON.parse(rawResponseBody);
             if (errJson?.error?.message) {
@@ -354,19 +374,18 @@ async function callGeminiVision(
             if (jsonErr.message && jsonErr.message.includes('API Key')) throw jsonErr;
           }
 
+          trace.push(`[${model}] 錯誤: ${errMsg}`);
+
           if (
             response.status === 404 ||
             rawResponseBody.includes('Interactions API') ||
             rawResponseBody.includes('not supported for generateContent')
           ) {
-            console.warn(`[AI-Parse] 模型 ${model} 不可用，嘗試降級或下一模型...`);
             continue;
           }
 
-          // 若為 400 且尚未嘗試純文字模式，繼續嘗試第二種 payload
-          if (response.status === 400 && attempt.useJsonMode) {
-            console.warn(`[AI-Parse] 模型 ${model} 400 錯誤，嘗試降級純文字模式重試...`);
-            continue;
+          if (response.status === 400 && attempt.useJsonMime) {
+            continue; // 降級至純文字模式嘗試
           }
 
           throw new Error(errMsg);
@@ -376,25 +395,29 @@ async function callGeminiVision(
         try {
           parsedApiJson = JSON.parse(rawResponseBody);
         } catch {
-          throw new Error('Google API 回傳非 JSON 格式');
+          throw new Error('Google API 回傳非預期 JSON 格式');
         }
 
         if (parsedApiJson.promptFeedback?.blockReason) {
-          throw new Error(`Google API 安全防護攔截：${parsedApiJson.promptFeedback.blockReason}`);
+          trace.push(`[${model}] 安全審查阻擋: ${parsedApiJson.promptFeedback.blockReason}`);
+          throw new Error(`Google 安全防護攔截：${parsedApiJson.promptFeedback.blockReason}`);
         }
 
         const candidateText = parsedApiJson.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!candidateText) {
           const finishReason = parsedApiJson.candidates?.[0]?.finishReason;
+          trace.push(`[${model}] 未產出內容，結束狀態: ${finishReason || '未知'}`);
           throw new Error(`Google API 未能產生文字內容 (結束狀態: ${finishReason || '未知'})`);
         }
 
+        trace.push(`[${model}] 成功接收 ${candidateText.length} 字元之辨識結果，開始提取 JSON...`);
         const result = extractAndCleanJson(candidateText);
         if (result && Array.isArray(result.items) && result.items.length > 0) {
-          return result;
+          trace.push(`[${model}] 成功提取 ${result.items.length} 道菜單餐點！`);
+          return { result, trace };
         }
       } catch (e: any) {
-        console.warn(`[AI-Parse] 模型 ${model} 呼叫失敗:`, e.message);
+        trace.push(`[${model}] 例外: ${e.message}`);
         lastError = e;
         if (e.message && e.message.includes('API Key')) {
           throw e;
@@ -403,7 +426,10 @@ async function callGeminiVision(
     }
   }
 
-  throw lastError || new Error('所有 AI 模型解析皆未能成功提取餐點，請檢查 API Key 或網路狀態！');
+  const detailedMessage = `所有 AI 模型解析皆未能成功提取餐點。\n原因: ${lastError?.message || '未知錯誤'}`;
+  const errorWithTrace: any = new Error(detailedMessage);
+  errorWithTrace.trace = trace;
+  throw errorWithTrace;
 }
 
 // 🧠 呼叫 OpenAI Vision API
@@ -412,15 +438,19 @@ async function callOpenAiVision(
   mimeType: string,
   apiKey: string,
   storeName?: string
-): Promise<AiParseResponse> {
+): Promise<{ result: AiParseResponse; trace: string[] }> {
+  const cleanKey = apiKey.trim().replace(/^["']|["']$/g, '');
+  const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '').trim();
+  const trace: string[] = ['使用 OpenAI GPT-4o-mini Vision 辨識...'];
+
   const endpoint = 'https://api.openai.com/v1/chat/completions';
-  const dataUrl = `data:${mimeType || 'image/jpeg'};base64,${imageBase64}`;
+  const dataUrl = `data:${mimeType || 'image/jpeg'};base64,${cleanBase64}`;
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${cleanKey}`,
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
@@ -447,6 +477,7 @@ async function callOpenAiVision(
     }),
   });
 
+  trace.push(`OpenAI 回應狀態碼: ${response.status}`);
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`OpenAI API 錯誤 (${response.status}): ${errorText}`);
@@ -458,7 +489,8 @@ async function callOpenAiVision(
     throw new Error('OpenAI API 未回傳內容');
   }
 
-  return extractAndCleanJson(rawText);
+  const result = extractAndCleanJson(rawText);
+  return { result, trace };
 }
 
 export async function POST(request: NextRequest) {
@@ -510,20 +542,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let result: AiParseResponse;
-    if (apiKey.startsWith('sk-')) {
-      result = await callOpenAiVision(imageBase64, mimeType, apiKey, storeName);
+    const cleanKey = apiKey.trim().replace(/^["']|["']$/g, '');
+    let parseData: { result: AiParseResponse; trace: string[] };
+
+    if (cleanKey.startsWith('sk-')) {
+      parseData = await callOpenAiVision(imageBase64, mimeType, cleanKey, storeName);
     } else {
-      result = await callGeminiVision(imageBase64, mimeType, apiKey, storeName);
+      parseData = await callGeminiVision(imageBase64, mimeType, cleanKey, storeName);
     }
+
+    const { result, trace } = parseData;
 
     if (!result || !Array.isArray(result.items) || result.items.length === 0) {
       return NextResponse.json(
         {
           success: false,
           message: 'AI 未能在圖片中識別出明確的餐點品項，請嘗試更換近距離拍攝的照片！',
+          debugTrace: trace,
         },
-        { status: 422 }
+        { status: 200 }
       );
     }
 
@@ -558,6 +595,7 @@ export async function POST(request: NextRequest) {
       categoryName: result.category_name || '',
       items: sanitizedItems,
       totalCount: sanitizedItems.length,
+      debugTrace: trace,
     });
   } catch (err: any) {
     console.error('[AI-Parse API Error]:', err);
@@ -565,6 +603,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         message: err.message || 'AI 菜單解析失敗，請稍後重試',
+        debugTrace: err.trace || [],
       },
       { status: 200 }
     );

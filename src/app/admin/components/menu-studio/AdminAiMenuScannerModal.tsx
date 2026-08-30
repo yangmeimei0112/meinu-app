@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -205,6 +205,8 @@ export default function AdminAiMenuScannerModal({
   // 自主偵錯狀態
   const [isDiagnosing, setIsDiagnosing] = useState<boolean>(false);
   const [diagResult, setDiagResult] = useState<any>(null);
+  const [debugTrace, setDebugTrace] = useState<string[]>([]);
+  const [showTrace, setShowTrace] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -284,14 +286,16 @@ export default function AdminAiMenuScannerModal({
   const handleProcessImageFile = async (file: File) => {
     try {
       setErrorMessage(null);
+      setDebugTrace([]);
+      setShowTrace(false);
       setCurrentStep('processing');
       setProcessStage(1);
 
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
-      // 1. 本地 Canvas 智慧壓縮
-      const compressed = await compressMenuImage(file, 1600, 0.85);
+      // 1. 本地 Canvas 智慧壓縮 (2400px 超清畫質)
+      const compressed = await compressMenuImage(file, 2400, 0.90);
 
       // 2. 模擬多階段視覺反饋
       setProcessStage(2);
@@ -314,7 +318,7 @@ export default function AdminAiMenuScannerModal({
 
       if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
 
-      // 🛡️ 安全解析 JSON 回應（杜絕 Unexpected token 'A' 崩潰）
+      // 🛡️ 安全解析 JSON 回應
       const rawText = await res.text();
       let json: any = null;
       try {
@@ -323,6 +327,10 @@ export default function AdminAiMenuScannerModal({
         throw new Error(
           `伺服端回應非預期格式 (${res.status})，請確認網路連線或稍後再試。原始回傳：${rawText.slice(0, 100)}`
         );
+      }
+
+      if (json.debugTrace && Array.isArray(json.debugTrace)) {
+        setDebugTrace(json.debugTrace);
       }
 
       if (!json.success) {
@@ -545,8 +553,29 @@ export default function AdminAiMenuScannerModal({
             <div className="mb-4 p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-2xl space-y-2 animate-in fade-in">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
-                <span>{errorMessage}</span>
+                <span className="whitespace-pre-line leading-relaxed">{errorMessage}</span>
               </div>
+
+              {/* 詳細診斷日誌展開 */}
+              {debugTrace && debugTrace.length > 0 && (
+                <div className="pt-2 border-t border-rose-200/60 dark:border-rose-800/60">
+                  <button
+                    type="button"
+                    onClick={() => setShowTrace(!showTrace)}
+                    className="text-[11px] font-bold text-rose-800 dark:text-rose-200 underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>{showTrace ? '收合詳細診斷歷程' : '🔍 查看詳細嘗試歷程與 Google 回應'}</span>
+                  </button>
+                  {showTrace && (
+                    <div className="mt-2 p-3 bg-slate-900 rounded-xl text-[10px] font-mono text-emerald-400 space-y-1 max-h-48 overflow-y-auto select-text border border-slate-700">
+                      {debugTrace.map((line, i) => (
+                        <div key={i}>{line}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center gap-2 pt-1 border-t border-rose-200/60 dark:border-rose-800/60 text-[11px]">
                 <span>💡 建議動作：</span>
                 <button

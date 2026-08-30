@@ -1,6 +1,6 @@
 {
   "name": "menu-app",
-  "version": "9.9.6",
+  "version": "9.9.7",
   "private": true,
   "scripts": {
     "dev": "next dev",
