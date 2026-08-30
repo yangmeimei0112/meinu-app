@@ -76,11 +76,12 @@ const SYSTEM_PROMPT = `
 }
 `;
 
+// 🛡️ 全帳號相容的安全審查等級設定 (BLOCK_ONLY_HIGH 在所有免費與付費 API Key 皆 100% 支援)
 const SAFETY_SETTINGS = [
-  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+  { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+  { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+  { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+  { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
 ];
 
 // 🛡️ 深度容錯 JSON 提取與救援解析引擎
@@ -178,10 +179,11 @@ function extractAndCleanJson(rawText: string): AiParseResponse {
   throw new Error('未能從圖片文字中解析出餐點品項與單價');
 }
 
-// 🔍 智慧金鑰診斷
+// 🔍 智慧金鑰診斷與端對端微探針 (End-to-End Diagnostic Probe)
 async function diagnoseGeminiKey(apiKey: string) {
   const startTime = Date.now();
   try {
+    // 1. 探測模型清單
     const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
       cache: 'no-store',
     });
@@ -203,6 +205,7 @@ async function diagnoseGeminiKey(apiKey: string) {
         latency,
         status: listRes.status,
         message: errorMsg,
+        inferenceTest: '未通過',
         supportedModels: [],
       };
     }
@@ -224,11 +227,32 @@ async function diagnoseGeminiKey(apiKey: string) {
       }
     }
 
+    // 2. 進行微探針生成測試 (Test Inference)
+    let inferencePassed = false;
+    try {
+      const testRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: '請回覆 OK' }] }],
+          }),
+        }
+      );
+      if (testRes.ok) {
+        inferencePassed = true;
+      }
+    } catch {}
+
     return {
       healthy: true,
       latency,
       status: 200,
-      message: 'API Key 連線正常，授權有效！',
+      message: inferencePassed
+        ? 'API Key 連線正常，端對端生成測試通過！'
+        : 'API Key 連線成功（但生成測試稍有延遲）',
+      inferenceTest: inferencePassed ? '✅ 成功' : '⚠️ 延遲',
       supportedModels,
     };
   } catch (e: any) {
@@ -237,12 +261,13 @@ async function diagnoseGeminiKey(apiKey: string) {
       latency: Date.now() - startTime,
       status: 500,
       message: e.message || '連線至 Google API 伺服器逾時',
+      inferenceTest: '失敗',
       supportedModels: [],
     };
   }
 }
 
-// 🧠 呼叫 Google Gemini Vision API
+// 🧠 呼叫 Google Gemini Vision API（雙層智慧降級重試架構）
 async function callGeminiVision(
   imageBase64: string,
   mimeType: string,
@@ -264,39 +289,53 @@ async function callGeminiVision(
   let lastError: Error | null = null;
 
   for (const model of models) {
-    const endpoints = [
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`,
+    // 策略 1: 帶 JSON Mode 與標準 Safety Settings
+    // 策略 2: 若 400 降級為純文字 Prompt Mode
+    const attempts = [
+      {
+        useJsonMode: true,
+        useSafety: true,
+        endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      },
+      {
+        useJsonMode: false,
+        useSafety: false,
+        endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      },
     ];
 
-    for (const endpoint of endpoints) {
+    for (const attempt of attempts) {
       try {
-        const response = await fetch(endpoint, {
+        const bodyPayload: any = {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: `${SYSTEM_PROMPT}\n\n${userPrompt}` },
+                {
+                  inlineData: {
+                    mimeType: mimeType || 'image/jpeg',
+                    data: imageBase64,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 8192,
+            ...(attempt.useJsonMode ? { responseMimeType: 'application/json' } : {}),
+          },
+        };
+
+        if (attempt.useSafety) {
+          bodyPayload.safetySettings = SAFETY_SETTINGS;
+        }
+
+        const response = await fetch(attempt.endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                role: 'user',
-                parts: [
-                  { text: SYSTEM_PROMPT },
-                  { text: userPrompt },
-                  {
-                    inlineData: {
-                      mimeType: mimeType || 'image/jpeg',
-                      data: imageBase64,
-                    },
-                  },
-                ],
-              },
-            ],
-            safetySettings: SAFETY_SETTINGS,
-            generationConfig: {
-              responseMimeType: 'application/json',
-              temperature: 0.1,
-              maxOutputTokens: 8192,
-            },
-          }),
+          body: JSON.stringify(bodyPayload),
         });
 
         const rawResponseBody = await response.text();
@@ -320,7 +359,13 @@ async function callGeminiVision(
             rawResponseBody.includes('Interactions API') ||
             rawResponseBody.includes('not supported for generateContent')
           ) {
-            console.warn(`[AI-Parse] 模型 ${model} 不可用，切換至下一模型...`);
+            console.warn(`[AI-Parse] 模型 ${model} 不可用，嘗試降級或下一模型...`);
+            continue;
+          }
+
+          // 若為 400 且尚未嘗試純文字模式，繼續嘗試第二種 payload
+          if (response.status === 400 && attempt.useJsonMode) {
+            console.warn(`[AI-Parse] 模型 ${model} 400 錯誤，嘗試降級純文字模式重試...`);
             continue;
           }
 
