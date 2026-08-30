@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyAdminToken } from '@/lib/auth-util';
 
@@ -54,7 +54,7 @@ const SYSTEM_PROMPT = `
   "items": [
     {
       "name": "餐點名稱 (string, 必填)",
-      "price": 50, // 基本單價 (number, 必填)
+      "price": 50,
       "description": "餐點簡介或標語（若無可為空字串）",
       "category": "該品項所屬小分類（如原茶系列/鮮奶系列/主廚推薦）",
       "is_sold_out": false,
@@ -76,94 +76,189 @@ const SYSTEM_PROMPT = `
 }
 `;
 
-// 🔍 動態探測該 API Key 支援的 Gemini 模型清單
-async function getAvailableGeminiModels(apiKey: string): Promise<string[]> {
-  // 優先推薦的標準視覺解析模型清單（這些模型 100% 穩定支援圖片輸入與結構化 JSON）
-  const defaultModels = [
-    'gemini-1.5-flash',
-    'gemini-1.5-flash-latest',
-    'gemini-2.0-flash',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro',
-    'gemini-1.5-pro-latest',
-  ];
+// 🛡️ 深度容錯 JSON 提取與修復引擎 (Resilient JSON Sanitizer & Regex Extractor)
+function extractAndCleanJson(rawText: string): AiParseResponse {
+  if (!rawText || typeof rawText !== 'string') {
+    throw new Error('AI 未回傳任何文字內容');
+  }
 
-  try {
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    if (listRes.ok) {
-      const listData = await listRes.json();
-      if (Array.isArray(listData.models)) {
-        const supported = listData.models
-          .filter((m: any) => {
-            const name = String(m.name || '').toLowerCase();
-            // 過濾掉已知僅支援 Interactions API 或非標準的特殊模型
-            if (name.includes('deep-research') || name.includes('thinking') || name.includes('embedding') || name.includes('aqa')) {
-              return false;
-            }
-            return (
-              Array.isArray(m.supportedGenerationMethods) &&
-              m.supportedGenerationMethods.includes('generateContent')
-            );
-          })
-          .map((m: any) => m.name.replace(/^models\//, ''));
+  const trimmed = rawText.trim();
 
-        const sorted = defaultModels.filter((p) => supported.includes(p));
-        for (const name of supported) {
-          if (!sorted.includes(name)) {
-            sorted.push(name);
-          }
-        }
+  // 1. 偵測是否為 AI 的自然語言報錯訊息（如 "An error occurred", "I cannot read..."）
+  const lower = trimmed.toLowerCase();
+  if (
+    lower.startsWith('an error') ||
+    lower.startsWith('error:') ||
+    lower.startsWith('i cannot') ||
+    lower.startsWith('i am sorry') ||
+    lower.startsWith('抱歉') ||
+    lower.startsWith('無法識別')
+  ) {
+    throw new Error(`AI 解析提示：${trimmed.slice(0, 120)}（建議更換清晰、光線充足的菜單照片後重試）`);
+  }
 
-        if (sorted.length > 0) {
-          return sorted;
-        }
-      }
+  // 2. 尋找 Markdown 代碼塊 ```json ... ```
+  let jsonString = '';
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    jsonString = codeBlockMatch[1].trim();
+  } else {
+    // 3. 尋找最外層的 { ... } 或 [ ... ]
+    const firstBrace = trimmed.indexOf('{');
+    const lastBrace = trimmed.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      jsonString = trimmed.substring(firstBrace, lastBrace + 1);
     } else {
+      const firstBracket = trimmed.indexOf('[');
+      const lastBracket = trimmed.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+        jsonString = trimmed.substring(firstBracket, lastBracket + 1);
+      } else {
+        jsonString = trimmed;
+      }
+    }
+  }
+
+  // 4. 清理常見 JSON 格式語法錯誤（末尾多餘逗號、控制字元）
+  jsonString = jsonString
+    .replace(/,\s*([}\]])/g, '$1') // 移除物件或陣列最後的多餘逗點
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '') // 移除不可見控制字元
+    .trim();
+
+  // 5. 嘗試第一階段標準 JSON 解析
+  try {
+    const parsed = JSON.parse(jsonString);
+    if (Array.isArray(parsed)) {
+      return { items: parsed };
+    }
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
+      return parsed;
+    }
+  } catch (parseErr: any) {
+    console.warn('[JSON Parse Warning] 標準 JSON 解析失敗，啟動第二階段正規表達式救援:', parseErr.message);
+  }
+
+  // 6. 第二階段：行內文字正規表達式救援提取 (Regex Fallback Parser)
+  const rescuedItems: AiParsedMenuItem[] = [];
+  const lines = trimmed.split('\n');
+  const itemRegex = /^[\s*-]*([\u4e00-\u9fa5a-zA-Z0-9\s()（）+-_]+?)\s*[:：$＄]?\s*(\d{1,4})\s*(?:元|NT|NT\$)?$/;
+
+  for (const line of lines) {
+    const cleanLine = line.trim();
+    if (!cleanLine || cleanLine.length > 40) continue;
+
+    const match = cleanLine.match(itemRegex);
+    if (match && match[1] && match[2]) {
+      const name = match[1].replace(/^[0-9]+[.\-、]\s*/, '').trim();
+      const price = parseInt(match[2], 10);
+      if (name.length >= 2 && !isNaN(price) && price > 0 && price < 5000) {
+        rescuedItems.push({
+          name,
+          price,
+          description: '',
+          category: '辨識品項',
+          is_sold_out: false,
+          custom_groups: [],
+        });
+      }
+    }
+  }
+
+  if (rescuedItems.length > 0) {
+    console.log(`[Regex Fallback Success] 透過正規表達式成功救援 ${rescuedItems.length} 道餐點！`);
+    return { items: rescuedItems };
+  }
+
+  throw new Error('未能從 AI 回應中解析出標準餐點資料，請嘗試更換近距離、無反光的照片重試');
+}
+
+// 🔍 智慧金鑰診斷與可用模型探測
+async function diagnoseGeminiKey(apiKey: string) {
+  const startTime = Date.now();
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+      cache: 'no-store',
+    });
+
+    const latency = Date.now() - startTime;
+
+    if (!listRes.ok) {
       const errText = await listRes.text();
+      let errorMsg = `Google API 回應狀態碼 ${listRes.status}`;
       try {
         const errJson = JSON.parse(errText);
         if (errJson?.error?.message) {
-          const msg = errJson.error.message;
-          if (msg.includes('API_KEY_INVALID') || msg.includes('API key not valid')) {
-            throw new Error('填入的 Google Gemini API Key 無效，請檢查是否複製完整！');
-          }
-          if (msg.includes('PERMISSION_DENIED') || msg.includes('has not used the API')) {
-            throw new Error(`Google API 權限被拒：${msg}，請確認專案已啟用 Generative Language API。`);
-          }
+          errorMsg = errJson.error.message;
         }
-      } catch (parseErr: any) {
-        if (parseErr.message && !parseErr.message.includes('JSON')) {
-          throw parseErr;
+      } catch {}
+
+      return {
+        healthy: false,
+        latency,
+        status: listRes.status,
+        message: errorMsg,
+        supportedModels: [],
+      };
+    }
+
+    const data = await listRes.json();
+    const supportedModels: string[] = [];
+
+    if (Array.isArray(data.models)) {
+      for (const m of data.models) {
+        const name = String(m.name || '').replace(/^models\//, '');
+        if (
+          Array.isArray(m.supportedGenerationMethods) &&
+          m.supportedGenerationMethods.includes('generateContent') &&
+          !name.includes('embedding') &&
+          !name.includes('aqa')
+        ) {
+          supportedModels.push(name);
         }
       }
     }
-  } catch (e: any) {
-    if (e.message && (e.message.includes('API Key') || e.message.includes('Google API 權限'))) {
-      throw e;
-    }
-    console.warn('[AI-Parse] 動態取得模型清單失敗，使用標準預設模型清單:', e.message);
-  }
 
-  return defaultModels;
+    return {
+      healthy: true,
+      latency,
+      status: 200,
+      message: 'API Key 連線正常，授權有效！',
+      supportedModels,
+    };
+  } catch (e: any) {
+    return {
+      healthy: false,
+      latency: Date.now() - startTime,
+      status: 500,
+      message: e.message || '連線至 Google API 伺服器逾時或失敗',
+      supportedModels: [],
+    };
+  }
 }
 
-// 🧠 呼叫 Google Gemini Vision API（雙協議自動相容：generateContent + Interactions API）
+// 🧠 呼叫 Google Gemini Vision API
 async function callGeminiVision(
   imageBase64: string,
   mimeType: string,
   apiKey: string,
   storeName?: string
 ): Promise<AiParseResponse> {
-  const models = await getAvailableGeminiModels(apiKey);
   const userPrompt = storeName
     ? `請辨識這張【${storeName}】的實體菜單圖片，解析出所有販售餐點、價格與客製化加料/甜度冰塊規格，輸出為規範的 JSON。`
     : '請辨識這張菜單圖片，解析出所有販售餐點、價格與客製化規格，輸出為規範的 JSON。';
 
+  // 優先推薦的標準視覺模型清單
+  const models = [
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest',
+    'gemini-2.0-flash',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-pro',
+  ];
+
   let lastError: Error | null = null;
 
-  // 1. 優先嘗試標準 generateContent 協議
   for (const model of models) {
-    // 同時嘗試 v1beta 與 v1 兩種 API 端點
     const endpoints = [
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`,
@@ -197,51 +292,52 @@ async function callGeminiVision(
           }),
         });
 
+        const rawResponseBody = await response.text();
+
         if (!response.ok) {
-          const errorText = await response.text();
-          let errMsg = `Gemini API (${model}) 錯誤 (${response.status}): ${errorText}`;
+          let errMsg = `Google API (${model}) 回應 ${response.status}`;
           try {
-            const errJson = JSON.parse(errorText);
+            const errJson = JSON.parse(rawResponseBody);
             if (errJson?.error?.message) {
               errMsg = errJson.error.message;
               if (errMsg.includes('API_KEY_INVALID') || errMsg.includes('API key not valid')) {
-                throw new Error('填入的 Google Gemini API Key 無效，請檢查是否複製完整！');
+                throw new Error('填入的 Google Gemini API Key 無效，請確認金鑰是否完整複製！');
               }
             }
           } catch (jsonErr: any) {
             if (jsonErr.message && jsonErr.message.includes('API Key')) throw jsonErr;
           }
 
-          // 若為 404、Interactions API 限制或不支援 generateContent，自動嘗試下一端點或下一模型
+          // 若為 404 或不支持 generateContent，嘗試下一個
           if (
             response.status === 404 ||
-            errorText.includes('Interactions API') ||
-            errorText.includes('not supported for generateContent')
+            rawResponseBody.includes('Interactions API') ||
+            rawResponseBody.includes('not supported for generateContent')
           ) {
-            console.warn(`[AI-Parse] 模型 ${model} 在 ${endpoint.includes('v1beta') ? 'v1beta' : 'v1'} 不支援 generateContent，嘗試下一個...`);
+            console.warn(`[AI-Parse] 模型 ${model} 在端點不可用，自動切換至下一模型...`);
             continue;
           }
 
           throw new Error(errMsg);
         }
 
-        const json = await response.json();
-        const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!rawText) {
-          throw new Error('Gemini API 未回傳有效的文字內容');
+        // 安全解析 Google API 的 JSON 包裹層
+        let parsedApiJson: any = null;
+        try {
+          parsedApiJson = JSON.parse(rawResponseBody);
+        } catch {
+          throw new Error('Google API 回傳非預期非 JSON 格式');
         }
 
-        // 清理 JSON 前後可能包裹的 markdown 標記
-        const cleanJsonStr = rawText
-          .replace(/^```json\s*/i, '')
-          .replace(/^```\s*/i, '')
-          .replace(/\s*```$/i, '')
-          .trim();
+        const candidateText = parsedApiJson.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!candidateText) {
+          throw new Error('Google API 未回傳有效的文字內容');
+        }
 
-        const parsed: AiParseResponse = JSON.parse(cleanJsonStr);
-        if (parsed && Array.isArray(parsed.items) && parsed.items.length > 0) {
-          return parsed;
+        // 使用深度容錯提取器解析最終菜單 JSON
+        const result = extractAndCleanJson(candidateText);
+        if (result && Array.isArray(result.items) && result.items.length > 0) {
+          return result;
         }
       } catch (e: any) {
         console.warn(`[AI-Parse] 模型 ${model} 呼叫失敗:`, e.message);
@@ -253,70 +349,12 @@ async function callGeminiVision(
     }
   }
 
-  throw lastError || new Error('所有 Gemini 模型解析皆失敗，請確認圖片清晰度與 Google API Key 是否有效！');
-}
-
-
-
-// 🧠 呼叫 OpenAI Vision API (備援)
-async function callOpenAiVision(
-  imageBase64: string,
-  mimeType: string,
-  apiKey: string,
-  storeName?: string
-): Promise<AiParseResponse> {
-  const endpoint = 'https://api.openai.com/v1/chat/completions';
-  const dataUrl = `data:${mimeType || 'image/jpeg'};base64,${imageBase64}`;
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: storeName
-                ? `請辨識這張【${storeName}】的實體菜單圖片，解析出所有餐點、價格與規格。`
-                : '請辨識這張菜單圖片，解析出所有餐點、價格與規格。',
-            },
-            {
-              type: 'image_url',
-              image_url: { url: dataUrl },
-            },
-          ],
-        },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.1,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API 錯誤 (${response.status}): ${errorText}`);
-  }
-
-  const json = await response.json();
-  const rawText = json.choices?.[0]?.message?.content;
-  if (!rawText) {
-    throw new Error('OpenAI API 未回傳內容');
-  }
-
-  const parsed: AiParseResponse = JSON.parse(rawText);
-  return parsed;
+  throw lastError || new Error('所有 AI 模型解析皆未能成功提取餐點，請確認圖片文字清晰且無強烈反光！');
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // 🛡️ 1. 身分鑑權：僅允許已解鎖管理後台之團長呼叫
+    // 🛡️ 1. 身分鑑權
     const token = request.cookies.get('meinu_admin_token')?.value;
     if (!verifyAdminToken(token)) {
       return NextResponse.json(
@@ -325,59 +363,68 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 🛡️ 2. 解析請求資料
     const body = await request.json();
-    const { imageBase64, mimeType = 'image/jpeg', storeName, customApiKey, provider = 'gemini' } = body;
+    const { action, imageBase64, mimeType = 'image/jpeg', storeName, customApiKey } = body;
 
+    // 🔑 獲取 API 金鑰
+    const apiKey = customApiKey || process.env.GEMINI_API_KEY;
+
+    // 🧪 2. 支援自主健康診斷探針 (Self-Diagnostics Probe)
+    if (action === 'diagnose') {
+      if (!apiKey) {
+        return NextResponse.json({
+          success: false,
+          needsApiKey: true,
+          message: '尚未設定 API Key，請先貼上金鑰後再執行診斷！',
+        });
+      }
+      const diagResult = await diagnoseGeminiKey(apiKey);
+      return NextResponse.json({
+        success: diagResult.healthy,
+        diagnostic: diagResult,
+      });
+    }
+
+    // 🛡️ 3. 檢查圖片資料
     if (!imageBase64 || typeof imageBase64 !== 'string' || imageBase64.trim().length === 0) {
       return NextResponse.json(
-        { success: false, message: '未接收到有效的菜單圖片 Base64 資料' },
+        { success: false, message: '未接收到有效的菜單圖片資料' },
         { status: 400 }
       );
     }
 
-    // 🔑 3. 獲取 API 金鑰（優先順序：前端自訂 > .env.local GEMINI_API_KEY > OPENAI_API_KEY）
-    const geminiKey = customApiKey || process.env.GEMINI_API_KEY;
-    const openAiKey = customApiKey || process.env.OPENAI_API_KEY;
-
-    let result: AiParseResponse;
-
-    if (provider === 'openai' && openAiKey) {
-      result = await callOpenAiVision(imageBase64, mimeType, openAiKey, storeName);
-    } else if (geminiKey) {
-      result = await callGeminiVision(imageBase64, mimeType, geminiKey, storeName);
-    } else if (openAiKey) {
-      result = await callOpenAiVision(imageBase64, mimeType, openAiKey, storeName);
-    } else {
+    if (!apiKey) {
       return NextResponse.json(
         {
           success: false,
           needsApiKey: true,
           message:
-            '尚未設定 AI API Key！請在後台掃描視窗中點擊「金鑰設定」填入 Google Gemini API Key，或在伺服端 .env.local 設定 GEMINI_API_KEY。',
+            '尚未設定 Google Gemini API Key！請點擊右上角「金鑰設定」貼上您的 API Key，即可免費使用。',
         },
         { status: 400 }
       );
     }
 
-    // 🛡️ 4. 驗證並格式化品項清單
+    // 🧠 4. 呼叫視覺辨識
+    const result = await callGeminiVision(imageBase64, mimeType, apiKey, storeName);
+
     if (!result || !Array.isArray(result.items) || result.items.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          message: 'AI 未能在圖片中識別出明確的餐點品項，請嘗試更換較清晰、光線充足或近距離拍攝的照片！',
+          message: 'AI 未能在圖片中識別出明確的餐點品項，請嘗試更換近距離拍攝的照片！',
         },
         { status: 422 }
       );
     }
 
-    // 標準化整理品項資料
+    // 5. 標準化輸出
     const sanitizedItems = result.items.map((item, idx) => ({
       tempId: `ai_item_${Date.now()}_${idx}`,
       name: String(item.name || `未命名餐點 ${idx + 1}`).trim(),
       price: Math.max(0, Number(item.price) || 0),
       description: item.description ? String(item.description).trim() : '',
-      category: item.category ? String(item.category).trim() : (result.category_name || '精選推薦'),
+      category: item.category ? String(item.category).trim() : (result.category_name || '精選餐點'),
       is_sold_out: Boolean(item.is_sold_out),
       custom_groups: Array.isArray(item.custom_groups)
         ? item.custom_groups.map((cg, cgIdx) => ({
@@ -387,14 +434,14 @@ export async function POST(request: NextRequest) {
             options: Array.isArray(cg.options)
               ? cg.options.map((opt, optIdx) => ({
                   id: `opt_${Date.now()}_${cgIdx}_${optIdx}`,
-                  name: String(opt.name || '預設選項').trim(),
+                  name: String(opt.name || '選項').trim(),
                   price: Math.max(0, Number(opt.price) || 0),
                   is_default: Boolean(opt.is_default),
                 }))
               : [],
           }))
         : [],
-      selected: true, // 前端預設勾選
+      selected: true,
     }));
 
     return NextResponse.json({
@@ -411,7 +458,7 @@ export async function POST(request: NextRequest) {
         success: false,
         message: err.message || 'AI 菜單解析失敗，請稍後重試',
       },
-      { status: 500 }
+      { status: 200 } // 使用 200 讓前端安全解析 JSON 錯誤訊息，杜絕 HTML/500 崩潰
     );
   }
 }

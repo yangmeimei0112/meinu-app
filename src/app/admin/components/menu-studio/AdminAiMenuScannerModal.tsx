@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -11,6 +11,11 @@ import {
   CheckCircle2,
   ExternalLink,
   XCircle,
+  Activity,
+  Coffee,
+  UtensilsCrossed,
+  ShieldCheck,
+  Zap,
 } from 'lucide-react';
 import { compressMenuImage } from '@/lib/imageCompressor';
 import { AdminAiMenuReviewTable, RecognizedItem } from './AdminAiMenuReviewTable';
@@ -26,6 +31,157 @@ interface AdminAiMenuScannerModalProps {
 type ScanStep = 'upload' | 'processing' | 'review';
 
 const LOCAL_STORAGE_KEY_API_KEY = 'meinu_custom_gemini_api_key';
+
+// 🥤 示範用手搖飲料菜單範本
+const MOCK_BEVERAGE_ITEMS: RecognizedItem[] = [
+  {
+    tempId: 'mock_1',
+    name: '珍珠奶茶',
+    price: 50,
+    description: '經典慢火熬煮黑糖波霸搭配香醇奶茶',
+    category: '招牌特調',
+    is_sold_out: false,
+    selected: true,
+    custom_groups: [
+      {
+        id: 'cg_sweet_1',
+        title: '甜度選擇',
+        type: 'single',
+        options: [
+          { id: 'opt_s1', name: '正常甜 (100%)', price: 0 },
+          { id: 'opt_s2', name: '少糖 (70%)', price: 0 },
+          { id: 'opt_s3', name: '半糖 (50%)', price: 0 },
+          { id: 'opt_s4', name: '微糖 (30%)', price: 0, is_default: true },
+          { id: 'opt_s5', name: '無糖 (0%)', price: 0 },
+        ],
+      },
+      {
+        id: 'cg_ice_1',
+        title: '冰塊選擇',
+        type: 'single',
+        options: [
+          { id: 'opt_i1', name: '正常冰', price: 0 },
+          { id: 'opt_i2', name: '少冰', price: 0, is_default: true },
+          { id: 'opt_i3', name: '微冰', price: 0 },
+          { id: 'opt_i4', name: '去冰', price: 0 },
+        ],
+      },
+      {
+        id: 'cg_add_1',
+        title: '加料專區',
+        type: 'multiple',
+        options: [
+          { id: 'opt_a1', name: '黑糖波霸', price: 10 },
+          { id: 'opt_a2', name: '椰果', price: 10 },
+          { id: 'opt_a3', name: '仙草凍', price: 10 },
+        ],
+      },
+    ],
+  },
+  {
+    tempId: 'mock_2',
+    name: '四季春茶',
+    price: 35,
+    description: '嚴選南投高山四季春，茶韻甘醇不澀口',
+    category: '原葉純茶',
+    is_sold_out: false,
+    selected: true,
+    custom_groups: [
+      {
+        id: 'cg_sweet_2',
+        title: '甜度選擇',
+        type: 'single',
+        options: [
+          { id: 'opt_s21', name: '微糖 (30%)', price: 0, is_default: true },
+          { id: 'opt_s22', name: '無糖 (0%)', price: 0 },
+        ],
+      },
+      {
+        id: 'cg_ice_2',
+        title: '冰塊選擇',
+        type: 'single',
+        options: [
+          { id: 'opt_i21', name: '少冰', price: 0, is_default: true },
+          { id: 'opt_i22', name: '去冰', price: 0 },
+        ],
+      },
+    ],
+  },
+  {
+    tempId: 'mock_3',
+    name: '紅茶拿鐵 (鮮奶茶)',
+    price: 60,
+    description: '斯里蘭卡莊園紅茶與濃醇鮮乳黃金比例',
+    category: '鮮奶拿鐵',
+    is_sold_out: false,
+    selected: true,
+    custom_groups: [],
+  },
+  {
+    tempId: 'mock_4',
+    name: '鮮橙翡翠綠',
+    price: 65,
+    description: '新鮮柳橙鮮榨原汁與清香翡翠綠茶',
+    category: '鮮果鮮茶',
+    is_sold_out: false,
+    selected: true,
+    custom_groups: [],
+  },
+];
+
+// 🍱 示範用便當快餐菜單範本
+const MOCK_BENTO_ITEMS: RecognizedItem[] = [
+  {
+    tempId: 'mock_b1',
+    name: '招牌酥炸排骨便當',
+    price: 110,
+    description: '現炸厚切秘製排骨，附三樣當季配菜與滷蛋',
+    category: '人氣便當',
+    is_sold_out: false,
+    selected: true,
+    custom_groups: [
+      {
+        id: 'cg_rice_1',
+        title: '飯量選擇',
+        type: 'single',
+        options: [
+          { id: 'opt_r1', name: '正常飯量', price: 0, is_default: true },
+          { id: 'opt_r2', name: '大份加飯', price: 10 },
+          { id: 'opt_r3', name: '少飯 (減醣)', price: 0 },
+        ],
+      },
+      {
+        id: 'cg_side_1',
+        title: '附餐升級',
+        type: 'single',
+        options: [
+          { id: 'opt_sd1', name: '當日例湯', price: 0, is_default: true },
+          { id: 'opt_sd2', name: '冰檸檬紅茶', price: 15 },
+        ],
+      },
+    ],
+  },
+  {
+    tempId: 'mock_b2',
+    name: '經典香酥大雞腿飯',
+    price: 125,
+    description: '黃金酥脆超大份量鮮嫩雞腿，皮脆多汁',
+    category: '人氣便當',
+    is_sold_out: false,
+    selected: true,
+    custom_groups: [],
+  },
+  {
+    tempId: 'mock_b3',
+    name: '泰式椒麻雞便當',
+    price: 120,
+    description: '特調酸辣椒麻醬汁，去骨雞腿酥脆可口',
+    category: '特色主廚',
+    is_sold_out: false,
+    selected: true,
+    custom_groups: [],
+  },
+];
 
 export default function AdminAiMenuScannerModal({
   isOpen,
@@ -45,6 +201,10 @@ export default function AdminAiMenuScannerModal({
   const [showKeyDrawer, setShowKeyDrawer] = useState<boolean>(false);
   const [customApiKey, setCustomApiKey] = useState<string>('');
   const [keySavedToast, setKeySavedToast] = useState<boolean>(false);
+
+  // 自主偵錯狀態
+  const [isDiagnosing, setIsDiagnosing] = useState<boolean>(false);
+  const [diagResult, setDiagResult] = useState<any>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -78,6 +238,48 @@ export default function AdminAiMenuScannerModal({
     }
   };
 
+  // 🧪 執行自主診斷系統
+  const handleRunDiagnostics = async () => {
+    try {
+      setIsDiagnosing(true);
+      setDiagResult(null);
+      setErrorMessage(null);
+
+      const res = await fetch('/api/admin/menu/ai-parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'diagnose',
+          customApiKey: customApiKey.trim() || undefined,
+        }),
+      });
+
+      const rawText = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        throw new Error(`自主診斷探針異常 (${res.status}): ${rawText.slice(0, 100)}`);
+      }
+
+      if (json.diagnostic) {
+        setDiagResult(json.diagnostic);
+      } else {
+        setDiagResult({
+          healthy: false,
+          message: json.message || '診斷未能取得詳細指標',
+        });
+      }
+    } catch (e: any) {
+      setDiagResult({
+        healthy: false,
+        message: e.message || '執行自主偵錯時發生錯誤',
+      });
+    } finally {
+      setIsDiagnosing(false);
+    }
+  };
+
   // 處理圖片檔案上傳與 AI 解析
   const handleProcessImageFile = async (file: File) => {
     try {
@@ -85,7 +287,6 @@ export default function AdminAiMenuScannerModal({
       setCurrentStep('processing');
       setProcessStage(1);
 
-      // 建立可中斷之 AbortController
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
@@ -98,7 +299,7 @@ export default function AdminAiMenuScannerModal({
         setProcessStage(3);
       }, 1500);
 
-      // 3. 發送至後端 API (支援隨時中斷)
+      // 3. 發送至後端 API
       const res = await fetch('/api/admin/menu/ai-parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,13 +313,23 @@ export default function AdminAiMenuScannerModal({
       });
 
       if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
-      const json = await res.json();
 
-      if (!res.ok || !json.success) {
+      // 🛡️ 安全解析 JSON 回應（杜絕 Unexpected token 'A' 崩潰）
+      const rawText = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(rawText);
+      } catch {
+        throw new Error(
+          `伺服端回應非預期格式 (${res.status})，請確認網路連線或稍後再試。原始回傳：${rawText.slice(0, 100)}`
+        );
+      }
+
+      if (!json.success) {
         if (json.needsApiKey) {
           setShowKeyDrawer(true);
         }
-        throw new Error(json.message || 'AI 解析菜單失敗');
+        throw new Error(json.message || 'AI 菜單解析失敗');
       }
 
       if (!json.items || json.items.length === 0) {
@@ -172,6 +383,14 @@ export default function AdminAiMenuScannerModal({
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
+  // 🧰 載入模擬示範資料
+  const handleLoadMockData = (type: 'beverage' | 'bento') => {
+    const items = type === 'beverage' ? MOCK_BEVERAGE_ITEMS : MOCK_BENTO_ITEMS;
+    setRecognizedItems(items);
+    setErrorMessage(null);
+    setCurrentStep('review');
+  };
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white dark:bg-[#0E1524] rounded-3xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -195,13 +414,26 @@ export default function AdminAiMenuScannerModal({
           </div>
 
           <div className="flex items-center gap-1.5">
+            {/* 自主偵錯探針按鈕 */}
+            <button
+              type="button"
+              onClick={handleRunDiagnostics}
+              disabled={isDiagnosing}
+              className="p-2 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-sky-600 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+              title="執行 AI 連線與金鑰自主健康檢查"
+            >
+              <Activity className={`w-4 h-4 text-sky-500 ${isDiagnosing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">自主偵錯</span>
+            </button>
+
+            {/* 金鑰設定按鈕 */}
             <button
               type="button"
               onClick={() => setShowKeyDrawer(!showKeyDrawer)}
               className={`p-2 rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-bold ${
                 showKeyDrawer
                   ? 'bg-sky-500 text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
               }`}
               title="設定自訂 Google Gemini API Key"
             >
@@ -218,6 +450,44 @@ export default function AdminAiMenuScannerModal({
             </button>
           </div>
         </div>
+
+        {/* 🧪 自主偵錯報告面板 */}
+        {diagResult && (
+          <div
+            className={`p-4 border-b flex items-start justify-between gap-3 text-xs animate-in slide-in-from-top duration-200 ${
+              diagResult.healthy
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+            }`}
+          >
+            <div className="space-y-1">
+              <div className="font-extrabold flex items-center gap-1.5">
+                {diagResult.healthy ? (
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-500" />
+                )}
+                <span>自主診斷報告：{diagResult.message}</span>
+                {diagResult.latency && (
+                  <span className="font-mono text-[10px] opacity-80">({diagResult.latency}ms)</span>
+                )}
+              </div>
+              {diagResult.supportedModels && diagResult.supportedModels.length > 0 && (
+                <p className="text-[11px] opacity-85">
+                  可用模型：{diagResult.supportedModels.slice(0, 4).join('、')} 等{' '}
+                  {diagResult.supportedModels.length} 款
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setDiagResult(null)}
+              className="p-1 opacity-70 hover:opacity-100 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         {/* 🔑 API Key 自訂設定收合抽屜 */}
         {showKeyDrawer && (
@@ -272,16 +542,28 @@ export default function AdminAiMenuScannerModal({
         <div className="p-6 overflow-y-auto flex-1">
           {/* 錯誤提示 */}
           {errorMessage && currentStep === 'upload' && (
-            <div className="mb-4 p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-2xl flex items-center gap-2 animate-in fade-in">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{errorMessage}</span>
+            <div className="mb-4 p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-2xl space-y-2 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{errorMessage}</span>
+              </div>
+              <div className="flex items-center gap-2 pt-1 border-t border-rose-200/60 dark:border-rose-800/60 text-[11px]">
+                <span>💡 建議動作：</span>
+                <button
+                  type="button"
+                  onClick={handleRunDiagnostics}
+                  className="text-sky-600 dark:text-sky-400 underline font-extrabold cursor-pointer"
+                >
+                  執行自主偵錯檢查連線
+                </button>
+                <span>或點選下方載入範本測試</span>
+              </div>
             </div>
           )}
 
           {/* STEP 1: 拍照 / 上傳入口 */}
           {currentStep === 'upload' && (
             <div className="space-y-5">
-              {/* 隱藏的原生 Input */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -339,6 +621,35 @@ export default function AdminAiMenuScannerModal({
                 </button>
               </div>
 
+              {/* ✨ 模擬測試與範本快速載入區 */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-500" />
+                    <span>模擬測試與示範載入（免拍菜單立即試用）：</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => handleLoadMockData('beverage')}
+                    className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <Coffee className="w-3.5 h-3.5 text-sky-500" />
+                    <span>載入手搖飲料示範菜單 (50嵐/得正)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleLoadMockData('bento')}
+                    className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-slate-700 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <UtensilsCrossed className="w-3.5 h-3.5 text-amber-500" />
+                    <span>載入便當快餐示範菜單 (排骨/雞腿便當)</span>
+                  </button>
+                </div>
+              </div>
+
               {/* 拍攝小提示 */}
               <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 p-4 rounded-2xl space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
                 <div className="font-extrabold flex items-center gap-1.5">
@@ -348,7 +659,6 @@ export default function AdminAiMenuScannerModal({
                 <ul className="list-disc list-inside text-[11px] opacity-85 space-y-0.5 leading-relaxed pl-1">
                   <li>保持充足光線，盡量避免頭頂燈光造成強烈反光與陰影。</li>
                   <li>相機鏡頭與菜單保持垂直平行，讓文字更平整清晰。</li>
-                  <li>若菜單很大（如整張長條傳單），可分區多次拍攝或近距離特寫拍攝。</li>
                   <li>支援辨識手搖飲甜度/冰塊、便當飯量/配菜與加料加價項目。</li>
                 </ul>
               </div>
