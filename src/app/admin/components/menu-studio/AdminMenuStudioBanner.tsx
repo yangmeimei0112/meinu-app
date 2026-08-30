@@ -8,6 +8,7 @@ import {
   Pencil,
   Download,
   Plus,
+  Camera,
 } from 'lucide-react';
 
 interface AdminMenuStudioBannerProps {
@@ -19,6 +20,7 @@ interface AdminMenuStudioBannerProps {
   onEditStore: (store: Store) => void;
   onCreateMenuItem: () => void;
   onOpenBatchImportModal?: () => void;
+  onOpenAiScannerModal?: () => void;
 }
 
 export function AdminMenuStudioBanner({
@@ -30,6 +32,7 @@ export function AdminMenuStudioBanner({
   onEditStore,
   onCreateMenuItem,
   onOpenBatchImportModal,
+  onOpenAiScannerModal,
 }: AdminMenuStudioBannerProps) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-sky-100/90 dark:border-sky-900/40 pb-4 pl-2">
@@ -92,6 +95,18 @@ export function AdminMenuStudioBanner({
           </button>
         )}
 
+        {onOpenAiScannerModal && (
+          <button
+            type="button"
+            onClick={onOpenAiScannerModal}
+            className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-black px-3.5 py-2 rounded-2xl shadow-sm hover:shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            title="使用 AI 視覺辨識實體菜單照片並批量匯入"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>AI 拍照建檔</span>
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onCreateMenuItem}
@@ -104,3 +119,4 @@ export function AdminMenuStudioBanner({
     </div>
   );
 }
+

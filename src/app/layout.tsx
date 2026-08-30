@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: '咩nu 揪團點餐平台 | 辦公室、朋友輕鬆點餐外送',
+    default: '咩nu 揪團點餐平台 | 美食揪團 輕鬆點餐',
     template: '%s | 咩nu 揪團點餐平台',
   },
   description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     apple: '/apple-icon.png',
   },
   openGraph: {
-    title: '咩nu 揪團點餐平台 | 辦公室、朋友輕鬆點餐外送',
+    title: '咩nu 揪團點餐平台 | 美食揪團 輕鬆點餐',
     description: '快來看看今天想吃什麼！點擊連結選擇店家開始點餐。',
     url: siteUrl,
     siteName: '咩nu (meinu)',
@@ -115,7 +115,7 @@ export default function RootLayout({
         '@id': `${siteUrl}/#website`,
         url: siteUrl,
         name: '咩nu 揪團點餐平台',
-        description: '辦公室與好友必備的線上揪團點餐外送系統',
+        description: '線上揪團點餐系統',
         inLanguage: 'zh-TW',
         potentialAction: {
           '@type': 'SearchAction',

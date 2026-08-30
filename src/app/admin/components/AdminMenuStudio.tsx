@@ -8,6 +8,7 @@ import { AdminMenuStudioBanner } from './menu-studio/AdminMenuStudioBanner';
 import { AdminMenuStudioToolbar } from './menu-studio/AdminMenuStudioToolbar';
 import { AdminMenuItemCard } from './menu-studio/AdminMenuItemCard';
 import { useMenuStudioDrag } from './menu-studio/useMenuStudioDrag';
+import AdminAiMenuScannerModal from './menu-studio/AdminAiMenuScannerModal';
 
 interface AdminMenuStudioProps {
   isDesktop: boolean;
@@ -40,6 +41,7 @@ export default function AdminMenuStudio({
 }: AdminMenuStudioProps) {
   const [productSearch, setProductSearch] = useState<string>('');
   const [itemStatusFilter, setItemStatusFilter] = useState<'all' | 'active' | 'sold_out'>('all');
+  const [isAiScannerOpen, setIsAiScannerOpen] = useState<boolean>(false);
   const debouncedProductSearch = useDebounce(productSearch, 180);
 
   const categoryName = categories.find((c) => c.id === activeStudioStore.category_id)?.name || '未分類';
@@ -217,6 +219,7 @@ export default function AdminMenuStudio({
           onEditStore={onEditStore}
           onCreateMenuItem={onCreateMenuItem}
           onOpenBatchImportModal={onOpenBatchImportModal}
+          onOpenAiScannerModal={() => setIsAiScannerOpen(true)}
         />
 
         <AdminMenuStudioToolbar
@@ -290,6 +293,20 @@ export default function AdminMenuStudio({
           })}
         </div>
       )}
+
+      {/* 📸 AI 拍照智能匯入菜單 Modal */}
+      <AdminAiMenuScannerModal
+        isOpen={isAiScannerOpen}
+        onClose={() => setIsAiScannerOpen(false)}
+        storeId={activeStudioStore.id}
+        storeName={activeStudioStore.name}
+        onImportSuccess={() => {
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        }}
+      />
     </div>
   );
 }
+
