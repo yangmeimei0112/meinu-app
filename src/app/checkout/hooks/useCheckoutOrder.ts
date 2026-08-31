@@ -237,7 +237,6 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
           .from('group_orders')
           .select('id')
           .eq('store_id', storeId)
-          .eq('status', 'open')
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -245,57 +244,82 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
         if (existingGroup) {
           activeGroupId = existingGroup.id;
         } else {
-          const { data: newGroup, error: groupErr } = await supabase
-            .from('group_orders')
-            .insert([
-              {
-                store_id: storeId,
-                title: `${cartItems[0]?.storeName || '美味餐點'} 點餐團`,
-                status: 'open',
-              },
-            ])
-            .select('id')
-            .single();
-          if (groupErr || !newGroup) throw groupErr || new Error('自動開啟團購失敗');
-          activeGroupId = (newGroup as { id: string }).id;
+          try {
+            const { data: newGroup, error: groupErr } = await supabase
+              .from('group_orders')
+              .insert([
+                {
+                  store_id: storeId,
+                  title: `${cartItems[0]?.storeName || '美味餐點'} 點餐團`,
+                  status: 'open',
+                },
+              ])
+              .select('id')
+              .single();
+            if (!groupErr && newGroup) {
+              activeGroupId = (newGroup as { id: string }).id;
+            }
+          } catch {
+            // 降級嘗試抓取任意現存活動
+            const { data: fallbackGroup } = await supabase.from('group_orders').select('id').limit(1).maybeSingle();
+            if (fallbackGroup) activeGroupId = fallbackGroup.id;
+          }
         }
       }
 
-      if (!activeGroupId) {
-        throw new Error('無法取得或建立有效之團購活動');
-      }
+      const orderNumber = activeGroupId
+        ? await generateSequentialOrderNumber(supabase, activeGroupId)
+        : `MN-${Math.floor(100 + Math.random() * 900)}`;
 
-      const orderNumber = await generateSequentialOrderNumber(supabase, activeGroupId);
       const safeGrandTotal = Math.max(0, Math.round(grandTotal));
 
-      const { data: submission, error: subErr } = await supabase
+      const subPayload: any = {
+        group_order_id: activeGroupId || null,
+        store_id: storeId,
+        status: 'active',
+        user_nickname: cleanNickname,
+        payment_method_name: sanitizeInput(selectedPayment, 40),
+        sold_out_option: sanitizeInput(selectedSoldOut, 40),
+        total_amount: safeGrandTotal,
+        final_amount: safeGrandTotal,
+        order_number: orderNumber,
+        is_paid: false,
+      };
+
+      let { data: submission, error: subErr } = await supabase
         .from('order_submissions')
-        .insert([
-          {
-            group_order_id: activeGroupId,
-            store_id: storeId,
-            status: 'active',
-            user_nickname: cleanNickname,
-            payment_method_name: sanitizeInput(selectedPayment, 40),
-            sold_out_option: sanitizeInput(selectedSoldOut, 40),
-            total_amount: safeGrandTotal,
-            final_amount: safeGrandTotal,
-            order_number: orderNumber,
-            is_paid: false,
-          },
-        ])
+        .insert([subPayload])
         .select('id')
         .single();
 
+      // 🛡️ 容錯防護：若 Supabase schema 尚未包含 store_id 或 status 欄位，自動降級重試
+      if (subErr && (subErr.message?.includes('store_id') || subErr.message?.includes('status') || subErr.code === 'PGRST204')) {
+        delete subPayload.store_id;
+        delete subPayload.status;
+        const retry = await supabase
+          .from('order_submissions')
+          .insert([subPayload])
+          .select('id')
+          .single();
+        submission = retry.data;
+        subErr = retry.error;
+      }
+
       if (subErr || !submission) throw subErr || new Error('建立訂單記錄失敗');
 
-      const itemsPayload = cartItems.map((item) => ({
-        submission_id: submission.id,
-        item_name: sanitizeInput(item.name, 60),
-        quantity: Math.max(1, Math.min(99, item.quantity)),
-        unit_price: Math.max(0, Math.round(item.unitPrice)),
-        custom_notes: item.customNotes ? sanitizeInput(item.customNotes, 100) : null,
-      }));
+      const itemsPayload = cartItems.map((item) => {
+        const optionsText = (item.selectedOptions || []).map((o) => o.itemName).filter(Boolean).join(', ');
+        const notesText = item.customNotes ? `備註: ${item.customNotes}` : '';
+        const combinedNotes = [optionsText, notesText].filter(Boolean).join(' | ');
+
+        return {
+          submission_id: submission.id,
+          item_name: sanitizeInput(item.name, 60),
+          quantity: Math.max(1, Math.min(99, item.quantity)),
+          unit_price: Math.max(0, Math.round(item.unitPrice)),
+          custom_notes: combinedNotes ? sanitizeInput(combinedNotes, 150) : null,
+        };
+      });
 
       const { data: insertedItems, error: itemsErr } = await supabase
         .from('order_items')
@@ -304,29 +328,34 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
 
       if (itemsErr) throw itemsErr;
 
-      if (insertedItems) {
-        const optionsPayload: Array<{
-          order_item_id: string;
-          option_name: string;
-          extra_price: number;
-        }> = [];
+      // 嘗試寫入 order_item_options（若表存在），若失敗靜默略過，不阻斷下單流程
+      try {
+        if (insertedItems) {
+          const optionsPayload: Array<{
+            order_item_id: string;
+            option_name: string;
+            extra_price: number;
+          }> = [];
 
-        insertedItems.forEach((dbItem, idx) => {
-          const cartItem = cartItems[idx];
-          if (cartItem && cartItem.selectedOptions) {
-            cartItem.selectedOptions.forEach((opt) => {
-              optionsPayload.push({
-                order_item_id: dbItem.id,
-                option_name: sanitizeInput(opt.itemName, 40),
-                extra_price: Math.max(0, Math.round(opt.extraPrice)),
+          insertedItems.forEach((dbItem, idx) => {
+            const cartItem = cartItems[idx];
+            if (cartItem && cartItem.selectedOptions) {
+              cartItem.selectedOptions.forEach((opt) => {
+                optionsPayload.push({
+                  order_item_id: dbItem.id,
+                  option_name: sanitizeInput(opt.itemName, 40),
+                  extra_price: Math.max(0, Math.round(opt.extraPrice)),
+                });
               });
-            });
-          }
-        });
+            }
+          });
 
-        if (optionsPayload.length > 0) {
-          await supabase.from('order_item_options').insert(optionsPayload);
+          if (optionsPayload.length > 0) {
+            await supabase.from('order_item_options').insert(optionsPayload);
+          }
         }
+      } catch (optErr) {
+        console.warn('寫入 order_item_options 略過:', optErr);
       }
 
       // 送單成功後，從多店家購物車中移除該店家

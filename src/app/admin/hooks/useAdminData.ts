@@ -230,14 +230,13 @@ export function useAdminData({
 
       const effectiveGroupId = targetGroupId !== undefined ? targetGroupId : selectedActiveGroupIdRef.current;
 
-      // 抓取全站所有未歸檔即時訂單
+      // 抓取全站所有未歸檔即時訂單（安全查詢，避免因外鍵約束未建立而導致 PostgREST 報錯）
       const { data: allSubList, error: subErr } = await supabase
         .from('order_submissions')
         .select(`
           id, order_number, user_nickname, payment_method_name, sold_out_option,
           total_amount, final_amount, is_paid, signature_data, created_at, group_order_id,
           store_id, status,
-          stores (id, name, code, is_accepting_orders, announcement, enable_min_threshold, min_threshold_amount, enable_countdown, cutoff_time, enable_budget_limit, budget_limit_amount),
           group_orders (id, title, store_id, stores (id, name, code)),
           order_items (id, item_name, quantity, unit_price, custom_notes)
         `)
@@ -254,9 +253,20 @@ export function useAdminData({
         return true;
       });
 
+      const storeMap = new Map(formattedStores.map((s) => [s.id, s]));
       const formattedSubs: OrderSubmissionAdmin[] = activeSubList.map((s: any) => {
-        const resolvedStoreId = s.store_id || s.stores?.id || s.group_orders?.store_id || s.group_orders?.stores?.id || '';
-        const resolvedStoreName = s.stores?.name || s.group_orders?.stores?.name || s.group_orders?.title || '店家餐點';
+        const resolvedStoreId =
+          s.store_id ||
+          s.group_orders?.store_id ||
+          s.group_orders?.stores?.id ||
+          '';
+        const matchedStore = storeMap.get(resolvedStoreId);
+        const resolvedStoreName =
+          matchedStore?.name ||
+          s.group_orders?.stores?.name ||
+          s.group_orders?.title ||
+          '店家餐點';
+
         return {
           ...s,
           store_id: resolvedStoreId,

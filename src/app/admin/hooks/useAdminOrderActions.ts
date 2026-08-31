@@ -176,20 +176,30 @@ export function useAdminOrderActions({
   // 6. 切換店家接單狀態
   const handleToggleGroupStatus = async (newStatus: 'open' | 'closed') => {
     if (!activeGroup) return;
-    const { error } = await supabase.from('group_orders').update({ status: newStatus }).eq('id', activeGroup.id);
 
     const storeTargetId = activeGroup.store_id || activeGroup.id;
-    if (storeTargetId) {
-      await supabase
-        .from('stores')
-        .update({ is_accepting_orders: newStatus === 'open' })
-        .eq('id', storeTargetId);
-    }
+    try {
+      if (storeTargetId) {
+        // 1. 更新 stores 表
+        await supabase
+          .from('stores')
+          .update({ is_accepting_orders: newStatus === 'open' })
+          .eq('id', storeTargetId);
 
-    if (!error) {
+        // 2. 同步更新該店家所有未歸檔的 group_orders
+        await supabase
+          .from('group_orders')
+          .update({ status: newStatus })
+          .eq('store_id', storeTargetId)
+          .neq('status', 'completed');
+      }
+
       setActiveGroup({ ...activeGroup, status: newStatus });
       showToast(`店家接單狀態已切換為：${newStatus === 'closed' ? '⏸️ 暫停接單中' : '🟢 開放接單中'}`);
       fetchAdminData(selectedActiveGroupIdRef.current, true);
+    } catch (err: any) {
+      console.error('切換店家接單狀態失敗:', err);
+      showToast(`切換接單狀態失敗：${err?.message || err}`);
     }
   };
 
