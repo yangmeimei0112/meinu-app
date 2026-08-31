@@ -4,7 +4,7 @@ import React, { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMultiCart } from '@/lib/useMultiCart';
-import { Home, Search, ShoppingCart, ClipboardList, AlertTriangle } from 'lucide-react';
+import { Home, Search, ShoppingCart, ClipboardList, AlertTriangle, User } from 'lucide-react';
 import { useMaintenanceStatus } from './maintenance/useMaintenanceStatus';
 
 export const ORDERS_UPDATE_EVENT = 'menu_app_orders_updated';
@@ -130,6 +130,22 @@ export default function MobileBottomNav() {
       hasDot: hasNewOrder,
       icon: (active: boolean, inMaint: boolean) => (
         <ClipboardList
+          className={`w-5 h-5 transition-transform duration-150 ${
+            inMaint
+              ? 'text-amber-500 stroke-[2.2]'
+              : active
+              ? 'stroke-[2.5] scale-105'
+              : 'stroke-[2]'
+          }`}
+        />
+      ),
+    },
+    {
+      id: 'account',
+      label: '我的帳戶',
+      href: '/account',
+      icon: (active: boolean, inMaint: boolean) => (
+        <User
           className={`w-5 h-5 transition-transform duration-150 ${
             inMaint
               ? 'text-amber-500 stroke-[2.2]'
