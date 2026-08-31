@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import { execSync } from "child_process";
 
+import packageJson from "./package.json";
+
 function getGitCommitHash(): string {
   if (process.env.VERCEL_GIT_COMMIT_SHA) {
     return process.env.VERCEL_GIT_COMMIT_SHA.substring(0, 7);
@@ -37,8 +39,10 @@ const cspHeader = `
 const nextConfig: NextConfig = {
   reactCompiler: true,
   env: {
+    NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_GIT_COMMIT_HASH: getGitCommitHash(),
     NEXT_PUBLIC_GIT_COMMIT_MSG: getGitCommitMsg(),
+    NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
   },
   // 🛡️ HTTP 資安防護標頭配置
   async headers() {

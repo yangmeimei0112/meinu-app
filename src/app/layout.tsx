@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import MaintenanceGuard from '@/components/MaintenanceGuard';
+import MobileBottomNav from '@/components/MobileBottomNav';
+import VersionUpdateModal from '@/components/VersionUpdateModal';
 
 // 取得實際網站網址（Vercel 部署後的網址）
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://meinu2.vercel.app').replace(/\/$/, '');
@@ -98,9 +101,6 @@ export const metadata: Metadata = {
   },
 };
 
-import MaintenanceGuard from '@/components/MaintenanceGuard';
-import MobileBottomNav from '@/components/MobileBottomNav';
-
 export default function RootLayout({
   children,
 }: {
@@ -183,6 +183,7 @@ export default function RootLayout({
           </div>
           <MobileBottomNav />
         </MaintenanceGuard>
+        <VersionUpdateModal />
       </body>
     </html>
   );
