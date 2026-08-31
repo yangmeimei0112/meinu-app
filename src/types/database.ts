@@ -15,6 +15,7 @@ export interface Store {
   announcement?: string | null;
   enable_min_threshold?: boolean;
   min_threshold_amount?: number;
+  show_order_progress?: boolean;
   enable_countdown?: boolean;
   cutoff_time?: string | null;
   enable_budget_limit?: boolean;

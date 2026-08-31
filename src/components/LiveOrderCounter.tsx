@@ -20,6 +20,20 @@ export default function LiveOrderCounter({
   const [hasData, setHasData] = useState<boolean>(
     (initialCount !== undefined && initialCount > 0) || false
   );
+  const [isVisible, setIsVisible] = useState<boolean>(true);
+
+  // 監聽後台全站首頁進度顯示開關設定
+  useEffect(() => {
+    const checkVisibility = () => {
+      if (!storeId && typeof window !== 'undefined') {
+        const pref = localStorage.getItem('menu_app_show_global_order_progress');
+        setIsVisible(pref !== 'false');
+      }
+    };
+    checkVisibility();
+    window.addEventListener('storage', checkVisibility);
+    return () => window.removeEventListener('storage', checkVisibility);
+  }, [storeId]);
 
   // P1-B：使用 ref 防止組件卸載後 setState，並加入 debounce 節流 Realtime 回呼
   const isMountedRef = useRef(true);
@@ -96,7 +110,7 @@ export default function LiveOrderCounter({
     };
   }, [fetchStats, debouncedFetchStats]);
 
-  if (!hasData && count === 0) return null;
+  if (!isVisible || (!hasData && count === 0)) return null;
 
   return (
     <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-sky-500/10 dark:from-amber-950/30 dark:via-slate-900/40 dark:to-sky-950/30 border border-amber-200/60 dark:border-amber-900/40 text-slate-800 dark:text-slate-100 rounded-2xl p-3 shadow-xs flex items-center justify-between gap-2 animate-in fade-in duration-300">
@@ -118,7 +132,7 @@ export default function LiveOrderCounter({
       </div>
       <div className="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl text-[10px] font-extrabold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40 shadow-2xs shrink-0 flex items-center gap-1">
         <span>熱烈跟風中</span>
-        <TrendingUp className="w-3 h-3 text-amber-500" />
+        <TrendingUp className="w-3.5 h-3.5 text-amber-500" />
       </div>
     </div>
   );

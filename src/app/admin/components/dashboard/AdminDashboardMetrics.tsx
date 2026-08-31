@@ -12,6 +12,7 @@ import {
   Printer,
   Download,
   Megaphone,
+  Flame,
 } from 'lucide-react';
 import { AdminDashboardStatCards } from './AdminDashboardStatCards';
 import { AdminDashboardPaymentBreakdown } from './AdminDashboardPaymentBreakdown';
@@ -76,6 +77,22 @@ export function AdminDashboardMetrics({
   handleOpenManualOrderModal,
 }: AdminDashboardMetricsProps) {
   const isClosed = groupOrder?.status === 'closed';
+
+  const [isGlobalProgressOn, setIsGlobalProgressOn] = React.useState<boolean>(true);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const pref = localStorage.getItem('menu_app_show_global_order_progress');
+      setIsGlobalProgressOn(pref !== 'false');
+    }
+  }, []);
+
+  const handleToggleGlobalProgress = () => {
+    const next = !isGlobalProgressOn;
+    setIsGlobalProgressOn(next);
+    localStorage.setItem('menu_app_show_global_order_progress', String(next));
+    window.dispatchEvent(new Event('storage'));
+  };
 
   return (
     <div className="space-y-4">
@@ -186,6 +203,23 @@ export function AdminDashboardMetrics({
 
           {/* 右側：主操作按鈕群 */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* 全站首頁點餐進度開關 (全站總覽視圖) */}
+            {(selectedActiveGroupId === 'all' || !selectedActiveGroupId) && (
+              <button
+                type="button"
+                onClick={handleToggleGlobalProgress}
+                className={`text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl font-black transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer border ${
+                  isGlobalProgressOn
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 border-amber-400'
+                    : 'bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                }`}
+                title="切換前台首頁全團點餐進度卡片顯示狀態"
+              >
+                <Flame className={`w-4 h-4 ${isGlobalProgressOn ? 'text-slate-950 animate-pulse' : 'text-amber-500'}`} />
+                <span>首頁點餐進度: {isGlobalProgressOn ? '顯示中' : '已關閉'}</span>
+              </button>
+            )}
+
             {/* 開關接單按鈕 (個別店家視圖呈現) */}
             {selectedActiveGroupId !== 'all' && Boolean(selectedActiveGroupId) && (
               <button

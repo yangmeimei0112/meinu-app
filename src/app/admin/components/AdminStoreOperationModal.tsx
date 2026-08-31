@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   PauseCircle,
   Sparkles,
+  Flame,
 } from 'lucide-react';
 
 interface AdminStoreOperationModalProps {
@@ -29,6 +30,7 @@ export function AdminStoreOperationModal({
 }: AdminStoreOperationModalProps) {
   const [isAcceptingOrders, setIsAcceptingOrders] = useState<boolean>(true);
   const [announcement, setAnnouncement] = useState<string>('');
+  const [showOrderProgress, setShowOrderProgress] = useState<boolean>(true);
   const [enableMinThreshold, setEnableMinThreshold] = useState<boolean>(false);
   const [minThresholdAmount, setMinThresholdAmount] = useState<number>(300);
   const [enableCountdown, setEnableCountdown] = useState<boolean>(false);
@@ -42,6 +44,7 @@ export function AdminStoreOperationModal({
     if (targetStore) {
       setIsAcceptingOrders(targetStore.is_accepting_orders !== false);
       setAnnouncement(targetStore.announcement || '');
+      setShowOrderProgress(targetStore.show_order_progress !== false);
       setEnableMinThreshold(Boolean(targetStore.enable_min_threshold));
       setMinThresholdAmount(targetStore.min_threshold_amount || 300);
       setEnableCountdown(Boolean(targetStore.enable_countdown));
@@ -66,6 +69,7 @@ export function AdminStoreOperationModal({
       await onSaveStoreSettings(targetStore.id, {
         is_accepting_orders: isAcceptingOrders,
         announcement: announcement.trim() || null,
+        show_order_progress: showOrderProgress,
         enable_min_threshold: enableMinThreshold,
         min_threshold_amount: Number(minThresholdAmount) || 0,
         enable_countdown: enableCountdown,
@@ -97,7 +101,7 @@ export function AdminStoreOperationModal({
             </div>
             <div>
               <h3 className="font-black text-base text-slate-800 dark:text-slate-100">
-                {targetStore.name} · 即時營運設定
+                {targetStore.name} · 即時營運與進度設定
               </h3>
               <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">
                 店家代碼：#{targetStore.code || 'S-001'}
@@ -107,7 +111,7 @@ export function AdminStoreOperationModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -168,6 +172,25 @@ export function AdminStoreOperationModal({
             />
           </div>
 
+          {/* 🔥 全團點餐進度卡片顯示開關 */}
+          <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                <Flame className="w-3.5 h-3.5 text-amber-500" />
+                <span>前台顯示「全團點餐進度」卡片</span>
+              </label>
+              <input
+                type="checkbox"
+                checked={showOrderProgress}
+                onChange={(e) => setShowOrderProgress(e.target.checked)}
+                className="w-4 h-4 text-amber-500 rounded-md focus:ring-amber-500 border-slate-300 dark:border-slate-700 cursor-pointer"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              開啟後，顧客進入菜單時將在頂部即時看到目前已收到多少筆訂單與累計金額進度。
+            </p>
+          </div>
+
           {/* 🚚 免運/起送目標進度條 */}
           <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
             <div className="flex items-center justify-between">
@@ -179,7 +202,7 @@ export function AdminStoreOperationModal({
                 type="checkbox"
                 checked={enableMinThreshold}
                 onChange={(e) => setEnableMinThreshold(e.target.checked)}
-                className="w-4 h-4 text-sky-600 rounded-md focus:ring-sky-500 border-slate-300 dark:border-slate-700"
+                className="w-4 h-4 text-sky-600 rounded-md focus:ring-sky-500 border-slate-300 dark:border-slate-700 cursor-pointer"
               />
             </div>
             {enableMinThreshold && (
@@ -208,7 +231,7 @@ export function AdminStoreOperationModal({
                 type="checkbox"
                 checked={enableCountdown}
                 onChange={(e) => setEnableCountdown(e.target.checked)}
-                className="w-4 h-4 text-sky-600 rounded-md focus:ring-sky-500 border-slate-300 dark:border-slate-700"
+                className="w-4 h-4 text-sky-600 rounded-md focus:ring-sky-500 border-slate-300 dark:border-slate-700 cursor-pointer"
               />
             </div>
             {enableCountdown && (
@@ -234,7 +257,7 @@ export function AdminStoreOperationModal({
                 type="checkbox"
                 checked={enableBudgetLimit}
                 onChange={(e) => setEnableBudgetLimit(e.target.checked)}
-                className="w-4 h-4 text-sky-600 rounded-md focus:ring-sky-500 border-slate-300 dark:border-slate-700"
+                className="w-4 h-4 text-sky-600 rounded-md focus:ring-sky-500 border-slate-300 dark:border-slate-700 cursor-pointer"
               />
             </div>
             {enableBudgetLimit && (
