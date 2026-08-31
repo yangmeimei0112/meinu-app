@@ -20,8 +20,6 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
   const [nickname, setNickname] = useState<string>('');
   const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [selectedSoldOut, setSelectedSoldOut] = useState<string>('');
-  const [hasDuplicateNickname, setHasDuplicateNickname] = useState<boolean>(false);
-  const [checkingDuplicate, setCheckingDuplicate] = useState<boolean>(false);
 
   // 🛡️ 資安防護：蜜罐陷阱欄位與人類互動載入時間戳
   const [honeypotTrap, setHoneypotTrap] = useState<string>('');
@@ -44,22 +42,6 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
     isOpen: false,
     orderNumber: '',
     submissionId: '',
-  });
-
-  const [duplicateConfirmModal, setDuplicateConfirmModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    confirmText: string;
-    cancelText: string;
-    onConfirm: () => void;
-  }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    confirmText: '確定',
-    cancelText: '取消',
-    onConfirm: () => {},
   });
 
   const showToast = useCallback((msg: string) => {
@@ -128,38 +110,6 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
 
     fetchCheckoutMeta();
   }, [targetStoreId, cartItems]);
-
-  // 3. 檢查重複暱稱
-  useEffect(() => {
-    const trimmed = nickname.trim();
-    if (!trimmed) {
-      setHasDuplicateNickname(false);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setCheckingDuplicate(true);
-      try {
-        let query = supabase
-          .from('order_submissions')
-          .select('id')
-          .ilike('user_nickname', trimmed);
-
-        if (activeGroupOrder) {
-          query = query.eq('group_order_id', activeGroupOrder.id);
-        }
-
-        const { data } = await query;
-        setHasDuplicateNickname(!!(data && data.length > 0));
-      } catch (err) {
-        console.error('檢查暱稱重複失敗', err);
-      } finally {
-        setCheckingDuplicate(false);
-      }
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [nickname, activeGroupOrder]);
 
   const handleCopyAccount = useCallback(
     (text: string) => {
@@ -244,21 +194,6 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
         // 伺服端速率查詢失敗不阻斷正常流程，降級繼續
         console.warn('[Security] Server-side rate check failed, proceeding:', rateCheckErr);
       }
-    }
-
-    if (hasDuplicateNickname) {
-      setDuplicateConfirmModal({
-        isOpen: true,
-        title: '暱稱重複提醒',
-        message: `目前已有成員使用「${cleanNickname}」點餐。為避免核帳混淆，請問您是否為同一位訂購人追加餐點，或需要更換辨識暱稱？`,
-        confirmText: '確定以此暱稱送出',
-        cancelText: '我回去修改暱稱',
-        onConfirm: () => {
-          setDuplicateConfirmModal((prev) => ({ ...prev, isOpen: false }));
-          executeOrderSubmission(cleanNickname);
-        },
-      });
-      return;
     }
 
     executeOrderSubmission(cleanNickname);
@@ -485,15 +420,11 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
     setSelectedPayment,
     selectedSoldOut,
     setSelectedSoldOut,
-    checkingDuplicate,
-    hasDuplicateNickname,
     honeypotTrap,
     setHoneypotTrap,
     toastMessage,
     isSubmitting,
     successModalData,
-    duplicateConfirmModal,
-    setDuplicateConfirmModal,
     grandTotal,
     handleCopyAccount,
     handleSubmitOrder,

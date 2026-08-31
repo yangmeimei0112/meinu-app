@@ -10,7 +10,6 @@ import CheckoutSummary from './components/CheckoutSummary';
 import CheckoutCustomerForm from './components/CheckoutCustomerForm';
 import CheckoutOptions from './components/CheckoutOptions';
 import OrderSuccessModal from '@/components/OrderSuccessModal';
-import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import { ChevronLeft, ClipboardList, ArrowRight, Loader2 } from 'lucide-react';
 import { useCheckoutOrder } from './hooks/useCheckoutOrder';
 
@@ -29,15 +28,11 @@ function CheckoutContent() {
     setSelectedPayment,
     selectedSoldOut,
     setSelectedSoldOut,
-    checkingDuplicate,
-    hasDuplicateNickname,
     honeypotTrap,
     setHoneypotTrap,
     toastMessage,
     isSubmitting,
     successModalData,
-    duplicateConfirmModal,
-    setDuplicateConfirmModal,
     grandTotal,
     handleCopyAccount,
     handleSubmitOrder,
@@ -113,8 +108,6 @@ function CheckoutContent() {
             <CheckoutCustomerForm
               nickname={nickname}
               onNicknameChange={setNickname}
-              checkingDuplicate={checkingDuplicate}
-              hasDuplicateNickname={hasDuplicateNickname}
             />
 
             {/* 3. 付款方式與 4. 缺貨備案 */}
@@ -154,18 +147,6 @@ function CheckoutContent() {
         submissionId={successModalData.submissionId}
         storeName={successModalData.storeName}
         totalAmount={successModalData.totalAmount}
-      />
-
-      {/* ⚠️ 同暱稱防撞二次確認自訂彈窗 */}
-      <DoubleConfirmModal
-        isOpen={duplicateConfirmModal.isOpen}
-        title={duplicateConfirmModal.title}
-        message={duplicateConfirmModal.message}
-        confirmText={duplicateConfirmModal.confirmText}
-        cancelText={duplicateConfirmModal.cancelText}
-        isDanger={false}
-        onConfirm={duplicateConfirmModal.onConfirm}
-        onCancel={() => setDuplicateConfirmModal((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );
