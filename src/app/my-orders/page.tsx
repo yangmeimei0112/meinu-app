@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
+import { mergeCartItems } from '@/lib/useMultiCart';
 import { ClipboardList, ChevronLeft } from 'lucide-react';
 import { useToast } from '@/lib/useToast';
 import { MyOrderHistoryCard, OrderHistoryRecord } from './components/MyOrderHistoryCard';
@@ -105,7 +106,7 @@ export default function MyOrdersPage() {
     multiCart[storeId] = {
       storeId,
       storeName,
-      items: [...existingStoreCart, ...newCartItems],
+      items: mergeCartItems([...existingStoreCart, ...newCartItems]),
     };
 
     localStorage.setItem('menu_app_multi_cart', JSON.stringify(multiCart));

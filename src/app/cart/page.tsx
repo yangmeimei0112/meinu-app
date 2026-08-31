@@ -9,6 +9,7 @@ import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import { supabase } from '@/lib/supabase';
 import { MultiStoreCart, CartItem } from '@/types/cart';
 import { MenuItem, GroupOrder, Store } from '@/types/database';
+import { mergeCartItems } from '@/lib/useMultiCart';
 import { ShoppingCart, ChevronLeft } from 'lucide-react';
 import { CartEmptyState } from './components/CartEmptyState';
 import { CartStoreGroup } from './components/CartStoreGroup';
@@ -218,9 +219,12 @@ export default function MultiCartPage() {
     const group = updated[storeId];
     if (!group) return;
 
-    group.items = group.items.map((i) =>
+    // 替換修改後的品項，並自動合併相同規格 (餐點+客製化+備註) 的項目
+    const replacedItems = group.items.map((i) =>
       i.cartItemId === editingCartItem.cartItemId ? updatedItem : i
     );
+    group.items = mergeCartItems(replacedItems);
+
     saveMultiCart(updated);
     setEditingCartItem(null);
     setEditingMenuItem(null);
