@@ -41,6 +41,7 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
     countdown,
     isCountDownFinished,
     isCenterPopup,
+    dismissCenterPopup,
     isMinimized,
     setIsMinimized,
     handleManualCheck,
@@ -97,7 +98,7 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
                 <div className="space-y-1.5">
                   <h3 className="text-lg font-black text-amber-400">該頁面即將進入維護模式</h3>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    {maintenanceData.message || '該頁面預計於倒數結束後開始維護，請儘速完成並送出您的操作！'}
+                    {maintenanceData?.message || '該頁面預計於倒數結束後開始維護，請儘速完成並送出您的操作！'}
                   </p>
                 </div>
                 <div className="bg-slate-800/80 rounded-2xl p-3 border border-slate-700">
@@ -106,8 +107,8 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
                 </div>
                 <button
                   type="button"
-                  onClick={() => {}}
-                  className="text-xs text-slate-400 hover:text-slate-200 transition underline underline-offset-4"
+                  onClick={dismissCenterPopup}
+                  className="text-xs text-amber-400 hover:text-amber-300 font-bold transition px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 cursor-pointer"
                 >
                   我知道了，繼續操作
                 </button>

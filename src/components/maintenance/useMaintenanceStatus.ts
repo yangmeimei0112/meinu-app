@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import type { MaintenanceData } from './MaintenanceScreen';
 import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
 
@@ -56,214 +56,363 @@ export async function forceHardReloadToLatestVersion(targetUrl?: string) {
   }
 }
 
-export function useMaintenanceStatus(currentPathname: string = '/') {
-  // 🌟 1. 同步自 localStorage / sessionStorage 讀取維護狀態（0ms 瞬間鎖定）
-  const [maintenanceData, setMaintenanceData] = useState<MaintenanceData | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.is_maintenance) {
-            return parsed;
-          }
-        }
-      } catch {}
+// 深度比較前後兩次維護資料是否完全相同，防止無意義的 React 重新渲染
+function isMaintenanceDataEqual(a: MaintenanceData | null, b: MaintenanceData | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.is_maintenance === b.is_maintenance &&
+    a.scope === b.scope &&
+    a.title === b.title &&
+    a.message === b.message &&
+    a.estimated_end_time === b.estimated_end_time &&
+    a.reason === b.reason &&
+    a.custom_image_url === b.custom_image_url &&
+    a.updated_at === b.updated_at
+  );
+}
+
+// =========================================================================
+// 🌟 單例全域狀態中樞 (Singleton Global Maintenance Store)
+// 解決多處重複調用 Hook 導致的定時器衝突、重複發送網路請求與 60fps 重繪閃爍問題
+// =========================================================================
+
+interface MaintenanceStoreState {
+  maintenanceData: MaintenanceData | null;
+  isCountDownFinished: boolean;
+  countdown: number | null;
+  isCenterPopup: boolean;
+}
+
+function getInitialStoreState(): MaintenanceStoreState {
+  if (typeof window === 'undefined') {
+    return {
+      maintenanceData: null,
+      isCountDownFinished: false,
+      countdown: null,
+      isCenterPopup: false,
+    };
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
+    let initialData: MaintenanceData | null = null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.is_maintenance) {
+        initialData = parsed;
+      }
     }
-    return null;
-  });
 
-  const [isCountDownFinished, setIsCountDownFinished] = useState<boolean>(() => {
+    const isLocked =
+      localStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
+      sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
+      !!initialData?.is_maintenance;
+
+    return {
+      maintenanceData: initialData,
+      isCountDownFinished: isLocked,
+      countdown: null,
+      isCenterPopup: false,
+    };
+  } catch {
+    return {
+      maintenanceData: null,
+      isCountDownFinished: false,
+      countdown: null,
+      isCenterPopup: false,
+    };
+  }
+}
+
+class MaintenanceStore {
+  private state: MaintenanceStoreState = getInitialStoreState();
+  private listeners: Set<() => void> = new Set();
+  private pollInterval: any = null;
+  private countdownInterval: any = null;
+  private centerPopupTimeout: any = null;
+  private deadlineTimestamp: number | null = null;
+  private initialCheckDone: boolean = false;
+  private wasInMaintenance: boolean = false;
+  private isFetching: boolean = false;
+
+  constructor() {
     if (typeof window !== 'undefined') {
-      try {
-        const isLocked =
-          localStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
-          sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true';
-        if (isLocked) return true;
-
-        const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && parsed.is_maintenance) {
-            return true;
-          }
+      const savedDeadline = sessionStorage.getItem(STORAGE_KEY_DEADLINE) || localStorage.getItem(STORAGE_KEY_DEADLINE);
+      if (savedDeadline) {
+        const num = Number(savedDeadline);
+        if (!isNaN(num) && num > Date.now()) {
+          this.deadlineTimestamp = num;
         }
-      } catch {}
+      }
     }
-    return false;
-  });
+  }
 
-  const [checking, setChecking] = useState<boolean>(false);
-  const [checkMessage, setCheckMessage] = useState<string | null>(null);
+  public getState(): MaintenanceStoreState {
+    return this.state;
+  }
 
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [smoothProgress, setSmoothProgress] = useState<number>(100);
-  const [isCenterPopup, setIsCenterPopup] = useState<boolean>(false);
-  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
 
-  const initialCheckDoneRef = useRef<boolean>(false);
-  const deadlineRef = useRef<number | null>(null);
-  const wasInMaintenanceRef = useRef<boolean>(false);
+    if (this.listeners.size === 1) {
+      this.startPolling();
+    }
 
-  // 2. 輪詢查詢伺服端維護狀態
-  const fetchMaintenanceStatus = useCallback(async () => {
+    return () => {
+      this.listeners.delete(listener);
+      if (this.listeners.size === 0) {
+        this.stopPolling();
+      }
+    };
+  }
+
+  private setState(partial: Partial<MaintenanceStoreState>) {
+    let hasChanged = false;
+    const nextState = { ...this.state };
+
+    for (const key of Object.keys(partial) as (keyof MaintenanceStoreState)[]) {
+      if (key === 'maintenanceData') {
+        if (!isMaintenanceDataEqual(this.state.maintenanceData, partial.maintenanceData ?? null)) {
+          nextState.maintenanceData = partial.maintenanceData ?? null;
+          hasChanged = true;
+        }
+      } else if (nextState[key] !== partial[key]) {
+        (nextState as any)[key] = partial[key];
+        hasChanged = true;
+      }
+    }
+
+    if (hasChanged) {
+      this.state = nextState;
+      this.listeners.forEach((listener) => listener());
+    }
+  }
+
+  public dismissCenterPopup() {
+    if (this.centerPopupTimeout) {
+      clearTimeout(this.centerPopupTimeout);
+      this.centerPopupTimeout = null;
+    }
+    this.setState({ isCenterPopup: false });
+  }
+
+  public async fetchStatus(): Promise<MaintenanceData | null> {
+    if (this.isFetching) return this.state.maintenanceData;
+    this.isFetching = true;
+
     try {
       const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
       if (res.ok) {
         const json: MaintenanceData = await res.json();
-
-        if (json.is_maintenance) {
-          wasInMaintenanceRef.current = true;
-
-          try {
-            localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
-            sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
-          } catch {}
-
-          // 🛡️ 若使用者是剛進入網站或「重新載入 (Reload) 頁面」，直接鎖定全螢幕
-          if (!initialCheckDoneRef.current) {
-            setIsCountDownFinished(true);
-            setCountdown(null);
-            try {
-              localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-              sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-            } catch {}
-          } else if (!maintenanceData?.is_maintenance && !deadlineRef.current) {
-            const targetDeadline = Date.now() + 30000;
-            deadlineRef.current = targetDeadline;
-            try {
-              sessionStorage.setItem(STORAGE_KEY_DEADLINE, String(targetDeadline));
-              localStorage.setItem(STORAGE_KEY_DEADLINE, String(targetDeadline));
-            } catch {}
-
-            setCountdown(30);
-            setSmoothProgress(100);
-            setIsCenterPopup(true);
-
-            setTimeout(() => {
-              setIsCenterPopup(false);
-            }, 3000);
-          }
-
-          setMaintenanceData(json);
-        } else {
-          // 伺服端已關閉維護模式
-          const wasActuallyLocked =
-            sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
-            localStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
-            (wasInMaintenanceRef.current && isCountDownFinished);
-
-          try {
-            sessionStorage.removeItem(STORAGE_KEY_DEADLINE);
-            sessionStorage.removeItem(STORAGE_KEY_LOCKED);
-            sessionStorage.removeItem(STORAGE_KEY_DATA);
-            localStorage.removeItem(STORAGE_KEY_DEADLINE);
-            localStorage.removeItem(STORAGE_KEY_LOCKED);
-            localStorage.removeItem(STORAGE_KEY_DATA);
-          } catch {}
-
-          if (wasActuallyLocked) {
-            wasInMaintenanceRef.current = false;
-            deadlineRef.current = null;
-            forceHardReloadToLatestVersion();
-            return json;
-          }
-
-          wasInMaintenanceRef.current = false;
-          deadlineRef.current = null;
-          setCountdown(null);
-          setSmoothProgress(100);
-          setIsCountDownFinished(false);
-          setIsCenterPopup(false);
-          setIsMinimized(false);
-          setMaintenanceData(json);
-        }
-
-        initialCheckDoneRef.current = true;
+        this.handleNewData(json);
         return json;
       }
     } catch (e) {
-      console.error('查詢維護狀態失敗', e);
+      console.warn('[Maintenance] Polling error:', e);
+    } finally {
+      this.isFetching = false;
     }
     return null;
-  }, [isCountDownFinished, maintenanceData]);
+  }
 
-  // 3. 背景定時輪詢 (背景分頁智慧暫停：切到背景或縮小視窗時自動暫停，切回網站時立即查詢並繼續每 1 秒發送)
-  useEffect(() => {
-    fetchMaintenanceStatus();
+  private handleNewData(json: MaintenanceData) {
+    if (json.is_maintenance) {
+      this.wasInMaintenance = true;
 
-    // 視窗重新獲得焦點或分頁切換回前景時，立即查詢一次
-    const handleVisibilityOrFocus = () => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        fetchMaintenanceStatus();
+      try {
+        localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
+        sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
+      } catch {}
+
+      // 若為初次載入或已直接鎖定
+      if (!this.initialCheckDone) {
+        this.initialCheckDone = true;
+        this.setState({
+          maintenanceData: json,
+          isCountDownFinished: true,
+          countdown: null,
+          isCenterPopup: false,
+        });
+        try {
+          localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
+          sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
+        } catch {}
+        return;
       }
-    };
 
-    window.addEventListener('focus', handleVisibilityOrFocus);
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+      // 若正在瀏覽中且先前非維護狀態，啟動 30 秒倒數與中央醒目提醒
+      if (!this.state.maintenanceData?.is_maintenance && !this.deadlineTimestamp && !this.state.isCountDownFinished) {
+        const targetDeadline = Date.now() + 30000;
+        this.deadlineTimestamp = targetDeadline;
+        try {
+          sessionStorage.setItem(STORAGE_KEY_DEADLINE, String(targetDeadline));
+          localStorage.setItem(STORAGE_KEY_DEADLINE, String(targetDeadline));
+        } catch {}
 
-    // 每 1 秒輪詢一次；分頁處於背景時智慧暫停發送
-    const timer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      fetchMaintenanceStatus();
-    }, 1000);
+        this.startCountdownTimer();
+        this.setState({
+          maintenanceData: json,
+          countdown: 30,
+          isCenterPopup: true,
+        });
 
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-    };
-  }, [fetchMaintenanceStatus]);
+        if (this.centerPopupTimeout) clearTimeout(this.centerPopupTimeout);
+        this.centerPopupTimeout = setTimeout(() => {
+          this.setState({ isCenterPopup: false });
+        }, 3500);
+      } else {
+        this.setState({ maintenanceData: json });
+      }
+    } else {
+      // 伺服端維護已結束
+      const wasLocked =
+        this.state.isCountDownFinished ||
+        this.wasInMaintenance ||
+        (typeof window !== 'undefined' &&
+          (sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' || localStorage.getItem(STORAGE_KEY_LOCKED) === 'true'));
 
-  // 4. 60fps 平滑進度條
-  useEffect(() => {
-    if (!deadlineRef.current) return;
-    let animId: number;
+      this.cleanupStorage();
+      this.stopCountdownTimer();
+      this.wasInMaintenance = false;
+      this.initialCheckDone = true;
 
-    const updateSmoothProgress = () => {
-      if (!deadlineRef.current) return;
-      const remainingMs = deadlineRef.current - Date.now();
-      if (remainingMs <= 0) {
-        setSmoothProgress(0);
-        setCountdown(0);
-        setIsCountDownFinished(true);
-        wasInMaintenanceRef.current = true;
+      if (wasLocked) {
+        forceHardReloadToLatestVersion();
+        return;
+      }
+
+      this.setState({
+        maintenanceData: json,
+        isCountDownFinished: false,
+        countdown: null,
+        isCenterPopup: false,
+      });
+    }
+
+    this.initialCheckDone = true;
+  }
+
+  private startCountdownTimer() {
+    if (this.countdownInterval) return;
+
+    this.countdownInterval = setInterval(() => {
+      if (!this.deadlineTimestamp) {
+        this.stopCountdownTimer();
+        return;
+      }
+
+      const remainingSecs = Math.max(0, Math.ceil((this.deadlineTimestamp - Date.now()) / 1000));
+      if (remainingSecs <= 0) {
+        this.stopCountdownTimer();
+        this.setState({
+          countdown: 0,
+          isCountDownFinished: true,
+          isCenterPopup: false,
+        });
         try {
           sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
           localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
         } catch {}
-        return;
+      } else {
+        this.setState({ countdown: remainingSecs });
       }
-      const progressPercent = (remainingMs / 30000) * 100;
-      setSmoothProgress(Math.max(0, Math.min(100, progressPercent)));
-      setCountdown(Math.ceil(remainingMs / 1000));
-      animId = requestAnimationFrame(updateSmoothProgress);
-    };
+    }, 1000);
+  }
 
-    animId = requestAnimationFrame(updateSmoothProgress);
-    return () => cancelAnimationFrame(animId);
-  }, [countdown]);
+  private stopCountdownTimer() {
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+    this.deadlineTimestamp = null;
+  }
 
-  // 5. 訪客於鎖定畫面點擊「立即重試」
-  const handleManualCheck = async () => {
+  private cleanupStorage() {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY_DEADLINE);
+      sessionStorage.removeItem(STORAGE_KEY_LOCKED);
+      sessionStorage.removeItem(STORAGE_KEY_DATA);
+      localStorage.removeItem(STORAGE_KEY_DEADLINE);
+      localStorage.removeItem(STORAGE_KEY_LOCKED);
+      localStorage.removeItem(STORAGE_KEY_DATA);
+    } catch {}
+  }
+
+  private startPolling() {
+    if (this.pollInterval) return;
+
+    // 立即檢查一次
+    this.fetchStatus();
+
+    // 註冊頁面可見度事件
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', this.onFocusOrVisible);
+      document.addEventListener('visibilitychange', this.onFocusOrVisible);
+    }
+
+    // 平穩輪詢間隔 (2.5 秒)
+    this.pollInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      this.fetchStatus();
+    }, 2500);
+  }
+
+  private onFocusOrVisible = () => {
+    if (typeof document !== 'undefined' && !document.hidden) {
+      this.fetchStatus();
+    }
+  };
+
+  private stopPolling() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('focus', this.onFocusOrVisible);
+      document.removeEventListener('visibilitychange', this.onFocusOrVisible);
+    }
+  }
+}
+
+const globalMaintenanceStore = new MaintenanceStore();
+
+// =========================================================================
+// 🪝 供 React 元件使用的訂閱 Hook (Zero-flicker useMaintenanceStatus)
+// =========================================================================
+
+export function useMaintenanceStatus(currentPathname: string = '/') {
+  const state = useSyncExternalStore(
+    (callback) => globalMaintenanceStore.subscribe(callback),
+    () => globalMaintenanceStore.getState(),
+    () => ({
+      maintenanceData: null,
+      isCountDownFinished: false,
+      countdown: null,
+      isCenterPopup: false,
+    })
+  );
+
+  const [checking, setChecking] = useState<boolean>(false);
+  const [checkMessage, setCheckMessage] = useState<string | null>(null);
+  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+
+  // 訪客手動檢查狀態按鈕
+  const handleManualCheck = useCallback(async () => {
     setChecking(true);
     setCheckMessage(null);
     try {
-      const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
-      if (res.ok) {
-        const json: MaintenanceData = await res.json();
-        const isInMaintenance = json.is_maintenance && isRouteInMaintenance(currentPathname, json.scope);
-
+      const data = await globalMaintenanceStore.fetchStatus();
+      if (data) {
+        const isInMaintenance = data.is_maintenance && isRouteInMaintenance(currentPathname, data.scope);
         if (!isInMaintenance) {
           setCheckMessage('✅ 該頁面維護已完成！即將自動為您整理並載入最新版本...');
           setTimeout(() => {
             forceHardReloadToLatestVersion(currentPathname || '/');
           }, 800);
-          return;
         } else {
           setCheckMessage('⏳ 系統仍在維護升級中，請稍候再試...');
-          setMaintenanceData(json);
-          setIsCountDownFinished(true);
         }
       } else {
         setCheckMessage('連線異常，請稍後再試');
@@ -273,16 +422,20 @@ export function useMaintenanceStatus(currentPathname: string = '/') {
     } finally {
       setChecking(false);
     }
-  };
+  }, [currentPathname]);
+
+  const dismissCenterPopup = useCallback(() => {
+    globalMaintenanceStore.dismissCenterPopup();
+  }, []);
 
   return {
-    maintenanceData,
+    maintenanceData: state.maintenanceData,
     checking,
     checkMessage,
-    countdown,
-    smoothProgress,
-    isCountDownFinished,
-    isCenterPopup,
+    countdown: state.countdown,
+    isCountDownFinished: state.isCountDownFinished,
+    isCenterPopup: state.isCenterPopup,
+    dismissCenterPopup,
     isMinimized,
     setIsMinimized,
     handleManualCheck,
