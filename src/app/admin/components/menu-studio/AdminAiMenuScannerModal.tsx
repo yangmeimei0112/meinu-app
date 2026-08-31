@@ -8,17 +8,15 @@ import {
   X,
   Key,
   AlertTriangle,
-  CheckCircle2,
-  ExternalLink,
-  XCircle,
   Activity,
-  Coffee,
-  UtensilsCrossed,
   ShieldCheck,
-  Zap,
 } from 'lucide-react';
 import { compressMenuImage } from '@/lib/imageCompressor';
 import { AdminAiMenuReviewTable, RecognizedItem } from './AdminAiMenuReviewTable';
+import { MOCK_BEVERAGE_ITEMS, MOCK_BENTO_ITEMS } from './mockMenuPresets';
+import { AiScannerApiKeyDrawer } from './scanner/AiScannerApiKeyDrawer';
+import { AiScannerProcessingStage } from './scanner/AiScannerProcessingStage';
+import { AiScannerQuickPresets } from './scanner/AiScannerQuickPresets';
 
 interface AdminAiMenuScannerModalProps {
   isOpen: boolean;
@@ -31,157 +29,6 @@ interface AdminAiMenuScannerModalProps {
 type ScanStep = 'upload' | 'processing' | 'review';
 
 const LOCAL_STORAGE_KEY_API_KEY = 'meinu_custom_gemini_api_key';
-
-// 🥤 示範用手搖飲料菜單範本
-const MOCK_BEVERAGE_ITEMS: RecognizedItem[] = [
-  {
-    tempId: 'mock_1',
-    name: '珍珠奶茶',
-    price: 50,
-    description: '經典慢火熬煮黑糖波霸搭配香醇奶茶',
-    category: '招牌特調',
-    is_sold_out: false,
-    selected: true,
-    custom_groups: [
-      {
-        id: 'cg_sweet_1',
-        title: '甜度選擇',
-        type: 'single',
-        options: [
-          { id: 'opt_s1', name: '正常甜 (100%)', price: 0 },
-          { id: 'opt_s2', name: '少糖 (70%)', price: 0 },
-          { id: 'opt_s3', name: '半糖 (50%)', price: 0 },
-          { id: 'opt_s4', name: '微糖 (30%)', price: 0, is_default: true },
-          { id: 'opt_s5', name: '無糖 (0%)', price: 0 },
-        ],
-      },
-      {
-        id: 'cg_ice_1',
-        title: '冰塊選擇',
-        type: 'single',
-        options: [
-          { id: 'opt_i1', name: '正常冰', price: 0 },
-          { id: 'opt_i2', name: '少冰', price: 0, is_default: true },
-          { id: 'opt_i3', name: '微冰', price: 0 },
-          { id: 'opt_i4', name: '去冰', price: 0 },
-        ],
-      },
-      {
-        id: 'cg_add_1',
-        title: '加料專區',
-        type: 'multiple',
-        options: [
-          { id: 'opt_a1', name: '黑糖波霸', price: 10 },
-          { id: 'opt_a2', name: '椰果', price: 10 },
-          { id: 'opt_a3', name: '仙草凍', price: 10 },
-        ],
-      },
-    ],
-  },
-  {
-    tempId: 'mock_2',
-    name: '四季春茶',
-    price: 35,
-    description: '嚴選南投高山四季春，茶韻甘醇不澀口',
-    category: '原葉純茶',
-    is_sold_out: false,
-    selected: true,
-    custom_groups: [
-      {
-        id: 'cg_sweet_2',
-        title: '甜度選擇',
-        type: 'single',
-        options: [
-          { id: 'opt_s21', name: '微糖 (30%)', price: 0, is_default: true },
-          { id: 'opt_s22', name: '無糖 (0%)', price: 0 },
-        ],
-      },
-      {
-        id: 'cg_ice_2',
-        title: '冰塊選擇',
-        type: 'single',
-        options: [
-          { id: 'opt_i21', name: '少冰', price: 0, is_default: true },
-          { id: 'opt_i22', name: '去冰', price: 0 },
-        ],
-      },
-    ],
-  },
-  {
-    tempId: 'mock_3',
-    name: '紅茶拿鐵 (鮮奶茶)',
-    price: 60,
-    description: '斯里蘭卡莊園紅茶與濃醇鮮乳黃金比例',
-    category: '鮮奶拿鐵',
-    is_sold_out: false,
-    selected: true,
-    custom_groups: [],
-  },
-  {
-    tempId: 'mock_4',
-    name: '鮮橙翡翠綠',
-    price: 65,
-    description: '新鮮柳橙鮮榨原汁與清香翡翠綠茶',
-    category: '鮮果鮮茶',
-    is_sold_out: false,
-    selected: true,
-    custom_groups: [],
-  },
-];
-
-// 🍱 示範用便當快餐菜單範本
-const MOCK_BENTO_ITEMS: RecognizedItem[] = [
-  {
-    tempId: 'mock_b1',
-    name: '招牌酥炸排骨便當',
-    price: 110,
-    description: '現炸厚切秘製排骨，附三樣當季配菜與滷蛋',
-    category: '人氣便當',
-    is_sold_out: false,
-    selected: true,
-    custom_groups: [
-      {
-        id: 'cg_rice_1',
-        title: '飯量選擇',
-        type: 'single',
-        options: [
-          { id: 'opt_r1', name: '正常飯量', price: 0, is_default: true },
-          { id: 'opt_r2', name: '大份加飯', price: 10 },
-          { id: 'opt_r3', name: '少飯 (減醣)', price: 0 },
-        ],
-      },
-      {
-        id: 'cg_side_1',
-        title: '附餐升級',
-        type: 'single',
-        options: [
-          { id: 'opt_sd1', name: '當日例湯', price: 0, is_default: true },
-          { id: 'opt_sd2', name: '冰檸檬紅茶', price: 15 },
-        ],
-      },
-    ],
-  },
-  {
-    tempId: 'mock_b2',
-    name: '經典香酥大雞腿飯',
-    price: 125,
-    description: '黃金酥脆超大份量鮮嫩雞腿，皮脆多汁',
-    category: '人氣便當',
-    is_sold_out: false,
-    selected: true,
-    custom_groups: [],
-  },
-  {
-    tempId: 'mock_b3',
-    name: '泰式椒麻雞便當',
-    price: 120,
-    description: '特調酸辣椒麻醬汁，去骨雞腿酥脆可口',
-    category: '特色主廚',
-    is_sold_out: false,
-    selected: true,
-    custom_groups: [],
-  },
-];
 
 export default function AdminAiMenuScannerModal({
   isOpen,
@@ -261,28 +108,48 @@ export default function AdminAiMenuScannerModal({
       try {
         json = JSON.parse(rawText);
       } catch {
-        throw new Error(`自主診斷探針異常 (${res.status}): ${rawText.slice(0, 100)}`);
+        json = { success: false, message: `伺服端回應非 JSON：${rawText.slice(0, 100)}` };
       }
 
-      if (json.diagnostic) {
-        setDiagResult(json.diagnostic);
-      } else {
-        setDiagResult({
-          healthy: false,
-          message: json.message || '診斷未能取得詳細指標',
-        });
-      }
+      setDiagResult({
+        healthy: json.success && json.diagnosis?.available,
+        message: json.message || (json.success ? '連線診斷完畢' : '診斷失敗'),
+        latency: json.diagnosis?.latencyMs,
+        supportedModels: json.diagnosis?.supportedModels || [],
+      });
     } catch (e: any) {
       setDiagResult({
         healthy: false,
-        message: e.message || '執行自主偵錯時發生錯誤',
+        message: `偵錯請求連線失敗: ${e?.message || '網路異常'}`,
       });
     } finally {
       setIsDiagnosing(false);
     }
   };
 
-  // 處理圖片檔案上傳與 AI 解析
+  // 載入示範用範本資料
+  const handleLoadMockData = (type: 'beverage' | 'bento') => {
+    const mockData = type === 'beverage' ? MOCK_BEVERAGE_ITEMS : MOCK_BENTO_ITEMS;
+    setRecognizedItems(JSON.parse(JSON.stringify(mockData)));
+    setCurrentStep('review');
+    setErrorMessage(null);
+  };
+
+  // 取消當前進行中的 AI 掃描
+  const handleCancelScan = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    if (stageTimerRef.current) {
+      clearInterval(stageTimerRef.current);
+      stageTimerRef.current = null;
+    }
+    setCurrentStep('upload');
+    setProcessStage(1);
+  };
+
+  // 核心上傳與壓縮發送邏輯
   const handleProcessImageFile = async (file: File) => {
     try {
       setErrorMessage(null);
@@ -291,23 +158,23 @@ export default function AdminAiMenuScannerModal({
       setCurrentStep('processing');
       setProcessStage(1);
 
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
 
-      // 1. 本地 Canvas 智慧壓縮 (2400px 超清畫質)
-      const compressed = await compressMenuImage(file, 2400, 0.90);
+      stageTimerRef.current = setInterval(() => {
+        setProcessStage((prev) => (prev < 3 ? prev + 1 : prev));
+      }, 3500);
 
-      // 2. 模擬多階段視覺反饋
+      // 1. 本地圖片壓縮
+      const compressed = await compressMenuImage(file, 2048, 0.85);
+
       setProcessStage(2);
-      stageTimerRef.current = setTimeout(() => {
-        setProcessStage(3);
-      }, 1500);
 
-      // 3. 發送至後端 API
+      // 2. 發送至後端 Gemini 視覺解析 API
       const res = await fetch('/api/admin/menu/ai-parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: abortController.signal,
+        signal: controller.signal,
         body: JSON.stringify({
           imageBase64: compressed.base64,
           mimeType: compressed.mimeType,
@@ -316,58 +183,64 @@ export default function AdminAiMenuScannerModal({
         }),
       });
 
-      if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
+      if (stageTimerRef.current) {
+        clearInterval(stageTimerRef.current);
+        stageTimerRef.current = null;
+      }
 
-      // 🛡️ 安全解析 JSON 回應
       const rawText = await res.text();
       let json: any = null;
       try {
         json = JSON.parse(rawText);
       } catch {
-        throw new Error(
-          `伺服端回應非預期格式 (${res.status})，請確認網路連線或稍後再試。原始回傳：${rawText.slice(0, 100)}`
-        );
+        throw new Error(`伺服端回傳非預期格式: ${rawText.slice(0, 100)}...`);
       }
 
-      if (json.debugTrace && Array.isArray(json.debugTrace)) {
-        setDebugTrace(json.debugTrace);
-      }
-
-      if (!json.success) {
-        if (json.needsApiKey) {
-          setShowKeyDrawer(true);
+      if (!res.ok || !json.success) {
+        if (json.details?.debugLogs) {
+          setDebugTrace(json.details.debugLogs);
         }
-        throw new Error(json.message || 'AI 菜單解析失敗');
+        throw new Error(json.message || 'AI 辨識過程發生未預期的錯誤');
       }
 
-      if (!json.items || json.items.length === 0) {
-        throw new Error('未能識別出有效的菜單品項，請嘗試更換較清晰的照片');
+      const items: RecognizedItem[] = (json.data?.items || []).map(
+        (item: any, idx: number) => ({
+          tempId: `recognized_${Date.now()}_${idx}`,
+          name: item.name || '未命名餐點',
+          price: typeof item.price === 'number' ? item.price : 0,
+          description: item.description || '',
+          category: item.category || '精選推薦',
+          is_sold_out: false,
+          selected: true,
+          custom_groups: (item.custom_groups || []).map((cg: any, cgIdx: number) => ({
+            id: `cg_${Date.now()}_${idx}_${cgIdx}`,
+            title: cg.title || '規格選項',
+            type: cg.type || 'single',
+            options: (cg.options || []).map((opt: any, optIdx: number) => ({
+              id: `opt_${Date.now()}_${idx}_${cgIdx}_${optIdx}`,
+              name: opt.name || '選項',
+              price: typeof opt.price === 'number' ? opt.price : 0,
+              is_default: !!opt.is_default,
+            })),
+          })),
+        })
+      );
+
+      if (items.length === 0) {
+        throw new Error('未能在圖片中辨識出任何有效餐點品項，請確認拍攝角度或清晰度。');
       }
 
-      setRecognizedItems(json.items);
+      setRecognizedItems(items);
       setCurrentStep('review');
-    } catch (e: any) {
-      if (e.name === 'AbortError' || e.message?.includes('aborted') || e.message?.includes('中斷')) {
-        console.log('使用者已手動取消 AI 菜單掃描');
-        setCurrentStep('upload');
-        return;
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      if (stageTimerRef.current) {
+        clearInterval(stageTimerRef.current);
+        stageTimerRef.current = null;
       }
-      console.error('AI 辨識失敗:', e);
-      setErrorMessage(e.message || '處理圖片時發生錯誤');
       setCurrentStep('upload');
-    } finally {
-      abortControllerRef.current = null;
+      setErrorMessage(err.message || '辨識失敗，請檢查網路連線或更換圖片重試。');
     }
-  };
-
-  // 手動取消當前 AI 掃描
-  const handleCancelScan = () => {
-    if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    handleReset();
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -375,48 +248,33 @@ export default function AdminAiMenuScannerModal({
     if (file) {
       handleProcessImageFile(file);
     }
+    e.target.value = '';
   };
 
-  // 重置回上傳步驟
   const handleReset = () => {
-    if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
     setCurrentStep('upload');
     setRecognizedItems([]);
     setErrorMessage(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
-  };
-
-  // 🧰 載入模擬示範資料
-  const handleLoadMockData = (type: 'beverage' | 'bento') => {
-    const items = type === 'beverage' ? MOCK_BEVERAGE_ITEMS : MOCK_BENTO_ITEMS;
-    setRecognizedItems(items);
-    setErrorMessage(null);
-    setCurrentStep('review');
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#0E1524] rounded-3xl max-w-2xl w-full border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* 頂部 Header */}
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-[#131B2B] w-full max-w-4xl rounded-3xl overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col max-h-[92vh]">
+        {/* 頂部標題區 */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/40">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-sky-500/20">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <span>AI 拍照智能匯入菜單</span>
-                <span className="text-[10px] bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded-full font-mono font-bold">
-                  Gemini Flash Vision
+                <span>AI 智慧菜單拍攝辨識</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 border border-sky-200/60 dark:border-sky-800/60">
+                  Gemini Vision 2.5
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                目標店家：<span className="text-sky-600 dark:text-sky-400 font-bold">{storeName}</span>
+                店家：<span className="font-bold text-slate-700 dark:text-slate-200">{storeName}</span>
               </p>
             </div>
           </div>
@@ -498,53 +356,13 @@ export default function AdminAiMenuScannerModal({
         )}
 
         {/* 🔑 API Key 自訂設定收合抽屜 */}
-        {showKeyDrawer && (
-          <div className="bg-slate-50 dark:bg-slate-900/90 p-4 border-b border-slate-200 dark:border-slate-800 space-y-3 animate-in slide-in-from-top duration-200">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h5 className="text-xs font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-sky-500" />
-                  <span>設定 Google Gemini API Key（免費額度可用）</span>
-                </h5>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  若伺服端未設定環境變數，您可在此直接貼上金鑰，將安全保存在本機瀏覽器中。
-                </p>
-              </div>
-              <a
-                href="https://aistudio.google.com/"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] font-bold text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1 shrink-0"
-              >
-                <span>30秒免費取得</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="password"
-                value={customApiKey}
-                onChange={(e) => setCustomApiKey(e.target.value)}
-                placeholder="貼上您的 Gemini API Key (AIzaSy...)"
-                className="flex-1 px-3.5 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
-              />
-              <button
-                type="button"
-                onClick={handleSaveApiKey}
-                className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold px-4 py-2 rounded-xl transition shadow-xs active:scale-95 cursor-pointer"
-              >
-                儲存金鑰
-              </button>
-            </div>
-            {keySavedToast && (
-              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>金鑰已成功儲存於瀏覽器！</span>
-              </span>
-            )}
-          </div>
-        )}
+        <AiScannerApiKeyDrawer
+          showKeyDrawer={showKeyDrawer}
+          customApiKey={customApiKey}
+          setCustomApiKey={setCustomApiKey}
+          onSaveApiKey={handleSaveApiKey}
+          keySavedToast={keySavedToast}
+        />
 
         {/* 彈窗內容主體 */}
         <div className="p-6 overflow-y-auto flex-1">
@@ -651,33 +469,7 @@ export default function AdminAiMenuScannerModal({
               </div>
 
               {/* ✨ 模擬測試與範本快速載入區 */}
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 text-amber-500" />
-                    <span>模擬測試與示範載入（免拍菜單立即試用）：</span>
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => handleLoadMockData('beverage')}
-                    className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-sky-50 dark:hover:bg-slate-700 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                  >
-                    <Coffee className="w-3.5 h-3.5 text-sky-500" />
-                    <span>載入手搖飲料示範菜單 (50嵐/得正)</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleLoadMockData('bento')}
-                    className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-slate-700 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-slate-700 transition flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
-                  >
-                    <UtensilsCrossed className="w-3.5 h-3.5 text-amber-500" />
-                    <span>載入便當快餐示範菜單 (排骨/雞腿便當)</span>
-                  </button>
-                </div>
-              </div>
+              <AiScannerQuickPresets onLoadMockData={handleLoadMockData} />
 
               {/* 拍攝小提示 */}
               <div className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-900/50 p-4 rounded-2xl space-y-1.5 text-xs text-amber-900 dark:text-amber-200">
@@ -696,55 +488,10 @@ export default function AdminAiMenuScannerModal({
 
           {/* STEP 2: AI 解析中進度動畫 */}
           {currentStep === 'processing' && (
-            <div className="py-8 text-center space-y-6 animate-in fade-in">
-              <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border-4 border-sky-500/20 border-t-sky-500 animate-spin" />
-                <div className="w-16 h-16 rounded-2xl bg-sky-500/10 text-sky-500 flex items-center justify-center">
-                  <Sparkles className="w-8 h-8 animate-pulse" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-                  AI 正在深度閱讀與解析菜單內容...
-                </h4>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                  {processStage === 1 && '正在進行本地圖片超解析度優化與 EXIF 方向校正...'}
-                  {processStage === 2 && 'AI 正在分析菜單排版、多欄架構與餐點價格...'}
-                  {processStage === 3 && '正在提取客製化規格選項（甜度、冰塊、加料加價）...'}
-                </p>
-              </div>
-
-              {/* 三階段進度徽章 */}
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <div className={`flex items-center gap-1 text-[11px] font-bold ${processStage >= 1 ? 'text-sky-500' : 'text-slate-400'}`}>
-                  <span className="w-2 h-2 rounded-full bg-current" />
-                  <span>1. 圖片最佳化</span>
-                </div>
-                <div className="w-4 h-px bg-slate-300 dark:bg-slate-700" />
-                <div className={`flex items-center gap-1 text-[11px] font-bold ${processStage >= 2 ? 'text-sky-500' : 'text-slate-400'}`}>
-                  <span className="w-2 h-2 rounded-full bg-current" />
-                  <span>2. 視覺結構解析</span>
-                </div>
-                <div className="w-4 h-px bg-slate-300 dark:bg-slate-700" />
-                <div className={`flex items-center gap-1 text-[11px] font-bold ${processStage >= 3 ? 'text-sky-500' : 'text-slate-400'}`}>
-                  <span className="w-2 h-2 rounded-full bg-current" />
-                  <span>3. 規格生成</span>
-                </div>
-              </div>
-
-              {/* 🛑 取消掃描按鍵 */}
-              <div className="pt-4">
-                <button
-                  type="button"
-                  onClick={handleCancelScan}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 bg-slate-100 hover:bg-rose-50 dark:bg-slate-800/90 dark:hover:bg-rose-950/40 px-4 py-2 rounded-xl transition border border-slate-200 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-800 shadow-2xs active:scale-95 cursor-pointer"
-                >
-                  <XCircle className="w-4 h-4 text-slate-400 group-hover:text-rose-500" />
-                  <span>取消當前掃描</span>
-                </button>
-              </div>
-            </div>
+            <AiScannerProcessingStage
+              processStage={processStage}
+              onCancelScan={handleCancelScan}
+            />
           )}
 
           {/* STEP 3: 人機協同檢驗表格 */}

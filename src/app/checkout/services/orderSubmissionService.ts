@@ -1,0 +1,262 @@
+import { supabase } from '@/lib/supabase';
+import { CartItem, MultiStoreCart } from '@/types/cart';
+import { GroupOrder } from '@/types/database';
+import { sanitizeInput } from '@/lib/security';
+import { generateSequentialOrderNumber } from '@/lib/order-utils';
+
+export interface OrderSubmissionParams {
+  targetStoreId: string;
+  cartItems: CartItem[];
+  cleanNickname: string;
+  selectedPayment: string;
+  selectedSoldOut: string;
+  activeGroupOrder: GroupOrder | null;
+  grandTotal: number;
+}
+
+export interface OrderSubmissionResult {
+  orderNumber: string;
+  submissionId: string;
+  storeName: string;
+  totalAmount: number;
+}
+
+/**
+ * 📦 結帳送單核心資料庫作業服務
+ * 包含：訂單編號流水號生成、訂單主表記錄、明細餐點與選項寫入、本地多店家購物車清理、即時快照預載
+ */
+export async function executeOrderSubmissionPipeline({
+  targetStoreId,
+  cartItems,
+  cleanNickname,
+  selectedPayment,
+  selectedSoldOut,
+  activeGroupOrder,
+  grandTotal,
+}: OrderSubmissionParams): Promise<OrderSubmissionResult> {
+  const storeId = targetStoreId || cartItems[0]?.storeId;
+  if (!storeId) throw new Error('缺少店家資訊');
+
+  // 1. 檢查店家是否處於接單中狀態
+  const { data: currentStore } = await supabase
+    .from('stores')
+    .select('is_accepting_orders, enable_countdown, cutoff_time')
+    .eq('id', storeId)
+    .maybeSingle();
+
+  if (currentStore) {
+    let isStoreAccepting = currentStore.is_accepting_orders !== false;
+    if (currentStore.enable_countdown && currentStore.cutoff_time) {
+      const remainingSecs = Math.floor((new Date(currentStore.cutoff_time).getTime() - Date.now()) / 1000);
+      if (remainingSecs <= 0) {
+        isStoreAccepting = false;
+      }
+    }
+
+    if (!isStoreAccepting) {
+      throw new Error('該店家目前處於暫停接單狀態，無法送出新訂單！');
+    }
+  }
+
+  let activeGroupId = activeGroupOrder?.id;
+
+  if (!activeGroupId) {
+    const { data: existingGroup } = await supabase
+      .from('group_orders')
+      .select('id')
+      .eq('store_id', storeId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingGroup) {
+      activeGroupId = existingGroup.id;
+    } else {
+      try {
+        const { data: newGroup, error: groupErr } = await supabase
+          .from('group_orders')
+          .insert([
+            {
+              store_id: storeId,
+              title: `${cartItems[0]?.storeName || '美味餐點'} 點餐團`,
+              status: 'open',
+            },
+          ])
+          .select('id')
+          .single();
+        if (!groupErr && newGroup) {
+          activeGroupId = (newGroup as { id: string }).id;
+        }
+      } catch {
+        const { data: fallbackGroup } = await supabase.from('group_orders').select('id').limit(1).maybeSingle();
+        if (fallbackGroup) activeGroupId = fallbackGroup.id;
+      }
+    }
+  }
+
+  const orderNumber = activeGroupId
+    ? await generateSequentialOrderNumber(supabase, activeGroupId)
+    : `MN-${Math.floor(100 + Math.random() * 900)}`;
+
+  const safeGrandTotal = Math.max(0, Math.round(grandTotal));
+
+  const subPayload: any = {
+    group_order_id: activeGroupId || null,
+    store_id: storeId,
+    status: 'active',
+    user_nickname: cleanNickname,
+    payment_method_name: sanitizeInput(selectedPayment, 40),
+    sold_out_option: sanitizeInput(selectedSoldOut, 40),
+    total_amount: safeGrandTotal,
+    final_amount: safeGrandTotal,
+    order_number: orderNumber,
+    is_paid: false,
+  };
+
+  let { data: submission, error: subErr } = await supabase
+    .from('order_submissions')
+    .insert([subPayload])
+    .select('id')
+    .single();
+
+  // 🛡️ 容錯防護：若 Supabase schema 尚未包含 store_id 或 status 欄位，自動降級重試
+  if (subErr && (subErr.message?.includes('store_id') || subErr.message?.includes('status') || subErr.code === 'PGRST204')) {
+    delete subPayload.store_id;
+    delete subPayload.status;
+    const retry = await supabase
+      .from('order_submissions')
+      .insert([subPayload])
+      .select('id')
+      .single();
+    submission = retry.data;
+    subErr = retry.error;
+  }
+
+  if (subErr || !submission) throw subErr || new Error('建立訂單記錄失敗');
+
+  const itemsPayload = cartItems.map((item) => {
+    const optionsText = (item.selectedOptions || []).map((o) => o.itemName).filter(Boolean).join(', ');
+    const notesText = item.customNotes ? `備註: ${item.customNotes}` : '';
+    const combinedNotes = [optionsText, notesText].filter(Boolean).join(' | ');
+
+    return {
+      submission_id: submission.id,
+      item_name: sanitizeInput(item.name, 60),
+      quantity: Math.max(1, Math.min(99, item.quantity)),
+      unit_price: Math.max(0, Math.round(item.unitPrice)),
+      custom_notes: combinedNotes ? sanitizeInput(combinedNotes, 150) : null,
+    };
+  });
+
+  const { data: insertedItems, error: itemsErr } = await supabase
+    .from('order_items')
+    .insert(itemsPayload)
+    .select('id');
+
+  if (itemsErr) throw itemsErr;
+
+  // 嘗試寫入 order_item_options（若表存在），若失敗靜默略過，不阻斷下單流程
+  try {
+    if (insertedItems) {
+      const optionsPayload: Array<{
+        order_item_id: string;
+        option_name: string;
+        extra_price: number;
+      }> = [];
+
+      insertedItems.forEach((dbItem, idx) => {
+        const cartItem = cartItems[idx];
+        if (cartItem && cartItem.selectedOptions) {
+          cartItem.selectedOptions.forEach((opt) => {
+            optionsPayload.push({
+              order_item_id: dbItem.id,
+              option_name: sanitizeInput(opt.itemName, 40),
+              extra_price: Math.max(0, Math.round(opt.extraPrice)),
+            });
+          });
+        }
+      });
+
+      if (optionsPayload.length > 0) {
+        await supabase.from('order_item_options').insert(optionsPayload);
+      }
+    }
+  } catch (optErr) {
+    console.warn('寫入 order_item_options 略過:', optErr);
+  }
+
+  // 送單成功後，從多店家購物車中移除該店家
+  if (typeof window !== 'undefined') {
+    const savedMulti = localStorage.getItem('menu_app_multi_cart');
+    if (savedMulti) {
+      try {
+        const parsed: MultiStoreCart = JSON.parse(savedMulti);
+        delete parsed[storeId];
+        localStorage.setItem('menu_app_multi_cart', JSON.stringify(parsed));
+      } catch {}
+    }
+
+    localStorage.setItem('menu_app_last_order_id', submission.id);
+    localStorage.setItem('menu_app_has_new_order', 'true');
+    try {
+      const historyRaw = localStorage.getItem('menu_app_order_history');
+      const historyList: string[] = historyRaw ? JSON.parse(historyRaw) : [];
+      if (!historyList.includes(submission.id)) {
+        historyList.unshift(submission.id);
+        localStorage.setItem('menu_app_order_history', JSON.stringify(historyList.slice(0, 50)));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    try {
+      window.dispatchEvent(new Event('menu_app_orders_updated'));
+      window.dispatchEvent(new Event('storage'));
+    } catch {}
+
+    // ⚡ 建立訂單背景預載入快取（跳轉至訂單狀態頁 0ms 瞬開）
+    try {
+      const preloadedCache = {
+        order: {
+          id: submission.id,
+          group_order_id: activeGroupId,
+          order_number: orderNumber,
+          user_nickname: cleanNickname,
+          payment_method_name: sanitizeInput(selectedPayment, 40),
+          sold_out_option: sanitizeInput(selectedSoldOut, 40),
+          total_amount: safeGrandTotal,
+          final_amount: safeGrandTotal,
+          is_paid: false,
+          created_at: new Date().toISOString(),
+        },
+        orderItems: itemsPayload.map((item, idx) => ({
+          id: insertedItems?.[idx]?.id || `item-${idx}`,
+          item_name: item.item_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          custom_notes: item.custom_notes || null,
+        })),
+        groupOrder: activeGroupOrder
+          ? {
+              id: activeGroupOrder.id,
+              store_id: activeGroupOrder.store_id,
+              status: activeGroupOrder.status,
+              stores: {
+                id: activeGroupOrder.store_id,
+                name: cartItems[0]?.storeName || '店家',
+              },
+            }
+          : null,
+      };
+      sessionStorage.setItem(`meinu_order_cache_${submission.id}`, JSON.stringify(preloadedCache));
+    } catch (e) {
+      console.error('儲存訂單預載快取失敗', e);
+    }
+  }
+
+  return {
+    orderNumber,
+    submissionId: submission.id,
+    storeName: cartItems[0]?.storeName || '',
+    totalAmount: safeGrandTotal,
+  };
+}

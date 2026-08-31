@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
 import { PaymentMethod, SoldOutOption, GroupOrder } from '@/types/database';
 import { sanitizeInput, checkRateLimit, isHumanInteractionTime } from '@/lib/security';
-import { generateSequentialOrderNumber } from '@/lib/order-utils';
+import { executeOrderSubmissionPipeline } from '../services/orderSubmissionService';
 
 interface UseCheckoutOrderProps {
   targetStoreId: string;
@@ -174,8 +174,7 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
       return;
     }
 
-    // 🛡️ M1 修復：伺服端速率限制（補強純客戶端 localStorage 可被清除繞過的弱點）
-    // 查詢同暱稱在最近 5 分鐘內的訂單筆數，超過 5 筆視為異常刷單行為
+    // 伺服端速率限制：同暱稱在最近 5 分鐘內的訂單筆數，超過 5 筆視為異常
     if (activeGroupOrder?.id && cleanNickname) {
       try {
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -191,248 +190,34 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
           return;
         }
       } catch (rateCheckErr) {
-        // 伺服端速率查詢失敗不阻斷正常流程，降級繼續
         console.warn('[Security] Server-side rate check failed, proceeding:', rateCheckErr);
       }
     }
 
-    executeOrderSubmission(cleanNickname);
-  };
-
-  const executeOrderSubmission = async (cleanNickname: string) => {
     setIsSubmitting(true);
     try {
       localStorage.setItem('menu_app_user_nickname', cleanNickname);
 
-      const storeId = targetStoreId || cartItems[0]?.storeId;
-      if (!storeId) throw new Error('缺少店家資訊');
-
-      // 🛡️ 檢查店家是否處於接單中狀態（防刷單與暫停接單防護）
-      const { data: currentStore } = await supabase
-        .from('stores')
-        .select('is_accepting_orders, enable_countdown, cutoff_time')
-        .eq('id', storeId)
-        .maybeSingle();
-
-      if (currentStore) {
-        let isStoreAccepting = currentStore.is_accepting_orders !== false;
-        if (currentStore.enable_countdown && currentStore.cutoff_time) {
-          const remainingSecs = Math.floor((new Date(currentStore.cutoff_time).getTime() - Date.now()) / 1000);
-          if (remainingSecs <= 0) {
-            isStoreAccepting = false;
-          }
-        }
-
-        if (!isStoreAccepting) {
-          showToast('該店家目前處於暫停接單狀態，無法送出新訂單！');
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      let activeGroupId = activeGroupOrder?.id;
-
-      if (!activeGroupId) {
-        const { data: existingGroup } = await supabase
-          .from('group_orders')
-          .select('id')
-          .eq('store_id', storeId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (existingGroup) {
-          activeGroupId = existingGroup.id;
-        } else {
-          try {
-            const { data: newGroup, error: groupErr } = await supabase
-              .from('group_orders')
-              .insert([
-                {
-                  store_id: storeId,
-                  title: `${cartItems[0]?.storeName || '美味餐點'} 點餐團`,
-                  status: 'open',
-                },
-              ])
-              .select('id')
-              .single();
-            if (!groupErr && newGroup) {
-              activeGroupId = (newGroup as { id: string }).id;
-            }
-          } catch {
-            // 降級嘗試抓取任意現存活動
-            const { data: fallbackGroup } = await supabase.from('group_orders').select('id').limit(1).maybeSingle();
-            if (fallbackGroup) activeGroupId = fallbackGroup.id;
-          }
-        }
-      }
-
-      const orderNumber = activeGroupId
-        ? await generateSequentialOrderNumber(supabase, activeGroupId)
-        : `MN-${Math.floor(100 + Math.random() * 900)}`;
-
-      const safeGrandTotal = Math.max(0, Math.round(grandTotal));
-
-      const subPayload: any = {
-        group_order_id: activeGroupId || null,
-        store_id: storeId,
-        status: 'active',
-        user_nickname: cleanNickname,
-        payment_method_name: sanitizeInput(selectedPayment, 40),
-        sold_out_option: sanitizeInput(selectedSoldOut, 40),
-        total_amount: safeGrandTotal,
-        final_amount: safeGrandTotal,
-        order_number: orderNumber,
-        is_paid: false,
-      };
-
-      let { data: submission, error: subErr } = await supabase
-        .from('order_submissions')
-        .insert([subPayload])
-        .select('id')
-        .single();
-
-      // 🛡️ 容錯防護：若 Supabase schema 尚未包含 store_id 或 status 欄位，自動降級重試
-      if (subErr && (subErr.message?.includes('store_id') || subErr.message?.includes('status') || subErr.code === 'PGRST204')) {
-        delete subPayload.store_id;
-        delete subPayload.status;
-        const retry = await supabase
-          .from('order_submissions')
-          .insert([subPayload])
-          .select('id')
-          .single();
-        submission = retry.data;
-        subErr = retry.error;
-      }
-
-      if (subErr || !submission) throw subErr || new Error('建立訂單記錄失敗');
-
-      const itemsPayload = cartItems.map((item) => {
-        const optionsText = (item.selectedOptions || []).map((o) => o.itemName).filter(Boolean).join(', ');
-        const notesText = item.customNotes ? `備註: ${item.customNotes}` : '';
-        const combinedNotes = [optionsText, notesText].filter(Boolean).join(' | ');
-
-        return {
-          submission_id: submission.id,
-          item_name: sanitizeInput(item.name, 60),
-          quantity: Math.max(1, Math.min(99, item.quantity)),
-          unit_price: Math.max(0, Math.round(item.unitPrice)),
-          custom_notes: combinedNotes ? sanitizeInput(combinedNotes, 150) : null,
-        };
+      const result = await executeOrderSubmissionPipeline({
+        targetStoreId,
+        cartItems,
+        cleanNickname,
+        selectedPayment,
+        selectedSoldOut,
+        activeGroupOrder,
+        grandTotal,
       });
-
-      const { data: insertedItems, error: itemsErr } = await supabase
-        .from('order_items')
-        .insert(itemsPayload)
-        .select('id');
-
-      if (itemsErr) throw itemsErr;
-
-      // 嘗試寫入 order_item_options（若表存在），若失敗靜默略過，不阻斷下單流程
-      try {
-        if (insertedItems) {
-          const optionsPayload: Array<{
-            order_item_id: string;
-            option_name: string;
-            extra_price: number;
-          }> = [];
-
-          insertedItems.forEach((dbItem, idx) => {
-            const cartItem = cartItems[idx];
-            if (cartItem && cartItem.selectedOptions) {
-              cartItem.selectedOptions.forEach((opt) => {
-                optionsPayload.push({
-                  order_item_id: dbItem.id,
-                  option_name: sanitizeInput(opt.itemName, 40),
-                  extra_price: Math.max(0, Math.round(opt.extraPrice)),
-                });
-              });
-            }
-          });
-
-          if (optionsPayload.length > 0) {
-            await supabase.from('order_item_options').insert(optionsPayload);
-          }
-        }
-      } catch (optErr) {
-        console.warn('寫入 order_item_options 略過:', optErr);
-      }
-
-      // 送單成功後，從多店家購物車中移除該店家
-      const savedMulti = localStorage.getItem('menu_app_multi_cart');
-      if (savedMulti) {
-        const parsed: MultiStoreCart = JSON.parse(savedMulti);
-        delete parsed[storeId];
-        localStorage.setItem('menu_app_multi_cart', JSON.stringify(parsed));
-      }
-
-      // 儲存至單一最新與歷史訂單清單
-      localStorage.setItem('menu_app_last_order_id', submission.id);
-      localStorage.setItem('menu_app_has_new_order', 'true');
-      try {
-        const historyRaw = localStorage.getItem('menu_app_order_history');
-        const historyList: string[] = historyRaw ? JSON.parse(historyRaw) : [];
-        if (!historyList.includes(submission.id)) {
-          historyList.unshift(submission.id);
-          localStorage.setItem('menu_app_order_history', JSON.stringify(historyList.slice(0, 50)));
-        }
-      } catch (e) {
-        console.error(e);
-      }
-      try {
-        window.dispatchEvent(new Event('menu_app_orders_updated'));
-        window.dispatchEvent(new Event('storage'));
-      } catch {}
-
-      // ⚡ 建立訂單背景預載入快取（跳轉至訂單狀態頁 0ms 瞬開）
-      try {
-        const preloadedCache = {
-          order: {
-            id: submission.id,
-            group_order_id: activeGroupId,
-            order_number: orderNumber,
-            user_nickname: cleanNickname,
-            payment_method_name: sanitizeInput(selectedPayment, 40),
-            sold_out_option: sanitizeInput(selectedSoldOut, 40),
-            total_amount: safeGrandTotal,
-            final_amount: safeGrandTotal,
-            is_paid: false,
-            created_at: new Date().toISOString(),
-          },
-          orderItems: itemsPayload.map((item, idx) => ({
-            id: insertedItems?.[idx]?.id || `item-${idx}`,
-            item_name: item.item_name,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            custom_notes: item.custom_notes || null,
-          })),
-          groupOrder: activeGroupOrder
-            ? {
-                id: activeGroupOrder.id,
-                store_id: activeGroupOrder.store_id,
-                status: activeGroupOrder.status,
-                stores: {
-                  id: activeGroupOrder.store_id,
-                  name: cartItems[0]?.storeName || '店家',
-                },
-              }
-            : null,
-        };
-        sessionStorage.setItem(`meinu_order_cache_${submission.id}`, JSON.stringify(preloadedCache));
-      } catch (e) {
-        console.error('儲存訂單預載快取失敗', e);
-      }
 
       setSuccessModalData({
         isOpen: true,
-        orderNumber,
-        submissionId: submission.id,
-        storeName: cartItems[0]?.storeName || '',
-        totalAmount: safeGrandTotal,
+        orderNumber: result.orderNumber,
+        submissionId: result.submissionId,
+        storeName: result.storeName,
+        totalAmount: result.totalAmount,
       });
-    } catch (err) {
-      console.error(err);
-      showToast('送出失敗，請重試或檢查網路連線');
+    } catch (err: any) {
+      console.error('送單出錯:', err);
+      showToast(err?.message || '送出失敗，請重試或檢查網路連線');
     } finally {
       setIsSubmitting(false);
     }
