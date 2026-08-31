@@ -62,7 +62,7 @@ export default function OrderSuccessModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="order-success-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 dark:bg-black/85 backdrop-blur-md animate-in fade-in duration-300"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 dark:bg-black/85 backdrop-blur-md animate-in fade-in duration-300"
     >
       <div className="relative w-full max-w-sm bg-white dark:bg-[#111827] rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 dark:border-slate-800 text-center space-y-4 animate-in zoom-in-95 duration-300 overflow-hidden">
         {/* 背景氛圍柔和光暈 */}

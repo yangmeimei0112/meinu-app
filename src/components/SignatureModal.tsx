@@ -80,7 +80,7 @@ export default function SignatureModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-slate-800 animate-in zoom-in-95 duration-150 text-center">
         <div>
           <h3 className="text-base font-extrabold flex items-center justify-center gap-1.5">

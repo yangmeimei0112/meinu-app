@@ -14,8 +14,8 @@ export function CustomModalFooter({
   onConfirm,
 }: CustomModalFooterProps) {
   return (
-    <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between gap-3">
-      <div>
+    <div className="p-4 pb-[max(1.25rem,calc(env(safe-area-inset-bottom,0px)+0.75rem))] border-t border-slate-100 dark:border-slate-800 bg-slate-50/95 dark:bg-[#0E1524]/95 backdrop-blur-md flex items-center justify-between gap-3 shadow-lg">
+      <div className="shrink-0">
         <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold block">合計金額</span>
         <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">${itemTotalPrice} 元</span>
       </div>
