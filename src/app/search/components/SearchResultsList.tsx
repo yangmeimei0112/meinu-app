@@ -59,53 +59,76 @@ export function SearchResultsList({
         </div>
       ) : (
         <div className="space-y-2.5">
-          {searchResults.map((store) => (
-            <Link
-              key={store.id}
-              href={`/stores/${store.code || store.id}`}
-              onMouseEnter={() => prefetchStoreData(store.id)}
-              onTouchStart={() => prefetchStoreData(store.id)}
-              onClick={() => onSelectStore(store.name)}
-              className="bg-white dark:bg-[#131B2B] rounded-2xl p-3.5 border border-slate-100 dark:border-slate-800 shadow-2xs hover:border-sky-200 dark:hover:border-sky-500/40 hover:shadow-xs transition active:scale-[0.99] flex items-center justify-between gap-3 group cursor-pointer"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/60 flex items-center justify-center text-xl shrink-0 overflow-hidden">
-                  {store.image_url ? (
-                    <img
-                      src={store.image_url}
-                      alt={store.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <StoreIcon className="w-5 h-5 text-sky-500" />
-                  )}
-                </div>
+          {searchResults.map((store) => {
+            const isAccepting =
+              store.is_accepting_orders !== false &&
+              !(
+                store.enable_countdown &&
+                store.cutoff_time &&
+                new Date(store.cutoff_time).getTime() <= Date.now()
+              );
 
-                <div className="min-w-0">
-                  <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate group-hover:text-sky-500 transition-colors">
-                    {store.name}
-                  </h4>
-                  <div className="flex items-center gap-2 mt-1">
-                    {store.category_id && categoryMap[store.category_id] && (
-                      <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold px-1.5 py-0.5 rounded">
-                        {categoryMap[store.category_id]}
-                      </span>
+            return (
+              <Link
+                key={store.id}
+                href={`/stores/${store.code || store.id}`}
+                onMouseEnter={() => prefetchStoreData(store.id)}
+                onTouchStart={() => prefetchStoreData(store.id)}
+                onClick={() => onSelectStore(store.name)}
+                className={`bg-white dark:bg-[#131B2B] rounded-2xl p-3.5 border shadow-2xs transition active:scale-[0.99] flex items-center justify-between gap-3 group cursor-pointer ${
+                  isAccepting
+                    ? 'border-slate-100 dark:border-slate-800 hover:border-sky-200 dark:hover:border-sky-500/40 hover:shadow-xs'
+                    : 'border-slate-200/60 dark:border-slate-800/60 opacity-65 grayscale-35 hover:opacity-90 hover:grayscale-0'
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-12 h-12 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/60 flex items-center justify-center text-xl shrink-0 overflow-hidden">
+                    {store.image_url ? (
+                      <img
+                        src={store.image_url}
+                        alt={store.name}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <StoreIcon className="w-5 h-5 text-sky-500" />
                     )}
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      代號：{store.code || 'S-001'}
-                    </span>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate group-hover:text-sky-500 transition-colors">
+                        {store.name}
+                      </h4>
+                      {!isAccepting && (
+                        <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-1.5 py-0.2 rounded-full border border-amber-200/60 dark:border-amber-800/80 shrink-0">
+                          ⏸️ 暫停接單
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      {store.category_id && categoryMap[store.category_id] && (
+                        <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold px-1.5 py-0.5 rounded">
+                          {categoryMap[store.category_id]}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        代號：{store.code || 'S-001'}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <span className="inline-flex items-center gap-0.5 text-sky-500 text-xs font-black shrink-0 group-hover:translate-x-0.5 transition-transform">
-                <span>進入點餐</span>
-                <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
-              </span>
-            </Link>
-          ))}
+                <span className={`inline-flex items-center gap-0.5 text-xs font-black shrink-0 group-hover:translate-x-0.5 transition-transform ${
+                  isAccepting ? 'text-sky-500' : 'text-slate-400'
+                }`}>
+                  <span>{isAccepting ? '進入點餐' : '查看菜單'}</span>
+                  <ChevronRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                </span>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

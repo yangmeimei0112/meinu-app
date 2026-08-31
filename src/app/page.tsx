@@ -107,10 +107,20 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  // 記憶化店家篩選結果 (支援店名與 S-??? 編號即時搜尋)
+  // 輔助檢查店家是否處於營業接單狀態
+  const checkIsStoreAccepting = (store: Store): boolean => {
+    if (store.is_accepting_orders === false) return false;
+    if (store.enable_countdown && store.cutoff_time) {
+      const remaining = new Date(store.cutoff_time).getTime() - Date.now();
+      if (remaining <= 0) return false;
+    }
+    return true;
+  };
+
+  // 記憶化店家篩選與智慧沉底排序（營業中置頂，暫停接單自動排到底部）
   const filteredStores = useMemo(() => {
     const query = debouncedSearch.trim().toLowerCase();
-    return stores.filter((store: Store) => {
+    const matched = stores.filter((store: Store) => {
       const matchesCategory =
         selectedCategory === 'all' || store.category_id === selectedCategory;
       const matchesSearch =
@@ -119,6 +129,15 @@ export default function HomePage() {
         (store.code && store.code.toLowerCase().includes(query)) ||
         (store.code && store.code.replace(/\D/g, '').includes(query));
       return matchesCategory && matchesSearch;
+    });
+
+    return matched.sort((a, b) => {
+      const aAccepting = checkIsStoreAccepting(a) ? 1 : 0;
+      const bAccepting = checkIsStoreAccepting(b) ? 1 : 0;
+      if (aAccepting !== bAccepting) {
+        return bAccepting - aAccepting; // 營業中在前，暫停接單沉底
+      }
+      return 0;
     });
   }, [stores, selectedCategory, debouncedSearch]);
 
@@ -195,46 +214,73 @@ export default function HomePage() {
                 <p className="text-xs text-slate-400 dark:text-slate-600 mt-1">請嘗試其他搜尋關鍵字或分類</p>
               </div>
             ) : (
-              filteredStores.map((store: Store) => (
-                <Link
-                  key={store.id}
-                  href={`/stores/${store.code || store.id}`}
-                  onMouseEnter={() => prefetchStoreData(store.id)}
-                  onTouchStart={() => prefetchStoreData(store.id)}
-                  className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-200/80 dark:border-slate-800 flex items-center gap-3.5 hover:shadow-md hover:border-sky-400 dark:hover:border-sky-500/60 transition-all duration-200 group active:scale-[0.99] relative overflow-hidden shadow-2xs"
-                >
-                  {/* 店家代碼標籤 (S-001) */}
-                  <span className="absolute top-3 right-3 text-[10px] font-extrabold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/80 px-2 py-0.5 rounded-full border border-sky-200/60 dark:border-sky-800/80 tracking-wide font-mono">
-                    #{store.code || 'S-001'}
-                  </span>
+              filteredStores.map((store: Store) => {
+                const isAccepting = checkIsStoreAccepting(store);
 
-                  <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-[#182234] flex items-center justify-center shrink-0 overflow-hidden border border-slate-100 dark:border-slate-800/80">
-                    {store.image_url ? (
-                      <img
-                        src={store.image_url}
-                        alt={store.name}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <StoreIcon className="w-7 h-7 text-sky-500" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate group-hover:text-sky-500 transition-colors">
-                      {store.name}
-                    </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">點擊瀏覽完整菜單與選購</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="inline-block bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/60">
-                        開放揪團中
+                return (
+                  <Link
+                    key={store.id}
+                    href={`/stores/${store.code || store.id}`}
+                    onMouseEnter={() => prefetchStoreData(store.id)}
+                    onTouchStart={() => prefetchStoreData(store.id)}
+                    className={`bg-white dark:bg-[#131B2B] rounded-3xl p-4 border flex items-center gap-3.5 hover:shadow-md transition-all duration-200 group active:scale-[0.99] relative overflow-hidden shadow-2xs ${
+                      isAccepting
+                        ? 'border-slate-200/80 dark:border-slate-800 hover:border-sky-400 dark:hover:border-sky-500/60'
+                        : 'border-slate-200/60 dark:border-slate-800/60 opacity-65 grayscale-35 hover:opacity-90 hover:grayscale-0'
+                    }`}
+                  >
+                    {/* 右上角標籤區 (店家代碼與暫停接單標註) */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                      {!isAccepting && (
+                        <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-200/60 dark:border-amber-800/80">
+                          ⏸️ 暫停接單
+                        </span>
+                      )}
+                      <span className="text-[10px] font-extrabold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/80 px-2 py-0.5 rounded-full border border-sky-200/60 dark:border-sky-800/80 tracking-wide font-mono">
+                        #{store.code || 'S-001'}
                       </span>
                     </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-sky-500 group-hover:translate-x-0.5 transition-all" />
-                </Link>
-              ))
+
+                    <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-[#182234] flex items-center justify-center shrink-0 overflow-hidden border border-slate-100 dark:border-slate-800/80">
+                      {store.image_url ? (
+                        <img
+                          src={store.image_url}
+                          alt={store.name}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <StoreIcon className="w-7 h-7 text-sky-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate group-hover:text-sky-500 transition-colors">
+                        {store.name}
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">點擊瀏覽完整菜單與選購</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        {isAccepting ? (
+                          store.enable_countdown && store.cutoff_time ? (
+                            <span className="inline-flex items-center gap-1 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-amber-200 dark:border-amber-800/60 animate-pulse">
+                              ⏱️ 倒數收單中
+                            </span>
+                          ) : (
+                            <span className="inline-block bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800/60">
+                              營業接單中
+                            </span>
+                          )
+                        ) : (
+                          <span className="inline-block bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                            暫停接單（可瀏覽菜單）
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-sky-500 group-hover:translate-x-0.5 transition-all" />
+                  </Link>
+                );
+              })
             )}
           </div>
         </main>

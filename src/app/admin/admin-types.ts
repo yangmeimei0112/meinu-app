@@ -9,6 +9,7 @@ export interface OrderItemAdmin {
 export interface OrderSubmissionAdmin {
   id: string;
   group_order_id?: string;
+  store_id?: string;
   store_name?: string;
   order_number: string;
   user_nickname: string;

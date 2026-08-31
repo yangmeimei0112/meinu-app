@@ -149,23 +149,47 @@ export function useAdminOrderActions({
     if (activeGroup) {
       const { error } = await supabase.from('group_orders').update(updatedData).eq('id', activeGroup.id);
       if (error) throw error;
-      showToast('團購活動設定與公告已更新！');
+
+      // 同步更新 stores 表
+      await supabase
+        .from('stores')
+        .update({
+          announcement: updatedData.announcement,
+          enable_min_threshold: updatedData.enable_min_threshold,
+          min_threshold_amount: updatedData.min_threshold_amount,
+          enable_countdown: updatedData.enable_countdown,
+          cutoff_time: updatedData.cutoff_time,
+          enable_budget_limit: updatedData.enable_budget_limit,
+          budget_limit_amount: updatedData.budget_limit_amount,
+        })
+        .eq('id', updatedData.store_id || activeGroup.store_id || activeGroup.id);
+
+      showToast('店家即時營運設定與公告已成功儲存！');
     } else {
       const { error } = await supabase.from('group_orders').insert([{ ...updatedData, status: 'open' }]);
       if (error) throw error;
-      showToast('新團購活動已成功發起！');
+      showToast('新店家營運活動已成功開啟！');
     }
     fetchAdminData();
   };
 
-  // 6. 切換活動收單狀態
+  // 6. 切換店家接單狀態
   const handleToggleGroupStatus = async (newStatus: 'open' | 'closed') => {
     if (!activeGroup) return;
     const { error } = await supabase.from('group_orders').update({ status: newStatus }).eq('id', activeGroup.id);
 
+    const storeTargetId = activeGroup.store_id || activeGroup.id;
+    if (storeTargetId) {
+      await supabase
+        .from('stores')
+        .update({ is_accepting_orders: newStatus === 'open' })
+        .eq('id', storeTargetId);
+    }
+
     if (!error) {
       setActiveGroup({ ...activeGroup, status: newStatus });
-      showToast(`活動已切換為：${newStatus === 'closed' ? '已截單 (停止收單)' : '開放收單中'}`);
+      showToast(`店家接單狀態已切換為：${newStatus === 'closed' ? '⏸️ 暫停接單中' : '🟢 開放接單中'}`);
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
     }
   };
 

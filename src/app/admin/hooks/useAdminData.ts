@@ -14,46 +14,6 @@ interface RawOrderItemRow {
   unit_price: number;
 }
 
-interface RawSubmissionRow {
-  id: string;
-  order_number: string;
-  user_nickname: string;
-  payment_method_name: string;
-  sold_out_option: string | null;
-  total_amount: number;
-  final_amount: number;
-  is_paid: boolean;
-  signature_data: string | null;
-  created_at: string;
-  group_order_id: string;
-  group_orders?: { title: string; stores?: { name: string } | null } | null;
-  order_items?: Array<{
-    id: string;
-    item_name: string;
-    quantity: number;
-    unit_price: number;
-    custom_notes: string | null;
-  }> | null;
-}
-
-interface RawGroupOrderRow {
-  id: string;
-  store_id: string;
-  title: string;
-  status: 'open' | 'closed' | 'completed';
-  announcement: string | null;
-  delivery_fee: number;
-  discount_amount: number;
-  rounding_rule: string;
-  enable_min_threshold?: boolean;
-  min_threshold_amount?: number;
-  enable_countdown?: boolean;
-  cutoff_time?: string | null;
-  enable_budget_limit?: boolean;
-  budget_limit_amount?: number;
-  stores?: { id: string; name: string; image_url?: string | null } | null;
-}
-
 interface UseAdminDataProps {
   isUnlocked: boolean;
   playChimeSound: () => void;
@@ -193,12 +153,14 @@ export function useAdminData({
     [isSoundEnabled, isSpeechEnabled, playChimeSound, speakOrder, showToast]
   );
 
-  // ⚡ 根據選中的店家/活動在記憶體中即時過濾訂單，0ms 切換無重整或閃爍
+  // ⚡ 根據選中的店家/活動在記憶體中即時過濾訂單，0ms 切換無重整或閃爍（始終保留全部店家總覽）
   const submissions = useMemo(() => {
     if (!selectedActiveGroupId || selectedActiveGroupId === 'all') {
       return allSubmissions;
     }
-    return allSubmissions.filter((s) => s.group_order_id === selectedActiveGroupId);
+    return allSubmissions.filter(
+      (s) => s.store_id === selectedActiveGroupId || s.group_order_id === selectedActiveGroupId
+    );
   }, [allSubmissions, selectedActiveGroupId]);
 
   // 抓取全域後台資料
@@ -262,81 +224,104 @@ export function useAdminData({
 
       setAllMenuItems(sortedMenuItems);
 
-      if (gRes.data) {
-        const allG = gRes.data;
-        const openGroups = allG.filter((g) => g.status === 'open');
-        const completedList = allG.filter((g) => g.status === 'completed');
+      const allG = gRes.data || [];
+      const completedList = allG.filter((g) => g.status === 'completed');
+      setArchivedGroups(completedList as GroupOrderAdmin[]);
 
-        setArchivedGroups(completedList as GroupOrderAdmin[]);
+      const effectiveGroupId = targetGroupId !== undefined ? targetGroupId : selectedActiveGroupIdRef.current;
 
-        const effectiveGroupId = targetGroupId !== undefined ? targetGroupId : selectedActiveGroupIdRef.current;
-        const openGroupIds = openGroups.map((g) => g.id);
+      // 抓取全站所有未歸檔即時訂單
+      const { data: allSubList, error: subErr } = await supabase
+        .from('order_submissions')
+        .select(`
+          id, order_number, user_nickname, payment_method_name, sold_out_option,
+          total_amount, final_amount, is_paid, signature_data, created_at, group_order_id,
+          store_id, status,
+          stores (id, name, code, is_accepting_orders, announcement, enable_min_threshold, min_threshold_amount, enable_countdown, cutoff_time, enable_budget_limit, budget_limit_amount),
+          group_orders (id, title, store_id, stores (id, name, code)),
+          order_items (id, item_name, quantity, unit_price, custom_notes)
+        `)
+        .or('status.eq.active,status.is.null')
+        .order('created_at', { ascending: false });
 
-        if (openGroupIds.length > 0) {
-          const { data: allSubList, error: subErr } = await supabase
-            .from('order_submissions')
-            .select(`
-              id, order_number, user_nickname, payment_method_name, sold_out_option,
-              total_amount, final_amount, is_paid, signature_data, created_at, group_order_id,
-              group_orders (title, stores (name)),
-              order_items (id, item_name, quantity, unit_price, custom_notes)
-            `)
-            .in('group_order_id', openGroupIds)
-            .order('created_at', { ascending: false });
+      if (subErr) console.error('抓取訂單失敗:', subErr);
 
-          if (subErr) console.error('抓取訂單失敗:', subErr);
+      const rawSubRows = (allSubList as unknown as any[]) || [];
+      const completedGroupIds = new Set(completedList.map((g) => g.id));
+      const activeSubList = rawSubRows.filter((s) => {
+        if (s.status === 'archived') return false;
+        if (s.group_order_id && completedGroupIds.has(s.group_order_id) && !s.status) return false;
+        return true;
+      });
 
-          const formattedSubs: OrderSubmissionAdmin[] = (allSubList as unknown as RawSubmissionRow[] || []).map((s: RawSubmissionRow) => ({
-            ...s,
-            store_name: s.group_orders?.stores?.name || s.group_orders?.title || '',
-            order_items: s.order_items || [],
-          }));
+      const formattedSubs: OrderSubmissionAdmin[] = activeSubList.map((s: any) => {
+        const resolvedStoreId = s.store_id || s.stores?.id || s.group_orders?.store_id || s.group_orders?.stores?.id || '';
+        const resolvedStoreName = s.stores?.name || s.group_orders?.stores?.name || s.group_orders?.title || '店家餐點';
+        return {
+          ...s,
+          store_id: resolvedStoreId,
+          store_name: resolvedStoreName,
+          order_items: s.order_items || [],
+        };
+      });
 
-          (allSubList as unknown as RawSubmissionRow[] || []).forEach((s: RawSubmissionRow) => {
-            knownOrderIdsRef.current.add(s.id);
-            processedNotificationIdsRef.current.add(s.id);
-          });
+      formattedSubs.forEach((s) => {
+        knownOrderIdsRef.current.add(s.id);
+        processedNotificationIdsRef.current.add(s.id);
+      });
 
-          if (isInitialLoadRef.current) {
-            isInitialLoadRef.current = false;
-          }
-
-          const groupsWithStats: GroupOrderAdmin[] = (openGroups as RawGroupOrderRow[]).map((g: RawGroupOrderRow) => {
-            const gSubs = formattedSubs.filter((s) => s.group_order_id === g.id);
-            const storeObj = g.stores
-              ? { ...g.stores, code: codeMap[g.store_id] || 'S-001' }
-              : null;
-            return {
-              ...g,
-              stores: storeObj,
-              order_count: gSubs.length,
-              total_sales: gSubs.reduce((sum, s) => sum + s.final_amount, 0),
-            };
-          });
-
-          setActiveGroups(groupsWithStats);
-
-          let currentGroup: GroupOrderAdmin | null = null;
-          if (effectiveGroupId && effectiveGroupId !== 'all') {
-            currentGroup = groupsWithStats.find((g) => g.id === effectiveGroupId) || groupsWithStats[0];
-          } else {
-            currentGroup = groupsWithStats.find((g) => (g.order_count || 0) > 0) || groupsWithStats[0];
-          }
-
-          if (currentGroup) {
-            setActiveGroup(currentGroup);
-            setInputDeliveryFee(currentGroup.delivery_fee || 0);
-            setInputDiscount(currentGroup.discount_amount || 0);
-            setRoundingRule((currentGroup.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
-          }
-
-          setAllSubmissions(formattedSubs);
-        } else {
-          setActiveGroups([]);
-          setActiveGroup(null);
-          setAllSubmissions([]);
-        }
+      if (isInitialLoadRef.current) {
+        isInitialLoadRef.current = false;
       }
+
+      // 以店家為單位產生分流視圖，包含即時訂單數與營業額統計
+      const storeGroupsWithStats: GroupOrderAdmin[] = formattedStores.map((store) => {
+        const sSubs = formattedSubs.filter((s) => s.store_id === store.id || s.group_order_id === store.id);
+        return {
+          id: store.id,
+          store_id: store.id,
+          title: store.name,
+          status: store.is_accepting_orders === false ? 'closed' : 'open',
+          announcement: store.announcement || null,
+          delivery_fee: 0,
+          discount_amount: 0,
+          rounding_rule: 'floor',
+          enable_min_threshold: store.enable_min_threshold,
+          min_threshold_amount: store.min_threshold_amount,
+          enable_countdown: store.enable_countdown,
+          cutoff_time: store.cutoff_time,
+          enable_budget_limit: store.enable_budget_limit,
+          budget_limit_amount: store.budget_limit_amount,
+          stores: store,
+          order_count: sSubs.length,
+          total_sales: sSubs.reduce((sum, s) => sum + s.final_amount, 0),
+        };
+      });
+
+      // 排序：有訂單的店家排在前面，接著是營業中的店家
+      storeGroupsWithStats.sort((a, b) => {
+        if ((a.order_count || 0) > 0 && (b.order_count || 0) === 0) return -1;
+        if ((a.order_count || 0) === 0 && (b.order_count || 0) > 0) return 1;
+        if (a.status === 'open' && b.status === 'closed') return -1;
+        if (a.status === 'closed' && b.status === 'open') return 1;
+        return a.title.localeCompare(b.title, 'zh-TW');
+      });
+
+      setActiveGroups(storeGroupsWithStats);
+
+      let currentGroup: GroupOrderAdmin | null = null;
+      if (effectiveGroupId && effectiveGroupId !== 'all') {
+        currentGroup = storeGroupsWithStats.find((g) => g.id === effectiveGroupId) || null;
+      }
+
+      setActiveGroup(currentGroup);
+      if (currentGroup) {
+        setInputDeliveryFee(currentGroup.delivery_fee || 0);
+        setInputDiscount(currentGroup.discount_amount || 0);
+        setRoundingRule((currentGroup.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
+      }
+
+      setAllSubmissions(formattedSubs);
     } catch (err) {
       console.error('抓取資料失敗:', err);
     } finally {
@@ -487,6 +472,74 @@ export function useAdminData({
     });
   }, []);
 
+  // 🌟 儲存店家即時營運設定（公告、免運目標、倒數計時、公費補助、接單狀態）
+  const handleSaveStoreSettings = useCallback(
+    async (storeId: string, updatedData: Partial<Store>) => {
+      try {
+        const { error } = await supabase
+          .from('stores')
+          .update(updatedData)
+          .eq('id', storeId);
+
+        if (error) throw error;
+
+        // 同步更新關聯 group_orders 以維持向後相容
+        const groupPayload: any = {};
+        if (updatedData.announcement !== undefined) groupPayload.announcement = updatedData.announcement;
+        if (updatedData.enable_min_threshold !== undefined) groupPayload.enable_min_threshold = updatedData.enable_min_threshold;
+        if (updatedData.min_threshold_amount !== undefined) groupPayload.min_threshold_amount = updatedData.min_threshold_amount;
+        if (updatedData.enable_countdown !== undefined) groupPayload.enable_countdown = updatedData.enable_countdown;
+        if (updatedData.cutoff_time !== undefined) groupPayload.cutoff_time = updatedData.cutoff_time;
+        if (updatedData.enable_budget_limit !== undefined) groupPayload.enable_budget_limit = updatedData.enable_budget_limit;
+        if (updatedData.budget_limit_amount !== undefined) groupPayload.budget_limit_amount = updatedData.budget_limit_amount;
+        if (updatedData.is_accepting_orders !== undefined) groupPayload.status = updatedData.is_accepting_orders ? 'open' : 'closed';
+
+        if (Object.keys(groupPayload).length > 0) {
+          await supabase
+            .from('group_orders')
+            .update(groupPayload)
+            .eq('store_id', storeId)
+            .neq('status', 'completed');
+        }
+
+        showToast('店家即時營運設定已成功儲存！');
+        fetchAdminData(selectedActiveGroupIdRef.current, true);
+      } catch (err: any) {
+        console.error('儲存店家營運設定失敗:', err);
+        showToast(`儲存失敗：${err?.message || err}`);
+        throw err;
+      }
+    },
+    [fetchAdminData, showToast]
+  );
+
+  // 🌟 一鍵切換店家營業接單 / 暫停接單狀態
+  const handleToggleStoreAccepting = useCallback(
+    async (storeId: string, newAccepting: boolean) => {
+      try {
+        const { error } = await supabase
+          .from('stores')
+          .update({ is_accepting_orders: newAccepting })
+          .eq('id', storeId);
+
+        if (error) throw error;
+
+        await supabase
+          .from('group_orders')
+          .update({ status: newAccepting ? 'open' : 'closed' })
+          .eq('store_id', storeId)
+          .neq('status', 'completed');
+
+        showToast(newAccepting ? '已恢復店家營業接單！' : '已暫停該店家接單！');
+        fetchAdminData(selectedActiveGroupIdRef.current, true);
+      } catch (err: any) {
+        console.error('切換接單狀態失敗:', err);
+        showToast(`切換失敗：${err?.message || err}`);
+      }
+    },
+    [fetchAdminData, showToast]
+  );
+
   return {
     activeGroup,
     setActiveGroup,
@@ -513,6 +566,8 @@ export function useAdminData({
     submissions,
     loading,
     fetchAdminData,
+    handleSaveStoreSettings,
+    handleToggleStoreAccepting,
     inputDeliveryFee,
     setInputDeliveryFee,
     inputDiscount,

@@ -52,7 +52,7 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
       const [storeRes, menuRes, groupRes, sortRes, codeRes] = await Promise.all([
         supabase
           .from('stores')
-          .select('id, name, image_url, category_id, is_active')
+          .select('*')
           .eq('id', storeId)
           .single(),
         supabase
@@ -241,14 +241,17 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
     };
   }, [storeId, fetchData, debouncedFetchData]);
 
-  // 倒數計時計算邏輯
+  // 倒數計時計算邏輯 (優先讀取 store 即時營運設定，次讀 groupMeta 相容)
   useEffect(() => {
-    if (!groupMeta?.enable_countdown || !groupMeta?.cutoff_time) {
+    const isCountdownEnabled = store?.enable_countdown ?? groupMeta?.enable_countdown;
+    const cutoffTime = store?.cutoff_time || groupMeta?.cutoff_time;
+
+    if (!isCountdownEnabled || !cutoffTime) {
       setCountdownSeconds(0);
       return;
     }
 
-    const targetDate = new Date(groupMeta.cutoff_time).getTime();
+    const targetDate = new Date(cutoffTime).getTime();
     const updateCountdown = () => {
       const now = new Date().getTime();
       const diff = Math.max(0, Math.floor((targetDate - now) / 1000));
@@ -258,7 +261,7 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
     updateCountdown();
     const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
-  }, [groupMeta]);
+  }, [store, groupMeta]);
 
   return {
     store,

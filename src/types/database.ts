@@ -11,6 +11,14 @@ export interface Store {
   image_url: string | null;
   is_active: boolean;
   code?: string;
+  is_accepting_orders?: boolean;
+  announcement?: string | null;
+  enable_min_threshold?: boolean;
+  min_threshold_amount?: number;
+  enable_countdown?: boolean;
+  cutoff_time?: string | null;
+  enable_budget_limit?: boolean;
+  budget_limit_amount?: number;
 }
 
 export interface CustomOption {
@@ -89,7 +97,10 @@ export interface OrderItem {
 
 export interface OrderSubmission {
   id: string;
-  group_order_id: string;
+  group_order_id?: string;
+  store_id?: string;
+  batch_id?: string | null;
+  status?: 'active' | 'archived';
   order_number: string;
   user_nickname: string;
   payment_method_name: string;
@@ -100,4 +111,20 @@ export interface OrderSubmission {
   signature_data?: string | null;
   created_at: string;
   order_items?: OrderItem[];
-}
+}
+
+export interface StoreOrderBatch {
+  id: string;
+  store_id: string;
+  store_name: string;
+  batch_number: string;
+  total_submissions: number;
+  total_items_count: number;
+  total_amount: number;
+  delivery_fee: number;
+  discount_amount: number;
+  final_amount: number;
+  archived_at: string;
+  archived_by?: string;
+  note?: string | null;
+}

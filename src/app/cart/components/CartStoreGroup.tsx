@@ -12,6 +12,7 @@ interface CartStoreGroupProps {
   activeStoreId: string;
   activeGroupOrder: GroupOrder | null;
   currentStoreTotal: number;
+  isStoreAccepting?: boolean;
   onClearStoreCart: (storeId: string) => void;
   onStartEditItem: (item: CartItem) => void;
   onRemoveItem: (storeId: string, cartItemId: string) => void;
@@ -23,6 +24,7 @@ export function CartStoreGroup({
   activeStoreId,
   activeGroupOrder,
   currentStoreTotal,
+  isStoreAccepting = true,
   onClearStoreCart,
   onStartEditItem,
   onRemoveItem,
@@ -58,22 +60,38 @@ export function CartStoreGroup({
             <div className="flex items-start justify-between gap-2">
               <div>
                 <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.name}</h4>
-                {item.selectedOptions.length > 0 && (
-                  <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
-                    {item.selectedOptions.map((opt) => `${opt.groupTitle}: ${opt.itemName}`).join(' / ')}
-                  </p>
-                )}
-                {item.customNotes && (
-                  <p className="text-xs text-sky-600 dark:text-sky-400 mt-0.5">備註：{item.customNotes}</p>
-                )}
+                <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-0.5">
+                  單價 ${item.unitPrice} 元
+                </p>
               </div>
-              <span className="text-sm font-extrabold text-sky-600 dark:text-sky-400 shrink-0">
+              <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">
                 ${item.totalPrice} 元
               </span>
             </div>
 
-            <div className="flex items-center justify-between pt-1">
-              {/* ✏️ 快速修改規格按鈕 */}
+            {/* 客製規格選項標籤 */}
+            {item.selectedOptions && item.selectedOptions.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {item.selectedOptions.map((opt, idx) => (
+                  <span
+                    key={idx}
+                    className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold px-2 py-0.5 rounded-md"
+                  >
+                    {opt.itemName} {opt.extraPrice > 0 && `(+$${opt.extraPrice})`}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* 客製備註 */}
+            {item.customNotes && (
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 italic bg-slate-50 dark:bg-slate-800/60 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+                備註：{item.customNotes}
+              </p>
+            )}
+
+            {/* 操作列：修改規格與數量調整 */}
+            <div className="flex items-center justify-between pt-2">
               <button
                 type="button"
                 onClick={() => onStartEditItem(item)}
@@ -135,14 +153,25 @@ export function CartStoreGroup({
             <span>繼續點餐</span>
           </Link>
 
-          {/* 前往結帳按鈕 */}
-          <Link
-            href={`/checkout?storeId=${activeStoreId}`}
-            className="bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold text-xs py-3 rounded-2xl text-center shadow-md transition active:scale-95 flex items-center justify-center gap-1"
-          >
-            <span>前往結帳</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          {/* 前往結帳按鈕 (若暫停接單則反灰禁用) */}
+          {isStoreAccepting ? (
+            <Link
+              href={`/checkout?storeId=${activeStoreId}`}
+              className="bg-gradient-to-r from-sky-500 to-blue-600 hover:brightness-105 text-white font-bold text-xs py-3 rounded-2xl text-center shadow-md transition active:scale-95 flex items-center justify-center gap-1"
+            >
+              <span>前往結帳</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-xs py-3 rounded-2xl text-center border border-slate-200 dark:border-slate-700 cursor-not-allowed flex flex-col items-center justify-center"
+            >
+              <span>暫停接單中</span>
+              <span className="text-[9px] font-normal opacity-80 mt-0.5">暫無法送出訂單</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

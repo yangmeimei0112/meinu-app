@@ -23,29 +23,76 @@ export function useAdminArchiveActions({
 }: UseAdminArchiveActionsProps) {
   const [selectedArchivedGroupId, setSelectedArchivedGroupId] = useState<string | null>(null);
 
-  // 1. 結案歸檔目前進行中活動
+  // 1. 結案歸檔目前店家之即時訂單
   const handleArchiveGroup = () => {
     if (!activeGroup) return;
 
+    const storeId = activeGroup.store_id || activeGroup.id;
+    const storeName = activeGroup.stores?.name || activeGroup.title;
+
     openAdminConfirmModal({
       isOpen: true,
-      title: '確定結案歸檔？',
-      message: `確定要將「${activeGroup.title}」結案歸檔嗎？歸檔後此活動將移至「歷史活動」分頁，前台將停止接收此活動的訂單。`,
+      title: `確定歸檔「${storeName}」訂單？`,
+      message: `確定要將「${storeName}」目前的即時訂單全部結算歸檔嗎？歸檔後此店之即時訂單將移入歷史庫並清空列表，店家可隨時展開下一輪收單。`,
       confirmText: '確定歸檔',
       cancelText: '取消',
       isDanger: false,
       onConfirm: async () => {
         closeAdminConfirmModal();
         try {
-          const { error } = await supabase
+          // 1. 抓出該店所有 active 訂單
+          const { data: subList } = await supabase
+            .from('order_submissions')
+            .select('id, final_amount, total_amount')
+            .or(`store_id.eq.${storeId},group_order_id.eq.${activeGroup.id}`)
+            .or('status.eq.active,status.is.null');
+
+          const subIds = subList ? subList.map((s) => s.id) : [];
+
+          let batchId: string | null = null;
+          if (subIds.length > 0) {
+            const batchNum = `BATCH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`;
+            const totalAmount = subList?.reduce((sum, s) => sum + s.final_amount, 0) || 0;
+
+            const { data: batchData } = await supabase
+              .from('store_order_batches')
+              .insert([
+                {
+                  store_id: storeId,
+                  store_name: storeName,
+                  batch_number: batchNum,
+                  total_submissions: subIds.length,
+                  total_items_count: 0,
+                  total_amount: totalAmount,
+                  delivery_fee: activeGroup.delivery_fee || 0,
+                  discount_amount: activeGroup.discount_amount || 0,
+                  final_amount: totalAmount,
+                  archived_at: new Date().toISOString(),
+                },
+              ])
+              .select()
+              .single();
+
+            batchId = batchData?.id || null;
+
+            // 批次標記訂單為 archived
+            await supabase
+              .from('order_submissions')
+              .update({
+                status: 'archived',
+                batch_id: batchId,
+              })
+              .in('id', subIds);
+          }
+
+          // 2. 將團購活動設為 completed (若有)
+          await supabase
             .from('group_orders')
             .update({ status: 'completed' })
             .eq('id', activeGroup.id);
 
-          if (error) throw error;
-
-          showToast(`「${activeGroup.title}」已成功結案歸檔！`);
-          fetchAdminData();
+          showToast(`「${storeName}」訂單已成功批次歸檔！`);
+          fetchAdminData('all');
           setActiveTab('archive');
         } catch (err: any) {
           console.error('結案歸檔失敗:', err);

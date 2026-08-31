@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
@@ -8,7 +8,7 @@ import CustomModal from '@/components/CustomModal';
 import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import { supabase } from '@/lib/supabase';
 import { MultiStoreCart, CartItem } from '@/types/cart';
-import { MenuItem, GroupOrder } from '@/types/database';
+import { MenuItem, GroupOrder, Store } from '@/types/database';
 import { ShoppingCart, ChevronLeft } from 'lucide-react';
 import { CartEmptyState } from './components/CartEmptyState';
 import { CartStoreGroup } from './components/CartStoreGroup';
@@ -41,6 +41,7 @@ export default function MultiCartPage() {
   const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
   const [editingMenuItem, setEditingMenuItem] = useState<MenuItem | null>(null);
   const [activeGroupOrder, setActiveGroupOrder] = useState<GroupOrder | null>(null);
+  const [activeStoreData, setActiveStoreData] = useState<Store | null>(null);
   const [clearConfirmModal, setClearConfirmModal] = useState<{
     isOpen: boolean;
     storeId: string;
@@ -67,31 +68,54 @@ export default function MultiCartPage() {
     }
   }, [activeStoreId]);
 
-  // 抓取當前店家開放中的團購活動
+  // 抓取當前店家即時營運設定與團購狀態
   useEffect(() => {
     if (!activeStoreId) {
       setActiveGroupOrder(null);
+      setActiveStoreData(null);
       return;
     }
 
-    async function fetchGroupInfo() {
-      const { data } = await supabase
-        .from('group_orders')
-        .select('*')
-        .eq('store_id', activeStoreId)
-        .neq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(1);
+    async function fetchStoreAndGroupInfo() {
+      const [storeRes, groupRes] = await Promise.all([
+        supabase
+          .from('stores')
+          .select('*')
+          .eq('id', activeStoreId)
+          .maybeSingle(),
+        supabase
+          .from('group_orders')
+          .select('*')
+          .eq('store_id', activeStoreId)
+          .neq('status', 'completed')
+          .order('created_at', { ascending: false })
+          .limit(1),
+      ]);
 
-      if (data && data.length > 0) {
-        setActiveGroupOrder(data[0] as GroupOrder);
+      if (storeRes.data) {
+        setActiveStoreData(storeRes.data as Store);
+      }
+
+      if (groupRes.data && groupRes.data.length > 0) {
+        setActiveGroupOrder(groupRes.data[0] as GroupOrder);
       } else {
         setActiveGroupOrder(null);
       }
     }
 
-    fetchGroupInfo();
+    fetchStoreAndGroupInfo();
   }, [activeStoreId]);
+
+  const isStoreAccepting = useMemo(() => {
+    if (!activeStoreData) return true;
+    if (activeStoreData.is_accepting_orders === false) return false;
+    if (activeStoreData.enable_countdown && activeStoreData.cutoff_time) {
+      if (new Date(activeStoreData.cutoff_time).getTime() <= Date.now()) {
+        return false;
+      }
+    }
+    return true;
+  }, [activeStoreData]);
 
   const saveMultiCart = (updated: MultiStoreCart) => {
     setMultiCart(updated);
@@ -275,6 +299,7 @@ export default function MultiCartPage() {
                 activeStoreId={activeStoreId}
                 activeGroupOrder={activeGroupOrder}
                 currentStoreTotal={currentStoreTotal}
+                isStoreAccepting={isStoreAccepting}
                 onClearStoreCart={handleClearStoreCart}
                 onStartEditItem={handleStartEditItem}
                 onRemoveItem={handleRemoveItem}

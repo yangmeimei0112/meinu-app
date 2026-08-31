@@ -83,12 +83,28 @@ export function AdminDashboardMetrics({
       <div className="relative overflow-hidden bg-gradient-to-r from-sky-500/10 via-indigo-500/5 to-white dark:from-sky-950/40 dark:via-[#0D182E] dark:to-[#0B1322] rounded-3xl p-5 sm:p-6 border border-sky-200/90 dark:border-sky-500/30 shadow-[0_4px_25px_-4px_rgba(14,165,233,0.12)] space-y-4 backdrop-blur-md">
         <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-sky-400 via-indigo-500 to-blue-600" />
 
-        {/* 🏬 多團購進行中快速切換標籤 (Tab Selector) */}
-        {activeGroups.length > 1 && onSelectActiveGroup && (
+        {/* 🏬 店家分流快速切換標籤 (Tab Selector) - 始終保留【全部店家總覽】 */}
+        {onSelectActiveGroup && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 pl-2 scrollbar-none">
-            <span className="text-[11px] font-black text-slate-400 dark:text-slate-400 shrink-0">進行中活動：</span>
+            <span className="text-[11px] font-black text-slate-400 dark:text-slate-400 shrink-0">店家分流：</span>
+            {/* 🌟 第一個頁籤：全部店家 (所有送出訂單) */}
+            <button
+              type="button"
+              onClick={() => onSelectActiveGroup('all')}
+              className={`text-xs px-3.5 py-1.5 rounded-2xl font-black transition-all flex items-center gap-1.5 shrink-0 border cursor-pointer ${
+                selectedActiveGroupId === 'all' || !selectedActiveGroupId
+                  ? 'bg-sky-500 text-white border-sky-500 shadow-xs ring-2 ring-sky-500/30'
+                  : 'bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              <span>🌟 全部店家 (所有訂單)</span>
+            </button>
+
+            {/* 各店家獨立分流標籤 */}
             {activeGroups.map((g) => {
-              const isSelected = (selectedActiveGroupId || groupOrder?.id) === g.id;
+              const isSelected = selectedActiveGroupId === g.id;
+              const isStorePaused = g.status === 'closed' || (g.stores as any)?.is_accepting_orders === false;
+
               return (
                 <button
                   key={g.id}
@@ -96,16 +112,25 @@ export function AdminDashboardMetrics({
                   onClick={() => onSelectActiveGroup(g.id)}
                   className={`text-xs px-3.5 py-1.5 rounded-2xl font-black transition-all flex items-center gap-1.5 shrink-0 border cursor-pointer ${
                     isSelected
-                      ? 'bg-sky-500 text-white border-sky-500 shadow-xs'
+                      ? 'bg-sky-500 text-white border-sky-500 shadow-xs ring-2 ring-sky-500/30'
                       : 'bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <StoreIcon className="w-3.5 h-3.5" />
                   <span>{g.stores?.name || g.title}</span>
-                  {g.status === 'closed' && (
-                    <span className="text-[9px] bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.2 rounded-full">
-                      已結單
+                  {g.stores?.code && (
+                    <span className="text-[10px] font-mono opacity-80">#{g.stores.code}</span>
+                  )}
+                  {isStorePaused ? (
+                    <span className="text-[9px] bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 px-1.5 py-0.2 rounded-full border border-amber-200 dark:border-amber-800">
+                      暫停
                     </span>
+                  ) : (
+                    (g.order_count ?? 0) > 0 && (
+                      <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.2 rounded-full font-extrabold">
+                        {g.order_count} 單
+                      </span>
+                    )
                   )}
                 </button>
               );
@@ -119,25 +144,36 @@ export function AdminDashboardMetrics({
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-black bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 px-3 py-1 rounded-full border border-sky-200 dark:border-sky-800/60 flex items-center gap-1">
                 <StoreIcon className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                <span>{groupOrder?.stores?.name || '團購店家'}</span>
+                <span>
+                  {selectedActiveGroupId === 'all' || !selectedActiveGroupId
+                    ? '全站所有店家'
+                    : groupOrder?.stores?.name || groupOrder?.title || '店家餐點'}
+                </span>
               </span>
 
               {/* 狀態標籤 */}
-              {isClosed ? (
-                <span className="inline-flex items-center gap-1 bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 px-3 py-1 rounded-full text-xs font-black border border-rose-200 dark:border-rose-800/60">
+              {selectedActiveGroupId === 'all' || !selectedActiveGroupId ? (
+                <span className="inline-flex items-center gap-1 bg-sky-100 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 px-3 py-1 rounded-full text-xs font-black border border-sky-200 dark:border-sky-800/60">
+                  <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping" />
+                  <span>全站訂單即時中樞</span>
+                </span>
+              ) : isClosed ? (
+                <span className="inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 px-3 py-1 rounded-full text-xs font-black border border-amber-200 dark:border-amber-800/60">
                   <Lock className="w-3.5 h-3.5" />
-                  <span>已結單（前台暫停接單）</span>
+                  <span>暫停接單中</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 px-3 py-1 rounded-full text-xs font-black border border-emerald-200 dark:border-emerald-800/60">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                  <span>開團接單中</span>
+                  <span>營業接單中</span>
                 </span>
               )}
             </div>
 
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-              {groupOrder?.title || '今日美味團購'}
+              {selectedActiveGroupId === 'all' || !selectedActiveGroupId
+                ? '🌟 全站即時訂單總覽'
+                : groupOrder?.title || '即時訂單管理'}
             </h2>
 
             {groupOrder?.announcement && (
@@ -150,39 +186,54 @@ export function AdminDashboardMetrics({
 
           {/* 右側：主操作按鈕群 */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* 開關團按鈕 */}
-            <button
-              type="button"
-              onClick={() => handleToggleGroupStatus(isClosed ? 'open' : 'closed')}
-              className={`text-xs sm:text-sm px-4 py-2.5 rounded-2xl font-black transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer ${
-                isClosed
-                  ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
-                  : 'bg-rose-500 hover:bg-rose-600 text-white'
-              }`}
-            >
-              {isClosed ? (
-                <>
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>重新開啟接單</span>
-                </>
-              ) : (
-                <>
-                  <Lock className="w-4 h-4" />
-                  <span>立即結單關閉</span>
-                </>
-              )}
-            </button>
+            {/* 開關接單按鈕 (個別店家視圖呈現) */}
+            {selectedActiveGroupId !== 'all' && Boolean(selectedActiveGroupId) && (
+              <button
+                type="button"
+                onClick={() => handleToggleGroupStatus(isClosed ? 'open' : 'closed')}
+                className={`text-xs sm:text-sm px-4 py-2.5 rounded-2xl font-black transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer ${
+                  isClosed
+                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    : 'bg-amber-600 hover:bg-amber-700 text-white'
+                }`}
+              >
+                {isClosed ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>開啟接單</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>暫停接單</span>
+                  </>
+                )}
+              </button>
+            )}
 
-            {/* 開團設定 */}
-            {handleOpenGroupSettingsModal && (
+            {/* 店家即時營運設定 (公告/免運/倒數/補貼) */}
+            {handleOpenGroupSettingsModal && selectedActiveGroupId !== 'all' && Boolean(selectedActiveGroupId) && (
               <button
                 type="button"
                 onClick={handleOpenGroupSettingsModal}
-                className="bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl font-black transition active:scale-95 cursor-pointer shadow-2xs flex items-center gap-1.5"
-                title="開團設定 (公告、分攤規則、倒數計時)"
+                className="bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl font-black transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+                title="即時營運設定"
               >
-                <Settings className="w-4 h-4 text-slate-500" />
-                <span className="hidden sm:inline">開團設定</span>
+                <Settings className="w-4 h-4 text-sky-500" />
+                <span>店家設定</span>
+              </button>
+            )}
+
+            {/* 📦 一鍵歸檔此店訂單 */}
+            {selectedActiveGroupId !== 'all' && Boolean(selectedActiveGroupId) && (
+              <button
+                type="button"
+                onClick={handleArchiveGroup}
+                className="bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm px-3.5 py-2.5 rounded-2xl font-black transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+                title="一鍵歸檔此店訂單"
+              >
+                <Archive className="w-4 h-4" />
+                <span>一鍵歸檔此店</span>
               </button>
             )}
 

@@ -72,7 +72,6 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
     () => currentStoreItems.reduce((sum, i) => sum + i.totalPrice, 0),
     [currentStoreItems]
   );
-  const isGroupClosed = groupMeta?.status === 'closed';
 
   // 記憶化餐點搜尋過濾結果
   const filteredMenuItems = useMemo(() => {
@@ -85,16 +84,13 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
     });
   }, [menuItems, debouncedMenuSearch]);
 
+  // 常態開放加購餐點至購物車
   const handleAddToCart = useCallback(
     (newItem: CartItem) => {
-      if (isGroupClosed) {
-        showToast('團長已截單，目前停止收單中！');
-        return;
-      }
       addItem(newItem);
       showToast(`已將「${newItem.name}」加入購物車！`);
     },
-    [isGroupClosed, addItem, showToast]
+    [addItem, showToast]
   );
 
   const handleClearStoreCart = useCallback(() => {
@@ -119,10 +115,9 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
         {/* 即時訂單計數器 */}
         <LiveOrderCounter storeId={storeId} />
 
-        {/* 團購公告、截單倒數與湊單進度 */}
+        {/* 店家即時公告、免運目標進度與截單倒數 */}
         <StoreNoticeBanner
-          isGroupClosed={!!isGroupClosed}
-          groupMeta={groupMeta}
+          storeMeta={store || groupMeta}
           currentStoreTotal={currentStoreTotal}
           groupTotalAmount={groupTotalAmount}
           countdownSeconds={countdownSeconds}

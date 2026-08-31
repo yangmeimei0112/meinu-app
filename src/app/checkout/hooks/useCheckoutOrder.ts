@@ -272,6 +272,29 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
       const storeId = targetStoreId || cartItems[0]?.storeId;
       if (!storeId) throw new Error('缺少店家資訊');
 
+      // 🛡️ 檢查店家是否處於接單中狀態（防刷單與暫停接單防護）
+      const { data: currentStore } = await supabase
+        .from('stores')
+        .select('is_accepting_orders, enable_countdown, cutoff_time')
+        .eq('id', storeId)
+        .maybeSingle();
+
+      if (currentStore) {
+        let isStoreAccepting = currentStore.is_accepting_orders !== false;
+        if (currentStore.enable_countdown && currentStore.cutoff_time) {
+          const remainingSecs = Math.floor((new Date(currentStore.cutoff_time).getTime() - Date.now()) / 1000);
+          if (remainingSecs <= 0) {
+            isStoreAccepting = false;
+          }
+        }
+
+        if (!isStoreAccepting) {
+          showToast('該店家目前處於暫停接單狀態，無法送出新訂單！');
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       let activeGroupId = activeGroupOrder?.id;
 
       if (!activeGroupId) {
@@ -315,6 +338,8 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
         .insert([
           {
             group_order_id: activeGroupId,
+            store_id: storeId,
+            status: 'active',
             user_nickname: cleanNickname,
             payment_method_name: sanitizeInput(selectedPayment, 40),
             sold_out_option: sanitizeInput(selectedSoldOut, 40),
