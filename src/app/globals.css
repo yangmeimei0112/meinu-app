@@ -64,6 +64,19 @@ body {
   bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }
 
+/* 📱 底部導覽列防遮擋專屬避讓高階工具類 (Bottom Nav Clearance) */
+.page-bottom-nav-clearance {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.page-bottom-nav-with-cart-clearance {
+  padding-bottom: calc(9.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.cart-bar-floating-bottom {
+  bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+}
+
 /* ========================================================
    📱 iOS Safari 自動縮放防禦 (Auto-Zoom Prevention)
    iOS Safari 當表單輸入字體小於 16px 時會強制放大畫面破版。

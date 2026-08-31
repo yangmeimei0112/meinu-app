@@ -20,8 +20,8 @@ function CartBarInner({ cartItems, onClearCart }: CartBarProps) {
   if (cartItems.length === 0) return null;
 
   return (
-    <div className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 px-4 max-w-md mx-auto">
-      <div className="bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-3 shadow-xl flex items-center justify-between border border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 px-4 max-w-md mx-auto pointer-events-none">
+      <div className="bg-slate-900/95 dark:bg-[#0B101B]/95 backdrop-blur-xl text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between border border-slate-700/80 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-300 pointer-events-auto ring-1 ring-white/10">
         <div className="flex items-center gap-3">
           <div className="relative bg-sky-500 text-white w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold shadow-xs">
             <ShoppingCart className="w-5 h-5 stroke-[2.2]" />

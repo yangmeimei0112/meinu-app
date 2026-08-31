@@ -116,7 +116,7 @@ export default function SearchPage() {
         <OfflineBanner />
         <Header />
 
-        <main className="flex-1 max-w-md mx-auto w-full px-4 pt-3 space-y-4 pb-20">
+        <main className="flex-1 max-w-md mx-auto w-full px-4 pt-3 space-y-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
           {/* 頂部搜尋列與返回按鈕 */}
           <SearchHeaderBar
             searchQuery={searchQuery}

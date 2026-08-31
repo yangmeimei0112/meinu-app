@@ -209,7 +209,7 @@ export default function MultiCartPage() {
     : 0;
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] transition-colors duration-200">
+    <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] transition-colors duration-200">
       <OfflineBanner />
       <Header />
 

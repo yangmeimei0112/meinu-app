@@ -241,7 +241,7 @@ export default function HomePage() {
       </div>
 
       {/* 底部版本號、主題切換與後台登入按鈕 */}
-      <footer className="w-full py-6 flex flex-col sm:flex-row items-center justify-center gap-2.5 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800/80 mt-auto px-4 pb-24">
+      <footer className="w-full py-6 flex flex-col sm:flex-row items-center justify-center gap-2.5 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800/80 mt-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
         <div className="flex items-center gap-2">
           <span 
             title={commitMsg}
