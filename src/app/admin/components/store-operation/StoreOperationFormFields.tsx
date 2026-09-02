@@ -8,7 +8,6 @@ import {
   Banknote,
   CheckCircle2,
   PauseCircle,
-  Flame,
 } from 'lucide-react';
 
 interface StoreOperationFormFieldsProps {
@@ -16,8 +15,6 @@ interface StoreOperationFormFieldsProps {
   setIsAcceptingOrders: (val: boolean) => void;
   announcement: string;
   setAnnouncement: (val: string) => void;
-  showOrderProgress: boolean;
-  setShowOrderProgress: (val: boolean) => void;
   enableMinThreshold: boolean;
   setEnableMinThreshold: (val: boolean) => void;
   minThresholdAmount: number;
@@ -37,8 +34,6 @@ export function StoreOperationFormFields({
   setIsAcceptingOrders,
   announcement,
   setAnnouncement,
-  showOrderProgress,
-  setShowOrderProgress,
   enableMinThreshold,
   setEnableMinThreshold,
   minThresholdAmount,
@@ -99,25 +94,6 @@ export function StoreOperationFormFields({
           placeholder="例如：今日紅茶已售完、預計 11:30 統一外送..."
           className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
         />
-      </div>
-
-      {/* 🔥 全團點餐進度卡片顯示開關 */}
-      <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer">
-            <Flame className="w-3.5 h-3.5 text-amber-500" />
-            <span>前台顯示「全團點餐進度」卡片</span>
-          </label>
-          <input
-            type="checkbox"
-            checked={showOrderProgress}
-            onChange={(e) => setShowOrderProgress(e.target.checked)}
-            className="w-4 h-4 text-amber-500 rounded-md focus:ring-amber-500 border-slate-300 dark:border-slate-700 cursor-pointer"
-          />
-        </div>
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-          開啟後，顧客進入菜單時將在頂部即時看到目前已收到多少筆訂單與累計金額進度。
-        </p>
       </div>
 
       {/* 🚚 免運/起送目標進度條 */}

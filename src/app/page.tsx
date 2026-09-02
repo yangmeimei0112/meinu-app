@@ -3,7 +3,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
-import LiveOrderCounter from '@/components/LiveOrderCounter';
 import HomeWelcomeBanner from '@/components/HomeWelcomeBanner';
 import { HomeCategoryFilter } from './components/home/HomeCategoryFilter';
 import { HomeStoreList } from './components/home/HomeStoreList';
@@ -130,9 +129,6 @@ export default function HomePage() {
         <Header />
 
         <main className="flex-1 max-w-md mx-auto w-full px-4 pt-3 space-y-3 pb-12">
-          {/* 實時全團點餐進度卡片 */}
-          <LiveOrderCounter />
-
           {/* ✨ 現代極簡風格歡迎模塊 */}
           <HomeWelcomeBanner />
 

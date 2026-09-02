@@ -5,7 +5,6 @@ import Header from '@/components/Header';
 import CustomModal from '@/components/CustomModal';
 import CartBar from '@/components/CartBar';
 import OfflineBanner from '@/components/OfflineBanner';
-import LiveOrderCounter from '@/components/LiveOrderCounter';
 import { MenuItem } from '@/types/database';
 import { CartItem } from '@/types/cart';
 import { useMultiCart } from '@/lib/useMultiCart';
@@ -111,9 +110,6 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
       <main className="max-w-md mx-auto px-4 pt-3 space-y-3">
         {/* 店家抬頭資訊與分享 */}
         <StoreHeader store={store} onShare={handleShare} />
-
-        {/* 即時訂單計數器 */}
-        <LiveOrderCounter storeId={storeId} />
 
         {/* 店家即時公告、免運目標進度與截單倒數 */}
         <StoreNoticeBanner

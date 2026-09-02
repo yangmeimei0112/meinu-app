@@ -9,7 +9,6 @@ export interface StoreLiveMeta {
   announcement?: string | null;
   status?: 'open' | 'closed' | 'completed';
   is_accepting_orders?: boolean;
-  show_order_progress?: boolean;
   enable_min_threshold?: boolean;
   min_threshold_amount?: number;
   enable_countdown?: boolean;
@@ -111,37 +110,13 @@ export function StoreNoticeBanner({
             </div>
           )}
 
-          {/* 🔥 全團點餐進度卡片 (依照店家營運設定 show_order_progress 控制) */}
-          {storeMeta.show_order_progress !== false && !storeMeta.enable_min_threshold && groupTotalAmount > 0 && (
-            <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-sky-500/10 dark:from-amber-950/30 dark:via-slate-900/40 dark:to-sky-950/30 border border-amber-200/60 dark:border-amber-900/40 text-slate-800 dark:text-slate-100 rounded-2xl p-3 shadow-xs flex items-center justify-between gap-2 animate-in fade-in duration-300">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="relative flex h-3 w-3 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate flex items-center gap-1">
-                    <Flame className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span>全團點餐進度</span>
-                  </p>
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
-                    目前已累計 <span className="font-extrabold text-sky-600 dark:text-sky-400">${groupTotalAmount} 元</span>
-                  </p>
-                </div>
-              </div>
-              <div className="bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl text-[10px] font-extrabold text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40 shadow-2xs shrink-0">
-                <span>熱烈點餐中</span>
-              </div>
-            </div>
-          )}
-
-          {/* 🚚 起送 / 免運滿額進度條 (依照店家設定 enable_min_threshold 與 show_order_progress 控制) */}
-          {storeMeta.enable_min_threshold && storeMeta.min_threshold_amount && storeMeta.show_order_progress !== false && (
+          {/* 🚚 起送 / 免運滿額進度條 */}
+          {storeMeta.enable_min_threshold && storeMeta.min_threshold_amount && (
             <div className="bg-white dark:bg-[#131B2B] rounded-2xl p-3 border border-sky-100 dark:border-slate-800 shadow-xs space-y-1.5">
               <div className="flex items-center justify-between text-xs font-bold">
                 <span className="text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
                   <Truck className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                  <span>全團點餐進度</span>
+                  <span>起送目標進度</span>
                   <span className="text-sky-600 dark:text-sky-400">
                     (${groupTotalAmount} / ${storeMeta.min_threshold_amount})
                   </span>

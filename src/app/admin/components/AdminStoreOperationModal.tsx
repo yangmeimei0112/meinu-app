@@ -20,7 +20,6 @@ export function AdminStoreOperationModal({
 }: AdminStoreOperationModalProps) {
   const [isAcceptingOrders, setIsAcceptingOrders] = useState<boolean>(true);
   const [announcement, setAnnouncement] = useState<string>('');
-  const [showOrderProgress, setShowOrderProgress] = useState<boolean>(true);
   const [enableMinThreshold, setEnableMinThreshold] = useState<boolean>(false);
   const [minThresholdAmount, setMinThresholdAmount] = useState<number>(300);
   const [enableCountdown, setEnableCountdown] = useState<boolean>(false);
@@ -34,7 +33,6 @@ export function AdminStoreOperationModal({
     if (targetStore) {
       setIsAcceptingOrders(targetStore.is_accepting_orders !== false);
       setAnnouncement(targetStore.announcement || '');
-      setShowOrderProgress(targetStore.show_order_progress !== false);
       setEnableMinThreshold(Boolean(targetStore.enable_min_threshold));
       setMinThresholdAmount(targetStore.min_threshold_amount || 300);
       setEnableCountdown(Boolean(targetStore.enable_countdown));
@@ -59,7 +57,6 @@ export function AdminStoreOperationModal({
       await onSaveStoreSettings(targetStore.id, {
         is_accepting_orders: isAcceptingOrders,
         announcement: announcement.trim() || null,
-        show_order_progress: showOrderProgress,
         enable_min_threshold: enableMinThreshold,
         min_threshold_amount: Number(minThresholdAmount) || 0,
         enable_countdown: enableCountdown,
@@ -121,8 +118,6 @@ export function AdminStoreOperationModal({
             setIsAcceptingOrders={setIsAcceptingOrders}
             announcement={announcement}
             setAnnouncement={setAnnouncement}
-            showOrderProgress={showOrderProgress}
-            setShowOrderProgress={setShowOrderProgress}
             enableMinThreshold={enableMinThreshold}
             setEnableMinThreshold={setEnableMinThreshold}
             minThresholdAmount={minThresholdAmount}
