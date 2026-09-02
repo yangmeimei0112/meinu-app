@@ -170,7 +170,7 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
           if (subIds.length > 0) {
             const { data: itemsData } = await supabase
               .from('order_items')
-              .select('menu_item_id, quantity')
+              .select('item_name, quantity')
               .in('submission_id', subIds);
 
             if (!isMountedRef.current) return;
@@ -178,8 +178,8 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
             if (itemsData) {
               const counts: Record<string, number> = {};
               itemsData.forEach((item) => {
-                if (item.menu_item_id) {
-                  counts[item.menu_item_id] = (counts[item.menu_item_id] || 0) + item.quantity;
+                if (item.item_name) {
+                  counts[item.item_name] = (counts[item.item_name] || 0) + (item.quantity || 1);
                 }
               });
               setPopularCounts(counts);

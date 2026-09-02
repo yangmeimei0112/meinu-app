@@ -230,17 +230,15 @@ export function useAdminData({
 
       const effectiveGroupId = targetGroupId !== undefined ? targetGroupId : selectedActiveGroupIdRef.current;
 
-      // 抓取全站所有未歸檔即時訂單（安全查詢，避免因外鍵約束未建立而導致 PostgREST 報錯）
+      // 抓取全站所有未歸檔即時訂單（嚴格適配 Supabase 實際 Schema）
       const { data: allSubList, error: subErr } = await supabase
         .from('order_submissions')
         .select(`
           id, order_number, user_nickname, payment_method_name, sold_out_option,
           total_amount, final_amount, is_paid, signature_data, created_at, group_order_id,
-          store_id, status,
-          group_orders (id, title, store_id, stores (id, name, code)),
+          group_orders (id, title, store_id, stores (id, name)),
           order_items (id, item_name, quantity, unit_price, custom_notes)
         `)
-        .or('status.eq.active,status.is.null')
         .order('created_at', { ascending: false });
 
       if (subErr) console.error('抓取訂單失敗:', subErr);
@@ -248,15 +246,13 @@ export function useAdminData({
       const rawSubRows = (allSubList as unknown as any[]) || [];
       const completedGroupIds = new Set(completedList.map((g) => g.id));
       const activeSubList = rawSubRows.filter((s) => {
-        if (s.status === 'archived') return false;
-        if (s.group_order_id && completedGroupIds.has(s.group_order_id) && !s.status) return false;
+        if (s.group_order_id && completedGroupIds.has(s.group_order_id)) return false;
         return true;
       });
 
       const storeMap = new Map(formattedStores.map((s) => [s.id, s]));
       const formattedSubs: OrderSubmissionAdmin[] = activeSubList.map((s: any) => {
         const resolvedStoreId =
-          s.store_id ||
           s.group_orders?.store_id ||
           s.group_orders?.stores?.id ||
           '';
@@ -482,34 +478,41 @@ export function useAdminData({
     });
   }, []);
 
-  // 🌟 儲存店家即時營運設定（公告、免運目標、倒數計時、公費補助、接單狀態）
+  // 🌟 儲存店家即時營運設定（公告、起送目標、倒數計時、接單狀態）
   const handleSaveStoreSettings = useCallback(
     async (storeId: string, updatedData: Partial<Store>) => {
       try {
-        const { error } = await supabase
-          .from('stores')
-          .update(updatedData)
-          .eq('id', storeId);
+        // 1. 若有基礎店家欄位 (name, category_id, image_url, is_active)，更新 stores 表
+        const storeBasePayload: any = {};
+        if (updatedData.name !== undefined) storeBasePayload.name = updatedData.name;
+        if (updatedData.category_id !== undefined) storeBasePayload.category_id = updatedData.category_id;
+        if (updatedData.image_url !== undefined) storeBasePayload.image_url = updatedData.image_url;
+        if (updatedData.is_active !== undefined) storeBasePayload.is_active = updatedData.is_active;
 
-        if (error) throw error;
+        if (Object.keys(storeBasePayload).length > 0) {
+          const { error: storeErr } = await supabase
+            .from('stores')
+            .update(storeBasePayload)
+            .eq('id', storeId);
+          if (storeErr) console.warn('更新 stores 基本資訊略過:', storeErr);
+        }
 
-        // 同步更新關聯 group_orders 以維持向後相容
+        // 2. 更新 group_orders 營運設定（公告、免運目標、倒數計時、接單狀態）
         const groupPayload: any = {};
         if (updatedData.announcement !== undefined) groupPayload.announcement = updatedData.announcement;
         if (updatedData.enable_min_threshold !== undefined) groupPayload.enable_min_threshold = updatedData.enable_min_threshold;
         if (updatedData.min_threshold_amount !== undefined) groupPayload.min_threshold_amount = updatedData.min_threshold_amount;
         if (updatedData.enable_countdown !== undefined) groupPayload.enable_countdown = updatedData.enable_countdown;
         if (updatedData.cutoff_time !== undefined) groupPayload.cutoff_time = updatedData.cutoff_time;
-        if (updatedData.enable_budget_limit !== undefined) groupPayload.enable_budget_limit = updatedData.enable_budget_limit;
-        if (updatedData.budget_limit_amount !== undefined) groupPayload.budget_limit_amount = updatedData.budget_limit_amount;
         if (updatedData.is_accepting_orders !== undefined) groupPayload.status = updatedData.is_accepting_orders ? 'open' : 'closed';
 
         if (Object.keys(groupPayload).length > 0) {
-          await supabase
+          const { error: grpErr } = await supabase
             .from('group_orders')
             .update(groupPayload)
             .eq('store_id', storeId)
             .neq('status', 'completed');
+          if (grpErr) throw grpErr;
         }
 
         showToast('店家即時營運設定已成功儲存！');
@@ -528,17 +531,12 @@ export function useAdminData({
     async (storeId: string, newAccepting: boolean) => {
       try {
         const { error } = await supabase
-          .from('stores')
-          .update({ is_accepting_orders: newAccepting })
-          .eq('id', storeId);
-
-        if (error) throw error;
-
-        await supabase
           .from('group_orders')
           .update({ status: newAccepting ? 'open' : 'closed' })
           .eq('store_id', storeId)
           .neq('status', 'completed');
+
+        if (error) throw error;
 
         showToast(newAccepting ? '已恢復店家營業接單！' : '已暫停該店家接單！');
         fetchAdminData(selectedActiveGroupIdRef.current, true);

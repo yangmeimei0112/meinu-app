@@ -176,7 +176,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
                   <StoreProductCard
                     key={item.id}
                     item={item}
-                    popularQty={popularCounts[item.id] || 0}
+                    popularQty={popularCounts[item.id] || popularCounts[item.name] || 0}
                     onSelect={setSelectedMenuItem}
                   />
                 ))}

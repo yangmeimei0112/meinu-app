@@ -38,16 +38,30 @@ export async function executeOrderSubmissionPipeline({
   if (!storeId) throw new Error('缺少店家資訊');
 
   // 1. 檢查店家是否處於接單中狀態
-  const { data: currentStore } = await supabase
-    .from('stores')
-    .select('is_accepting_orders, enable_countdown, cutoff_time')
-    .eq('id', storeId)
-    .maybeSingle();
+  const [storeRes, groupRes] = await Promise.all([
+    supabase
+      .from('stores')
+      .select('id, is_active')
+      .eq('id', storeId)
+      .maybeSingle(),
+    supabase
+      .from('group_orders')
+      .select('id, status, enable_countdown, cutoff_time')
+      .eq('store_id', storeId)
+      .neq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
-  if (currentStore) {
-    let isStoreAccepting = currentStore.is_accepting_orders !== false;
-    if (currentStore.enable_countdown && currentStore.cutoff_time) {
-      const remainingSecs = Math.floor((new Date(currentStore.cutoff_time).getTime() - Date.now()) / 1000);
+  if (storeRes.data && storeRes.data.is_active === false) {
+    throw new Error('該店家目前已下架或暫停服務，無法送出新訂單！');
+  }
+
+  if (groupRes.data) {
+    let isStoreAccepting = groupRes.data.status !== 'closed';
+    if (groupRes.data.enable_countdown && groupRes.data.cutoff_time) {
+      const remainingSecs = Math.floor((new Date(groupRes.data.cutoff_time).getTime() - Date.now()) / 1000);
       if (remainingSecs <= 0) {
         isStoreAccepting = false;
       }
@@ -58,7 +72,7 @@ export async function executeOrderSubmissionPipeline({
     }
   }
 
-  let activeGroupId = activeGroupOrder?.id;
+  let activeGroupId = activeGroupOrder?.id || groupRes.data?.id;
 
   if (!activeGroupId) {
     const { data: existingGroup } = await supabase
@@ -102,8 +116,6 @@ export async function executeOrderSubmissionPipeline({
 
   const subPayload: any = {
     group_order_id: activeGroupId || null,
-    store_id: storeId,
-    status: 'active',
     user_nickname: cleanNickname,
     payment_method_name: sanitizeInput(selectedPayment, 40),
     sold_out_option: sanitizeInput(selectedSoldOut, 40),
@@ -113,24 +125,11 @@ export async function executeOrderSubmissionPipeline({
     is_paid: false,
   };
 
-  let { data: submission, error: subErr } = await supabase
+  const { data: submission, error: subErr } = await supabase
     .from('order_submissions')
     .insert([subPayload])
     .select('id')
     .single();
-
-  // 🛡️ 容錯防護：若 Supabase schema 尚未包含 store_id 或 status 欄位，自動降級重試
-  if (subErr && (subErr.message?.includes('store_id') || subErr.message?.includes('status') || subErr.code === 'PGRST204')) {
-    delete subPayload.store_id;
-    delete subPayload.status;
-    const retry = await supabase
-      .from('order_submissions')
-      .insert([subPayload])
-      .select('id')
-      .single();
-    submission = retry.data;
-    subErr = retry.error;
-  }
 
   if (subErr || !submission) throw subErr || new Error('建立訂單記錄失敗');
 
