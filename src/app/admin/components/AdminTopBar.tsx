@@ -14,7 +14,7 @@ interface AdminTopBarProps {
   viewMode: 'desktop' | 'mobile';
   handleToggleViewMode: (mode: 'desktop' | 'mobile') => void;
   theme: string;
-  toggleTheme: () => void;
+  toggleTheme: (event?: React.MouseEvent | { clientX: number; clientY: number }) => void;
   handleLogout: () => void;
   showToast: (msg: string) => void;
 }
@@ -124,8 +124,10 @@ export default function AdminTopBar({
           {/* 4. 深淺色主題切換 */}
           <button
             type="button"
-            onClick={toggleTheme}
-            className="p-2 rounded-2xl font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer"
+            onClick={(e) => toggleTheme(e)}
+            className="p-2 rounded-2xl font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer active:scale-95"
+            title={`切換為${theme === 'dark' ? '亮色' : '暗色'}主題`}
+            aria-label={`切換為${theme === 'dark' ? '亮色' : '暗色'}主題`}
           >
             {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-sky-400" />}
           </button>

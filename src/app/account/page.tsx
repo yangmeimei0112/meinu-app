@@ -115,6 +115,19 @@ export default function AccountPage() {
         <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs space-y-2">
           <p className="text-xs font-bold text-slate-400 dark:text-slate-500 px-1">常用功能</p>
           <div className="space-y-1">
+            <button
+              type="button"
+              onClick={(e) => toggleTheme(e)}
+              className="w-full flex items-center justify-between p-2.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-sky-500" />}
+                <span>介面風格外觀</span>
+              </div>
+              <span className="text-[11px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                {theme === 'dark' ? '深色暗黑模式' : '亮色清新模式'}
+              </span>
+            </button>
             <Link
               href="/my-orders"
               className="flex items-center justify-between p-2.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition text-slate-700 dark:text-slate-200 text-xs font-bold"

@@ -37,7 +37,7 @@ export function HomeFooter({ commitMsg, commitHash }: HomeFooterProps) {
       {/* 🌗 主題切換按鈕 */}
       <button
         type="button"
-        onClick={toggleTheme}
+        onClick={(e) => toggleTheme(e)}
         className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100/80 hover:bg-slate-200/70 dark:bg-slate-800/60 dark:hover:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 transition active:scale-95 cursor-pointer"
         title={`切換為${theme === 'dark' ? '亮色' : '暗色'}主題`}
         aria-label={`切換為${theme === 'dark' ? '亮色' : '暗色'}主題`}

@@ -97,7 +97,7 @@ export function MaintenanceScreen({
         {!isPreview && (
           <button
             type="button"
-            onClick={toggleTheme}
+            onClick={(e) => toggleTheme(e)}
             aria-label="切換深淺色主題"
             className="w-8 h-8 rounded-xl font-bold bg-white/80 dark:bg-slate-900/80 backdrop-blur-md text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center cursor-pointer active:scale-95"
           >
