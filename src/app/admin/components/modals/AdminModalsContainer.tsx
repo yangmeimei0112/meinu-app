@@ -99,7 +99,7 @@ interface AdminModalsContainerProps {
   // 簽名 Modal
   signatureTarget: OrderSubmissionAdmin | null;
   setSignatureTarget: (target: OrderSubmissionAdmin | null) => void;
-  handleSaveSignature: (signatureData: string) => Promise<void>;
+  handleSaveSignature: (signatureData: string, overrideTarget?: OrderSubmissionAdmin | null) => Promise<void>;
 
   // 現金找零 Modal
   changeModalTarget: { nickname: string; amount: number } | null;
@@ -285,7 +285,7 @@ export function AdminModalsContainer({
         <SignatureModal
           nickname={signatureTarget.user_nickname}
           onClose={() => setSignatureTarget(null)}
-          onSaveSignature={handleSaveSignature}
+          onSaveSignature={(data) => handleSaveSignature(data, signatureTarget)}
         />
       )}
 

@@ -208,6 +208,14 @@ export function AdminArchiveCard({
                     <div className="text-slate-500 dark:text-slate-400 text-[11px]">
                       {order.order_items.map((i) => `${i.item_name} x${i.quantity}`).join('、')}
                     </div>
+                    {order.signature_data && (
+                      <div className="bg-slate-50 dark:bg-slate-900/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-slate-400">對帳簽名:</span>
+                        <div className="bg-white rounded-lg px-2 py-0.5 border border-slate-200 shadow-2xs">
+                          <img src={order.signature_data} alt="簽名" className="h-6 object-contain" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -253,6 +253,8 @@ export default function AdminPageContent() {
     openAdminConfirmModal,
     closeAdminConfirmModal,
     setActiveTab,
+    signatureTarget,
+    setSignatureTarget,
   });
 
   // 初始化視圖模式偏好

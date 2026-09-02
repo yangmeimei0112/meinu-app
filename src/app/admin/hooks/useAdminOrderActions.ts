@@ -119,11 +119,18 @@ export function useAdminOrderActions({
   };
 
   // 4. 儲存對帳簽名
-  const handleSaveSignature = async (signatureData: string) => {
-    if (!signatureTarget) return;
-    const targetId = signatureTarget.id;
-    const targetNickname = signatureTarget.user_nickname;
-    setSignatureTarget(null);
+  const handleSaveSignature = async (
+    signatureData: string,
+    overrideTarget?: OrderSubmissionAdmin | null
+  ) => {
+    const target = overrideTarget || signatureTarget;
+    if (!target) {
+      console.warn('儲存簽名失敗：缺少目標訂單');
+      return;
+    }
+    const targetId = target.id;
+    const targetNickname = target.user_nickname;
+    if (setSignatureTarget) setSignatureTarget(null);
 
     setAllSubmissions((prev) =>
       prev.map((s) => (s.id === targetId ? { ...s, signature_data: signatureData, is_paid: true } : s))
@@ -138,6 +145,7 @@ export function useAdminOrderActions({
     if (error) {
       console.error('儲存簽名失敗:', error);
       fetchAdminData(selectedActiveGroupIdRef.current, true);
+      showToast(`儲存簽名失敗：${error.message || '資料庫錯誤'}`);
     }
   };
 
