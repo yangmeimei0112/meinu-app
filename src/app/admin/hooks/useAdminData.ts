@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { GroupOrderAdmin, OrderSubmissionAdmin } from '../admin-types';
 import { SpeechOrderItem, SpeechOrderPayload } from './useAdminSpeech';
+import { parseOrderProgressStatus } from '@/types/orderStatus';
 
 // 明確定義 Supabase 原始查詢回傳的型別（取代 any）
 interface RawOrderItemRow {
@@ -235,7 +236,7 @@ export function useAdminData({
         .from('order_submissions')
         .select(`
           id, order_number, user_nickname, payment_method_name, sold_out_option,
-          total_amount, final_amount, is_paid, signature_data, created_at, group_order_id,
+          total_amount, final_amount, is_paid, signature_data, signature_url, created_at, group_order_id,
           group_orders (id, title, store_id, stores (id, name)),
           order_items (id, item_name, quantity, unit_price, custom_notes)
         `)
@@ -268,6 +269,7 @@ export function useAdminData({
           store_id: resolvedStoreId,
           store_name: resolvedStoreName,
           order_items: s.order_items || [],
+          progress_status: parseOrderProgressStatus(s.signature_url),
         };
       });
 

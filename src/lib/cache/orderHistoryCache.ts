@@ -86,6 +86,7 @@ export async function prefetchOrderHistory(): Promise<OrderHistoryRecord[] | nul
           total_amount,
           final_amount,
           is_paid,
+          signature_url,
           created_at,
           order_items (
             id,

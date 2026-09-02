@@ -8,7 +8,9 @@ import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import OrderStatusActions from './components/OrderStatusActions';
 import OrderStatusReceipt from './components/OrderStatusReceipt';
 import { OrderStatusHeaderCard } from './components/OrderStatusHeaderCard';
+import { OrderStatusProgressTracker } from './components/OrderStatusProgressTracker';
 import { useOrderStatus } from './hooks/useOrderStatus';
+import { parseOrderProgressStatus } from '@/types/orderStatus';
 import { ChevronLeft, ArrowRight, HelpCircle } from 'lucide-react';
 
 export default function OrderStatusPage({
@@ -35,6 +37,8 @@ export default function OrderStatusPage({
     handleOpenCancelModal,
     handleExecuteModalAction,
   } = useOrderStatus(submissionId);
+
+  const progressStatus = order ? parseOrderProgressStatus(order.signature_url) : 'pending';
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-[calc(6.5rem+env(safe-area-inset-bottom,0px))] transition-colors duration-200">
@@ -76,14 +80,22 @@ export default function OrderStatusPage({
           </div>
         ) : (
           <>
+            {/* 🌟 實時訂單進度流程表 (Visual Stepper & Progress Tracker) */}
+            <OrderStatusProgressTracker
+              status={progressStatus}
+              orderNumber={order.order_number}
+              userNickname={order.user_nickname}
+            />
+
             {/* 訂單成功與對帳標籤卡片 */}
             <OrderStatusHeaderCard
               orderNumber={order.order_number}
               isPaid={order.is_paid}
+              progressStatus={progressStatus}
             />
 
             {/* 1 分鐘限時自主修改/取消卡片（僅訂單擁有者裝置可見可操作） */}
-            {isOrderOwner && (
+            {isOrderOwner && progressStatus !== 'cancelled' && progressStatus !== 'completed' && (
               <OrderStatusActions
                 timeLeft={timeLeft}
                 isClosed={isClosed}

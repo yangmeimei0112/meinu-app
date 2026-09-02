@@ -228,6 +228,8 @@ export default function AdminPageContent() {
     handleToggleGroupStatus,
     handleTogglePaid,
     handleBatchMarkPaid,
+    handleUpdateProgressStatus,
+    handleBatchUpdateProgressStatus,
     handleDeleteOrder,
     handleBatchDeleteOrders,
     handleCopyPersonalReceipt,
@@ -384,6 +386,8 @@ export default function AdminPageContent() {
                 handleApplyFeeSplit={handleApplyFeeSplit}
                 handleBatchMarkPaid={handleBatchMarkPaid}
                 handleTogglePaid={handleTogglePaid}
+                handleUpdateProgressStatus={handleUpdateProgressStatus}
+                handleBatchUpdateProgressStatus={handleBatchUpdateProgressStatus}
                 setSignatureTarget={setSignatureTarget}
                 setChangeModalTarget={setChangeModalTarget}
                 handleCopyPersonalReceipt={handleCopyPersonalReceipt}

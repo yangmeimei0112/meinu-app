@@ -19,6 +19,8 @@ export interface OrderSubmissionAdmin {
   final_amount: number;
   is_paid: boolean;
   signature_data: string | null;
+  signature_url?: string | null;
+  progress_status?: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
   created_at: string;
   order_items: OrderItemAdmin[];
 }

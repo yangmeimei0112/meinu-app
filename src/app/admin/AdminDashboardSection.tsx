@@ -7,6 +7,7 @@ import AdminOrderCard from './components/AdminOrderCard';
 import { AdminDashboardMetrics } from './components/dashboard/AdminDashboardMetrics';
 import { AdminDashboardFilters } from './components/dashboard/AdminDashboardFilters';
 import { AdminDashboardFeeSplit } from './components/dashboard/AdminDashboardFeeSplit';
+import { OrderProgressStatus } from '@/types/orderStatus';
 import { Inbox, Plus } from 'lucide-react';
 
 interface AdminDashboardSectionProps {
@@ -31,6 +32,8 @@ interface AdminDashboardSectionProps {
   handleApplyFeeSplit: () => void;
   handleBatchMarkPaid: () => void;
   handleTogglePaid: (subId: string, currentStatus: boolean) => void;
+  handleUpdateProgressStatus?: (subId: string, newStatus: OrderProgressStatus) => void;
+  handleBatchUpdateProgressStatus?: (newStatus: OrderProgressStatus) => void;
   setSignatureTarget: (value: OrderSubmissionAdmin | null) => void;
   setChangeModalTarget: (value: { nickname: string; amount: number } | null) => void;
   handleCopyPersonalReceipt: (sub: OrderSubmissionAdmin) => void;
@@ -68,6 +71,8 @@ export function AdminDashboardSection({
   handleApplyFeeSplit,
   handleBatchMarkPaid,
   handleTogglePaid,
+  handleUpdateProgressStatus,
+  handleBatchUpdateProgressStatus,
   setSignatureTarget,
   setChangeModalTarget,
   handleCopyPersonalReceipt,
@@ -84,6 +89,7 @@ export function AdminDashboardSection({
 }: AdminDashboardSectionProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
+  const [progressFilter, setProgressFilter] = useState<'all' | OrderProgressStatus>('all');
 
   // 防抖搜尋
   const debouncedSearch = useDebounce(searchQuery, 180);
@@ -120,11 +126,19 @@ export function AdminDashboardSection({
 
       if (!matchesSearch) return false;
 
-      if (statusFilter === 'unpaid') return !sub.is_paid;
-      if (statusFilter === 'paid') return sub.is_paid;
+      // 付款狀態篩選
+      if (statusFilter === 'unpaid' && sub.is_paid) return false;
+      if (statusFilter === 'paid' && !sub.is_paid) return false;
+
+      // 進度狀態篩選
+      if (progressFilter !== 'all') {
+        const subProgress = sub.progress_status || 'pending';
+        if (subProgress !== progressFilter) return false;
+      }
+
       return true;
     });
-  }, [submissions, debouncedSearch, statusFilter]);
+  }, [submissions, debouncedSearch, statusFilter, progressFilter]);
 
   const isAllSelected =
     filteredSubmissions.length > 0 &&
@@ -144,32 +158,32 @@ export function AdminDashboardSection({
   const isDesktop = viewMode === 'desktop';
 
   return (
-    <div className="space-y-6">
-      {/* 👑 頂部指標與活動卡片 (Commander Banner + Bento Metrics + Dynamic Payment Cards) */}
+    <div className="space-y-4">
+      {/* 頂部數據統計與操作列 */}
       <AdminDashboardMetrics
         groupOrder={groupOrder}
         activeGroups={activeGroups}
         selectedActiveGroupId={selectedActiveGroupId}
         onSelectActiveGroup={onSelectActiveGroup}
-        grandTotal={grandTotal}
-        paidTotal={paidTotal}
         submissionsCount={submissions.length}
         totalItemCount={totalItemCount}
         unpaidSubmissionsCount={unpaidSubmissionsCount}
+        paidTotal={paidTotal}
+        grandTotal={grandTotal}
         paymentBreakdown={paymentBreakdown}
-        handleToggleGroupStatus={handleToggleGroupStatus}
-        handleOpenGroupSettingsModal={handleOpenGroupSettingsModal}
-        handleArchiveGroup={handleArchiveGroup}
-        handleExportOrdersCSV={handleExportOrdersCSV}
-        handleCopyUnpaidReminder={handleCopyUnpaidReminder}
         handleOpenPrintModal={handleOpenPrintModal}
         handleOpenManualOrderModal={handleOpenManualOrderModal}
+        handleOpenGroupSettingsModal={handleOpenGroupSettingsModal}
+        handleArchiveGroup={handleArchiveGroup}
+        handleToggleGroupStatus={handleToggleGroupStatus}
+        handleCopyUnpaidReminder={handleCopyUnpaidReminder}
+        handleExportOrdersCSV={handleExportOrdersCSV}
       />
 
-      {/* 依版面模式呈現雙欄或單欄 (Desktop: 左 5 叫餐/平攤 + 右 7 訂單卡片; Mobile: 單欄) */}
-      <div className={`grid gap-6 ${isDesktop ? 'grid-cols-12' : 'grid-cols-1'}`}>
-        {/* 👈 左側欄：店家報單總表 (暖拿鐵調) + 運費平攤試算器 (科技藍紫調) */}
-        <div className={isDesktop ? 'col-span-5 space-y-6' : 'space-y-6'}>
+      {/* 兩欄/單欄響應式排版 */}
+      <div className={`grid gap-4 ${isDesktop ? 'grid-cols-12 items-start' : 'grid-cols-1'}`}>
+        {/* 左側平攤試算器 */}
+        <div className={isDesktop ? 'col-span-4 sticky top-4' : 'w-full'}>
           <AdminDashboardFeeSplit
             totalItemCount={totalItemCount}
             itemSummary={itemSummary}
@@ -186,20 +200,24 @@ export function AdminDashboardSection({
           />
         </div>
 
-        {/* 👉 右側欄：團員訂單對帳流水席清單 */}
-        <div className={isDesktop ? 'col-span-7 space-y-4' : 'space-y-4'}>
+        {/* 右側訂單明細與卡片清單 */}
+        <div className={isDesktop ? 'col-span-8' : 'w-full'}>
           {submissions.length === 0 ? (
-            <div className="bg-white/90 dark:bg-[#0E1726]/90 rounded-3xl p-8 sm:p-12 text-center text-slate-400 dark:text-slate-500 text-xs border border-dashed border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-              <Inbox className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto stroke-[1.5]" />
-              <h4 className="text-sm font-extrabold text-slate-700 dark:text-slate-200">目前尚無團員送單</h4>
-              <p className="text-slate-400 dark:text-slate-400 max-w-xs mx-auto">
-                此團購活動目前還沒有收到任何訂單。您可以點擊下方「幫朋友代點」由團長手動補單，或分享專屬點餐網址給朋友！
-              </p>
-              <div className="pt-2 flex justify-center gap-2">
+            <div className="bg-white/90 dark:bg-[#0E1726]/90 rounded-3xl p-10 text-center border border-slate-200/90 dark:border-slate-800 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] space-y-3 backdrop-blur-md">
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/80 text-sky-500 mx-auto flex items-center justify-center border border-sky-100 dark:border-sky-800/80">
+                <Inbox className="w-6 h-6 stroke-[1.8]" />
+              </div>
+              <div>
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-sm">目前尚無點餐資料</h4>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                  團員送出訂單後，將會即時在此處自動更新並推播提醒！
+                </p>
+              </div>
+              <div className="pt-2">
                 <button
                   type="button"
                   onClick={handleOpenManualOrderModal}
-                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                  className="bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer mx-auto"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>幫朋友代點</span>
@@ -214,6 +232,8 @@ export function AdminDashboardSection({
                 setSearchQuery={setSearchQuery}
                 statusFilter={statusFilter}
                 setStatusFilter={setStatusFilter}
+                progressFilter={progressFilter}
+                setProgressFilter={setProgressFilter}
                 unpaidCount={unpaidSubmissionsCount}
                 paidCount={paidSubmissionsCount}
                 totalFilteredCount={filteredSubmissions.length}
@@ -221,6 +241,7 @@ export function AdminDashboardSection({
                 isAllSelected={isAllSelected}
                 handleToggleSelectAll={handleToggleSelectAll}
                 handleBatchMarkPaid={handleBatchMarkPaid}
+                handleBatchUpdateProgress={handleBatchUpdateProgressStatus}
                 handleBatchDeleteOrders={handleBatchDeleteOrders}
               />
 
@@ -239,6 +260,7 @@ export function AdminDashboardSection({
                       }
                     }}
                     onTogglePaid={handleTogglePaid}
+                    onUpdateProgressStatus={handleUpdateProgressStatus}
                     onSetSignatureTarget={setSignatureTarget}
                     onSetChangeModalTarget={setChangeModalTarget}
                     onCopyPersonalReceipt={handleCopyPersonalReceipt}
@@ -248,7 +270,7 @@ export function AdminDashboardSection({
 
                 {filteredSubmissions.length === 0 && (
                   <div className="text-center py-10 text-xs text-slate-400 dark:text-slate-500 bg-white/80 dark:bg-[#0E1726]/80 rounded-3xl border border-slate-200/80 dark:border-slate-800">
-                    沒有符合「{searchQuery}」篩選條件的訂單
+                    沒有符合篩選條件的訂單
                   </div>
                 )}
               </div>

@@ -23,6 +23,8 @@ export interface OrderSubmissionDetail {
   total_amount: number;
   final_amount: number;
   is_paid: boolean;
+  signature_url?: string | null;
+  signature_data?: string | null;
   created_at: string;
 }
 
@@ -170,7 +172,7 @@ export function useOrderStatus(submissionId: string) {
 
     fetchOrder();
 
-    // 2. Realtime 實時監聽
+    // 2. Realtime 實時監聽與 3 秒輪詢雙保險
     const channel = supabase
       .channel(`order_status_${submissionId}`)
       .on(
@@ -189,7 +191,22 @@ export function useOrderStatus(submissionId: string) {
       )
       .subscribe();
 
+    const pollingInterval = setInterval(async () => {
+      try {
+        const { data: latestSub } = await supabase
+          .from('order_submissions')
+          .select('id, is_paid, signature_url, signature_data, final_amount, total_amount')
+          .eq('id', submissionId)
+          .maybeSingle();
+
+        if (latestSub) {
+          setOrder((prev) => (prev ? { ...prev, ...latestSub } : null));
+        }
+      } catch {}
+    }, 3000);
+
     return () => {
+      clearInterval(pollingInterval);
       supabase.removeChannel(channel);
     };
   }, [submissionId]);

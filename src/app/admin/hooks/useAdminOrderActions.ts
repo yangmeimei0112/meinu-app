@@ -28,6 +28,8 @@ interface UseAdminOrderActionsProps {
   openAdminConfirmModal: (modal: AdminConfirmModalState) => void;
   closeAdminConfirmModal: () => void;
   setActiveTab: (tab: AdminTabType) => void;
+  signatureTarget?: OrderSubmissionAdmin | null;
+  setSignatureTarget?: (target: OrderSubmissionAdmin | null) => void;
 }
 
 export function useAdminOrderActions({
@@ -46,6 +48,8 @@ export function useAdminOrderActions({
   openAdminConfirmModal,
   closeAdminConfirmModal,
   setActiveTab,
+  signatureTarget: externalSignatureTarget,
+  setSignatureTarget: externalSetSignatureTarget,
 }: UseAdminOrderActionsProps) {
   // Modal 狀態
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
@@ -53,7 +57,10 @@ export function useAdminOrderActions({
   const [isBatchImportModalOpen, setIsBatchImportModalOpen] = useState<boolean>(false);
   const [isGroupSettingsModalOpen, setIsGroupSettingsModalOpen] = useState<boolean>(false);
 
-  const [signatureTarget, setSignatureTarget] = useState<OrderSubmissionAdmin | null>(null);
+  const [internalSignatureTarget, setInternalSignatureTarget] = useState<OrderSubmissionAdmin | null>(null);
+  const signatureTarget = externalSignatureTarget !== undefined ? externalSignatureTarget : internalSignatureTarget;
+  const setSignatureTarget = externalSetSignatureTarget || setInternalSignatureTarget;
+
   const [changeModalTarget, setChangeModalTarget] = useState<{ nickname: string; amount: number } | null>(null);
   const [receivedCash, setReceivedCash] = useState<string>('');
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
@@ -237,6 +244,90 @@ export function useAdminOrderActions({
     }
   };
 
+  // 🌟 8.5 更新訂單進度狀態 (待確認、備餐中、待取餐、已完成、已取消)
+  const handleUpdateProgressStatus = async (
+    subId: string,
+    newStatus: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled',
+    note?: string
+  ) => {
+    const payloadSignatureUrl = JSON.stringify({
+      status: newStatus,
+      note: note || '',
+      updated_at: new Date().toISOString(),
+    });
+
+    const labelMap: Record<string, string> = {
+      pending: '待確認',
+      preparing: '製作中',
+      ready: '待取餐',
+      completed: '已完成',
+      cancelled: '已取消',
+    };
+
+    setAllSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === subId ? { ...s, progress_status: newStatus, signature_url: payloadSignatureUrl } : s
+      )
+    );
+
+    showToast(`訂單狀態已更新為「${labelMap[newStatus] || newStatus}」！`);
+
+    const { error } = await supabase
+      .from('order_submissions')
+      .update({ signature_url: payloadSignatureUrl })
+      .eq('id', subId);
+
+    if (error) {
+      console.error('更新訂單進度狀態失敗:', error);
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
+      showToast('更新訂單進度失敗，請檢查網路');
+    }
+  };
+
+  // 🌟 8.6 批次變更訂單進度狀態
+  const handleBatchUpdateProgressStatus = async (
+    newStatus: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled'
+  ) => {
+    if (!selectedSubmissionIds.length) return;
+    const idsToUpdate = [...selectedSubmissionIds];
+    setSelectedSubmissionIds([]);
+
+    const payloadSignatureUrl = JSON.stringify({
+      status: newStatus,
+      note: '',
+      updated_at: new Date().toISOString(),
+    });
+
+    const labelMap: Record<string, string> = {
+      pending: '待確認',
+      preparing: '製作中',
+      ready: '待取餐',
+      completed: '已完成',
+      cancelled: '已取消',
+    };
+
+    setAllSubmissions((prev) =>
+      prev.map((s) =>
+        idsToUpdate.includes(s.id)
+          ? { ...s, progress_status: newStatus, signature_url: payloadSignatureUrl }
+          : s
+      )
+    );
+
+    showToast(`已批次將 ${idsToUpdate.length} 筆訂單標記為「${labelMap[newStatus] || newStatus}」！`);
+
+    const { error } = await supabase
+      .from('order_submissions')
+      .update({ signature_url: payloadSignatureUrl })
+      .in('id', idsToUpdate);
+
+    if (error) {
+      console.error('批次更新訂單進度失敗:', error);
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
+      showToast('批次更新進度失敗');
+    }
+  };
+
   // 9. 刪除單筆訂單
   const handleDeleteOrder = (subId: string, nickname: string, orderNumber: string) => {
     openAdminConfirmModal({
@@ -329,6 +420,8 @@ export function useAdminOrderActions({
     handleToggleGroupStatus,
     handleTogglePaid,
     handleBatchMarkPaid,
+    handleUpdateProgressStatus,
+    handleBatchUpdateProgressStatus,
     handleDeleteOrder,
     handleBatchDeleteOrders,
     handleCopyPersonalReceipt: (sub: OrderSubmissionAdmin) => copyPersonalReceipt(sub, showToast),
