@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
       'my-orders': '歷史訂單頁',
     };
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       success: true,
       message: updatedConfig.is_maintenance
         ? `已開啟「${scopeLabels[rawScope] || '特定頁面'}」系統維護模式`
@@ -195,8 +195,36 @@ export async function POST(req: NextRequest) {
       config: updatedConfig,
       build_id: process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || process.env.VERCEL_GIT_COMMIT_SHA || 'dev',
     });
+
+    if (updatedConfig.is_maintenance) {
+      res.cookies.set('meinu_maintenance', 'true', {
+        path: '/',
+        maxAge: 86400,
+        sameSite: 'lax',
+      });
+      res.cookies.set('meinu_maintenance_scope', updatedConfig.scope || 'all', {
+        path: '/',
+        maxAge: 86400,
+        sameSite: 'lax',
+      });
+    } else {
+      res.cookies.set('meinu_maintenance', '', {
+        path: '/',
+        maxAge: 0,
+      });
+      res.cookies.set('meinu_maintenance_scope', '', {
+        path: '/',
+        maxAge: 0,
+      });
+    }
+
+    return res;
   } catch (err: any) {
     console.error('更新維護狀態出錯:', err);
     return NextResponse.json({ success: false, message: err?.message || '伺服端錯誤' }, { status: 500 });
   }
+}
+
+export function getMaintenanceConfigServer(): MaintenanceConfig {
+  return readConfig();
 }

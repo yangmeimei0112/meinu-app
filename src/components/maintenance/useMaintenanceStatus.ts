@@ -84,11 +84,11 @@ interface MaintenanceStoreState {
   isCenterPopup: boolean;
 }
 
-function getInitialStoreState(): MaintenanceStoreState {
+function getInitialStoreState(serverData?: MaintenanceData | null): MaintenanceStoreState {
   if (typeof window === 'undefined') {
     return {
-      maintenanceData: null,
-      isCountDownFinished: false,
+      maintenanceData: serverData || null,
+      isCountDownFinished: Boolean(serverData?.is_maintenance),
       countdown: null,
       isCenterPopup: false,
     };
@@ -96,7 +96,7 @@ function getInitialStoreState(): MaintenanceStoreState {
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
-    let initialData: MaintenanceData | null = null;
+    let initialData: MaintenanceData | null = serverData || null;
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.is_maintenance) {
@@ -104,10 +104,12 @@ function getInitialStoreState(): MaintenanceStoreState {
       }
     }
 
+    const hasCookie = typeof document !== 'undefined' && document.cookie.includes('meinu_maintenance=true');
     const isLocked =
       localStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
       sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
-      !!initialData?.is_maintenance;
+      hasCookie ||
+      Boolean(initialData?.is_maintenance);
 
     return {
       maintenanceData: initialData,
@@ -117,8 +119,8 @@ function getInitialStoreState(): MaintenanceStoreState {
     };
   } catch {
     return {
-      maintenanceData: null,
-      isCountDownFinished: false,
+      maintenanceData: serverData || null,
+      isCountDownFinished: Boolean(serverData?.is_maintenance),
       countdown: null,
       isCenterPopup: false,
     };
@@ -195,6 +197,25 @@ class MaintenanceStore {
       this.centerPopupTimeout = null;
     }
     this.setState({ isCenterPopup: false });
+  }
+
+  public seedServerData(serverData: MaintenanceData) {
+    if (serverData.is_maintenance) {
+      this.wasInMaintenance = true;
+      this.initialCheckDone = true;
+      this.setState({
+        maintenanceData: serverData,
+        isCountDownFinished: true,
+        countdown: null,
+        isCenterPopup: false,
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
+        sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
+        localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(serverData));
+        sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(serverData));
+      } catch {}
+    }
   }
 
   public async fetchStatus(): Promise<MaintenanceData | null> {
@@ -382,13 +403,19 @@ const globalMaintenanceStore = new MaintenanceStore();
 // 🪝 供 React 元件使用的訂閱 Hook (Zero-flicker useMaintenanceStatus)
 // =========================================================================
 
-export function useMaintenanceStatus(currentPathname: string = '/') {
+export function useMaintenanceStatus(currentPathname: string = '/', initialData?: MaintenanceData | null) {
+  useEffect(() => {
+    if (initialData?.is_maintenance && !globalMaintenanceStore.getState().maintenanceData?.is_maintenance) {
+      globalMaintenanceStore.seedServerData(initialData);
+    }
+  }, [initialData]);
+
   const state = useSyncExternalStore(
     (callback) => globalMaintenanceStore.subscribe(callback),
     () => globalMaintenanceStore.getState(),
     () => ({
-      maintenanceData: null,
-      isCountDownFinished: false,
+      maintenanceData: initialData || null,
+      isCountDownFinished: Boolean(initialData?.is_maintenance),
       countdown: null,
       isCenterPopup: false,
     })

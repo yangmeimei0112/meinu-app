@@ -3,6 +3,7 @@ import './globals.css';
 import MaintenanceGuard from '@/components/MaintenanceGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import VersionUpdateModal from '@/components/VersionUpdateModal';
+import { getMaintenanceConfigServer } from '@/app/api/system/maintenance/route';
 
 // 取得實際網站網址（Vercel 部署後的網址）
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://meinu2.vercel.app').replace(/\/$/, '');
@@ -106,6 +107,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const initialMaintenance = getMaintenanceConfigServer();
+
   // 結構化數據 (Schema.org JSON-LD) - 幫助 Google 理解網站結構並給予精美搜尋摘要
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -152,7 +155,7 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {/* 主題與平台特徵識別腳本 */}
+        {/* 主題與維護快速識別腳本 */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -170,6 +173,13 @@ export default function RootLayout({
                   var isAndroid = /Android/i.test(ua);
                   if (isIOS) document.documentElement.classList.add('is-ios');
                   if (isAndroid) document.documentElement.classList.add('is-android');
+
+                  if (${initialMaintenance.is_maintenance ? 'true' : 'false'}) {
+                    if (window.location.pathname.indexOf('/admin') !== 0) {
+                      sessionStorage.setItem('meinu_maintenance_locked', 'true');
+                      localStorage.setItem('meinu_maintenance_locked', 'true');
+                    }
+                  }
                 } catch (e) {}
               })();
             `,
@@ -177,7 +187,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-slate-50 text-slate-900 dark:bg-[#0B0F17] dark:text-slate-100 antialiased selection:bg-sky-100 dark:selection:bg-sky-900/60 selection:text-sky-600 dark:selection:text-sky-300 min-h-[100dvh] flex flex-col">
-        <MaintenanceGuard>
+        <MaintenanceGuard initialData={initialMaintenance}>
           <div className="flex-1 flex flex-col">
             {children}
           </div>

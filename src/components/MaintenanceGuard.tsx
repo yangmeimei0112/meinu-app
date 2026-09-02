@@ -50,7 +50,13 @@ function IconChevronUp({ className = 'w-4 h-4' }: { className?: string }) {
  * 🌟 僅在前台使用者頁面掛載的維護狀態監聽器
  * 嚴格與後台管理 (/admin) 隔離，支援「全站維護」與「單一頁面特定維護」
  */
-function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode }) {
+function FrontendMaintenanceWatcher({
+  children,
+  initialData,
+}: {
+  children: React.ReactNode;
+  initialData?: MaintenanceData;
+}) {
   const pathname = usePathname();
   const {
     maintenanceData,
@@ -63,7 +69,7 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
     isMinimized,
     setIsMinimized,
     handleManualCheck,
-  } = useMaintenanceStatus(pathname);
+  } = useMaintenanceStatus(pathname, initialData);
 
   // 判定當前頁面是否處於維護範圍內
   const isCurrentRouteLocked =
@@ -236,7 +242,13 @@ function FrontendMaintenanceWatcher({ children }: { children: React.ReactNode })
   );
 }
 
-export default function MaintenanceGuard({ children }: { children: React.ReactNode }) {
+export default function MaintenanceGuard({
+  children,
+  initialData,
+}: {
+  children: React.ReactNode;
+  initialData?: MaintenanceData;
+}) {
   const pathname = usePathname();
 
   // 🛡️ 後台路徑 (/admin) 100% 完全直通，不掛載任何前台維護監聽與自動重整邏輯
@@ -244,5 +256,9 @@ export default function MaintenanceGuard({ children }: { children: React.ReactNo
     return <>{children}</>;
   }
 
-  return <FrontendMaintenanceWatcher>{children}</FrontendMaintenanceWatcher>;
+  return (
+    <FrontendMaintenanceWatcher initialData={initialData}>
+      {children}
+    </FrontendMaintenanceWatcher>
+  );
 }
