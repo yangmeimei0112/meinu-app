@@ -224,7 +224,6 @@ export default function MobileBottomNav() {
                 }`}
               >
                 {item.label}
-                {isUnderMaint ? ' (維修中)' : ''}
               </span>
 
               {/* 啟用中底部發光指示點 */}

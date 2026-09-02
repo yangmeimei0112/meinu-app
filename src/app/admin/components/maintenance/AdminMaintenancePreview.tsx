@@ -35,7 +35,7 @@ function SimulatedBottomNav({ scope }: { scope?: string }) {
               )}
             </div>
             <span className={`text-[9px] mt-0.5 tracking-tight ${item.inMaint ? 'font-black text-amber-600 dark:text-amber-400' : 'font-medium text-slate-400 dark:text-slate-500'}`}>
-              {item.label}{item.inMaint ? ' (維修中)' : ''}
+              {item.label}
             </span>
           </div>
         );
