@@ -297,13 +297,20 @@ export function useUserAuth() {
       });
 
       if (error) {
-        setAuthError(error.message);
-        return { success: false, error: error.message };
+        let msg = error.message;
+        if (msg.includes('Unsupported provider') || msg.includes('not enabled') || msg.includes('validation_failed')) {
+          msg = 'Supabase 後台尚未啟用 Google 登入功能，請至 Supabase Dashboard > Authentication > Providers > Google 開啟並配置 Client ID！';
+        }
+        setAuthError(msg);
+        return { success: false, error: msg };
       }
 
       return { success: true, data };
     } catch (err: any) {
-      const msg = err?.message || 'Google 登入連線失敗';
+      let msg = err?.message || 'Google 登入連線失敗';
+      if (msg.includes('Unsupported provider') || msg.includes('not enabled')) {
+        msg = 'Supabase 後台尚未啟用 Google 登入功能，請至 Supabase Dashboard > Authentication > Providers > Google 開啟並配置 Client ID！';
+      }
       setAuthError(msg);
       return { success: false, error: msg };
     }
