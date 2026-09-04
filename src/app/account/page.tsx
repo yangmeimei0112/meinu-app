@@ -16,10 +16,22 @@ export default function AccountPage() {
     loading,
     authError,
     setAuthError,
+    isPasswordRecovery,
+    isPasskeySupported,
+    passkeys,
+    loadingPasskeys,
     register,
     login,
-    logout,
+    loginWithGoogle,
+    loginWithPasskey,
+    registerPasskey,
+    deletePasskey,
+    sendPasswordResetEmail,
+    resetPassword,
     updateNickname,
+    updatePhone,
+    logout,
+    deleteAccount,
   } = useUserAuth();
 
   return (
@@ -49,18 +61,31 @@ export default function AccountPage() {
             <Loader2 className="w-6 h-6 animate-spin mx-auto text-sky-500" />
             <p>正在同步會員帳號資料...</p>
           </div>
-        ) : profile ? (
+        ) : profile && !isPasswordRecovery ? (
           <AccountProfileCard
             profile={profile}
             theme={theme}
             toggleTheme={toggleTheme}
             onLogout={logout}
             onUpdateNickname={updateNickname}
+            onUpdatePhone={updatePhone}
+            isPasskeySupported={isPasskeySupported}
+            passkeys={passkeys}
+            loadingPasskeys={loadingPasskeys}
+            onRegisterPasskey={registerPasskey}
+            onDeletePasskey={deletePasskey}
+            onDeleteAccount={deleteAccount}
           />
         ) : (
           <AccountAuthForm
             onLogin={login}
             onRegister={register}
+            onLoginWithGoogle={loginWithGoogle}
+            onLoginWithPasskey={loginWithPasskey}
+            onSendPasswordResetEmail={sendPasswordResetEmail}
+            onResetPassword={resetPassword}
+            isPasswordRecovery={isPasswordRecovery}
+            isPasskeySupported={isPasskeySupported}
             authError={authError}
             setAuthError={setAuthError}
           />
