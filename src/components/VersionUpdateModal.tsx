@@ -92,8 +92,26 @@ export default function VersionUpdateModal() {
     setIsReloading(true);
     try {
       localStorage.removeItem(STORAGE_KEY_SNOOZE);
+      sessionStorage.removeItem(STORAGE_KEY_SNOOZE);
     } catch {}
-    await forceHardReloadToLatestVersion();
+
+    try {
+      await forceHardReloadToLatestVersion(undefined, { allowAdmin: true });
+    } catch (err) {
+      console.warn('[VersionUpdate] Reload failed, executing fallback reload:', err);
+      window.location.reload();
+    }
+
+    // 保底計時器：若 500ms 內瀏覽器尚未執行跳轉，強制觸發頁面重載
+    setTimeout(() => {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('_v_update', String(Date.now()));
+        window.location.replace(url.toString());
+      } catch {
+        window.location.reload();
+      }
+    }, 500);
   };
 
   const handleSnooze = () => {

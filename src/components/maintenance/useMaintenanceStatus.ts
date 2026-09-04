@@ -47,7 +47,10 @@ export function isRouteInMaintenance(
 }
 
 // 🧹 強制清除所有快取並帶隨機時間戳硬重整至最新版本
-export async function forceHardReloadToLatestVersion(targetUrl?: string) {
+export async function forceHardReloadToLatestVersion(
+  targetUrl?: string,
+  options: { allowAdmin?: boolean } = { allowAdmin: true }
+) {
   try {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
@@ -70,13 +73,17 @@ export async function forceHardReloadToLatestVersion(targetUrl?: string) {
   }
 
   if (typeof window !== 'undefined') {
-    // 🛡️ 徹底防護：禁止對管理後台 (/admin) 執行任何強制重整
-    if (window.location.pathname.startsWith('/admin')) {
+    // 🛡️ 僅在明確指定不允許重整後台（如維護結束自動輪詢時），且當前位於管理後台時略過
+    if (!options.allowAdmin && window.location.pathname.startsWith('/admin')) {
       return;
     }
-    const url = new URL(targetUrl || window.location.href);
-    url.searchParams.set('_update', String(Date.now()));
-    window.location.replace(url.toString());
+    try {
+      const url = new URL(targetUrl || window.location.href, window.location.origin);
+      url.searchParams.set('_v_update', String(Date.now()));
+      window.location.replace(url.toString());
+    } catch {
+      window.location.reload();
+    }
   }
 }
 
@@ -329,7 +336,7 @@ class MaintenanceStore {
       this.initialCheckDone = true;
 
       if (wasLocked) {
-        forceHardReloadToLatestVersion();
+        forceHardReloadToLatestVersion(undefined, { allowAdmin: false });
         return;
       }
 
