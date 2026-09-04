@@ -4,6 +4,7 @@ import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import AdminTopBar from './components/AdminTopBar';
 import AdminTabsNav from './components/AdminTabsNav';
+import { AdminMobileBottomNav } from './components/AdminMobileBottomNav';
 import { AdminDashboardSection } from './AdminDashboardSection';
 import { AdminCrudSection } from './AdminCrudSection';
 import { AdminArchiveSection } from './AdminArchiveSection';
@@ -24,9 +25,12 @@ export default function AdminPageContent() {
   return (
     <div
       onClick={c.initAudio}
-      className="min-h-[100dvh] bg-slate-50 dark:bg-[#080D1A] text-slate-800 dark:text-slate-100 flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom,0px))] select-none transition-colors duration-200"
+      className="min-h-[100dvh] bg-slate-50 dark:bg-[#080D1A] text-slate-800 dark:text-slate-100 flex flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] sm:pb-10 select-none transition-colors duration-200"
     >
-      <Header />
+      {/* 電腦版保留全站 Header，手機版直接由 AdminTopBar 單行緊湊展示，避免頂部過度擁擠 */}
+      <div className="hidden sm:block">
+        <Header />
+      </div>
       <OfflineBanner />
 
       {/* 浮動提示 Toast */}
@@ -36,7 +40,7 @@ export default function AdminPageContent() {
         </div>
       )}
 
-      {/* 團長控制台頂部功能列 */}
+      {/* 團長控制台頂部功能列 (手機緊湊/電腦完整) */}
       <AdminTopBar
         isSoundEnabled={c.isSoundEnabled}
         handleToggleSound={c.handleToggleSound}
@@ -52,14 +56,14 @@ export default function AdminPageContent() {
         showToast={c.showToast}
       />
 
-      {/* 分頁 Tab 導覽切換 */}
+      {/* 電腦版分頁 Tab 導覽切換 (手機版由底部導覽列接管) */}
       <AdminTabsNav
         activeTab={c.activeTab}
         setActiveTab={c.setActiveTab}
         activeSubmissionsCount={c.submissions.length}
       />
 
-      <main className={`mx-auto p-4 transition-all duration-200 ${c.isDesktop ? 'max-w-7xl' : 'max-w-md'}`}>
+      <main className={`mx-auto p-3 sm:p-4 transition-all duration-200 ${c.isDesktop ? 'max-w-7xl' : 'max-w-md'}`}>
         {c.loading ? (
           <div className="text-center py-20 text-slate-400 dark:text-slate-500 text-xs animate-pulse">
             正在同步最新團購資料...
@@ -196,6 +200,13 @@ export default function AdminPageContent() {
           </>
         )}
       </main>
+
+      {/* 📱 手機版專屬底部懸浮分頁導覽列 (< 640px) */}
+      <AdminMobileBottomNav
+        activeTab={c.activeTab}
+        setActiveTab={c.setActiveTab}
+        activeSubmissionsCount={c.submissions.length}
+      />
 
       {/* 🌟 集中化掛載後台所有彈窗 */}
       <AdminModalsContainer

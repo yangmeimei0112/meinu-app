@@ -15,7 +15,7 @@ export default function AdminTabsNav({
   activeSubmissionsCount,
 }: AdminTabsNavProps) {
   return (
-    <div className="max-w-7xl mx-auto w-full px-4 pt-4">
+    <div className="hidden sm:block max-w-7xl mx-auto w-full px-4 pt-4">
       <div className="flex items-center gap-1.5 bg-slate-200/80 dark:bg-[#0E1726]/90 p-1.5 rounded-2xl border border-slate-300/80 dark:border-slate-800 overflow-x-auto shadow-inner">
         {/* 1. 即時對帳 */}
         <button

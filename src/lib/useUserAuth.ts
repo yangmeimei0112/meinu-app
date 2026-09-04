@@ -531,23 +531,31 @@ export function useUserAuth() {
     }
   }, []);
 
-  // 12. 註銷帳號 (Account Deletion)
+  // 12. 註銷帳號 (Account Deletion - 徹底自資料庫刪除)
   const deleteAccount = useCallback(async () => {
     try {
       const { data: { session: currSession } } = await supabase.auth.getSession();
       const token = currSession?.access_token;
 
-      if (token) {
-        await fetch('/api/account/delete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-        });
+      if (!token) {
+        throw new Error('未取得有效登入憑證，請先登入後再試');
       }
 
-      // 清除本機所有快取
+      // 呼叫伺服端徹底自資料庫清除 auth.users 及所有關聯資料
+      const res = await fetch('/api/account/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || '伺服端註銷帳號失敗');
+      }
+
+      // 徹底刪除成功後，清除本機所有快取
       try {
         localStorage.removeItem('menu_app_user_nickname');
         localStorage.removeItem('menu_app_user_phone');
@@ -555,7 +563,10 @@ export function useUserAuth() {
         window.dispatchEvent(new Event('storage'));
       } catch {}
 
-      await supabase.auth.signOut();
+      try {
+        await supabase.auth.signOut();
+      } catch {}
+
       setUser(null);
       setSession(null);
       setProfile(null);
