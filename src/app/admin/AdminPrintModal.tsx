@@ -143,7 +143,12 @@ export default function AdminPrintModal({
                         ${sub.final_amount}
                       </td>
                       <td className="p-2 text-center align-top text-[11px] font-bold">
-                        {sub.is_paid ? (
+                        {sub.signature_data ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-emerald-700 dark:text-emerald-400">已付</span>
+                            <img src={sub.signature_data} alt="簽名" className="h-5 max-w-[60px] object-contain mx-auto" />
+                          </div>
+                        ) : sub.is_paid ? (
                           <span className="text-emerald-700 dark:text-emerald-400">已付</span>
                         ) : (
                           <span className="text-amber-600 dark:text-amber-400">未付</span>

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Store, CheckCircle2, Clock, RotateCcw, ArrowRight } from 'lucide-react';
+import { Store, CheckCircle2, Clock, RotateCcw, ArrowRight, PenTool } from 'lucide-react';
 import { PaymentMethodIcon, stripEmojis } from '@/lib/icon-utils';
 import { parseOrderProgressStatus, ORDER_STATUS_META } from '@/types/orderStatus';
 
@@ -25,6 +25,7 @@ export interface OrderHistoryRecord {
   final_amount: number;
   is_paid: boolean;
   signature_url?: string | null;
+  signature_data?: string | null;
   created_at: string;
   order_items: OrderItemRow[];
   group_orders?: {
@@ -47,6 +48,16 @@ export function MyOrderHistoryCard({ order, onReorder }: MyOrderHistoryCardProps
   const storeName = order.group_orders?.stores?.name || '團購店家';
   const progressStatus = parseOrderProgressStatus(order.signature_url);
   const progressMeta = ORDER_STATUS_META[progressStatus] || ORDER_STATUS_META.pending;
+
+  // 取得有效之對帳簽名圖檔 (支援 signature_data 或圖片格式 signature_url)
+  const signatureImage =
+    order.signature_data ||
+    (order.signature_url &&
+    (order.signature_url.startsWith('data:image') ||
+      order.signature_url.startsWith('http') ||
+      order.signature_url.startsWith('/'))
+      ? order.signature_url
+      : null);
 
   const formattedDate = new Date(order.created_at).toLocaleString('zh-TW', {
     month: 'numeric',
@@ -122,6 +133,19 @@ export function MyOrderHistoryCard({ order, onReorder }: MyOrderHistoryCardProps
           合計 ${order.final_amount} 元
         </span>
       </div>
+
+      {/* 🌟 數位對帳簽名預覽 */}
+      {signatureImage && (
+        <div className="bg-slate-50 dark:bg-[#0B101B] p-2 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            <PenTool className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+            <span>對帳簽名：</span>
+          </div>
+          <div className="bg-white rounded-xl px-2 py-0.5 border border-slate-200 shadow-2xs flex items-center justify-center max-w-[150px]">
+            <img src={signatureImage} alt="對帳簽名" className="h-6 w-auto object-contain select-none" />
+          </div>
+        </div>
+      )}
 
       {/* 底部操作按鈕：一鍵再點一次 & 查看狀態 */}
       <div className="grid grid-cols-2 gap-2 pt-1">
