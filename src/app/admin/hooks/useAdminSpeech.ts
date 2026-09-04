@@ -279,6 +279,7 @@ export function useAdminSpeech() {
     speechRate,
     isSpeaking,
     speakOrder,
+    speakNewOrder: speakOrder,
     playTestSpeech,
     toggleSpeech,
     setSpeechMode,

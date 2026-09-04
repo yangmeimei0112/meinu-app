@@ -1,449 +1,157 @@
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
-import { Store, MenuItem } from '@/types/database';
-import { AdminArchiveSection } from './AdminArchiveSection';
-import { AdminCrudSection } from './AdminCrudSection';
-import { AdminDashboardSection } from './AdminDashboardSection';
-import { AdminViewMode, AdminTabType } from './admin-types';
-import { useTheme } from '@/lib/theme';
-import { useAdminSound } from './hooks/useAdminSound';
-import { useAdminSpeech } from './hooks/useAdminSpeech';
-import { useAdminData } from './hooks/useAdminData';
-import { useAdminStoreCrud } from './hooks/useAdminStoreCrud';
-import { useAdminOrderActions } from './hooks/useAdminOrderActions';
-import { useAdminModalState } from './hooks/useAdminModalState';
-import { useAdminGlobalSettingsCrud } from './hooks/useAdminGlobalSettingsCrud';
-
-// 子元件與彈窗
-import AdminAuthLock from './components/AdminAuthLock';
 import AdminTopBar from './components/AdminTopBar';
 import AdminTabsNav from './components/AdminTabsNav';
+import { AdminDashboardSection } from './AdminDashboardSection';
+import { AdminCrudSection } from './AdminCrudSection';
+import { AdminArchiveSection } from './AdminArchiveSection';
 import { AdminMaintenanceSection } from './components/AdminMaintenanceSection';
+import AdminAuthLock from './components/AdminAuthLock';
 import { AdminModalsContainer } from './components/modals/AdminModalsContainer';
+import { useAdminPageCoordinator } from './hooks/useAdminPageCoordinator';
+import { Store, MenuItem } from '@/types/database';
 
 export default function AdminPageContent() {
-  const { theme, toggleTheme } = useTheme();
-  const { isSoundEnabled, playChimeSound, initAudio, toggleSound } = useAdminSound();
-  const {
-    isSpeechEnabled,
-    speechMode,
-    speechRate,
-    isSpeaking,
-    speakOrder,
-    playTestSpeech,
-    toggleSpeech,
-    setSpeechMode,
-    setSpeechRate,
-  } = useAdminSpeech();
-
-  const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<AdminTabType>('active');
-  const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
-
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
-  }, []);
-
-  // 1. Modal 狀態管理 Hook
-  const {
-    isPrintModalOpen,
-    setIsPrintModalOpen,
-    isManualOrderModalOpen,
-    setIsManualOrderModalOpen,
-    isBatchImportModalOpen,
-    setIsBatchImportModalOpen,
-    isGroupSettingsModalOpen,
-    setIsGroupSettingsModalOpen,
-    showVoiceSettingsModal,
-    setShowVoiceSettingsModal,
-    signatureTarget,
-    setSignatureTarget,
-    changeModalTarget,
-    setChangeModalTarget,
-    receivedCash,
-    setReceivedCash,
-    adminConfirmModal,
-    openAdminConfirmModal,
-    closeAdminConfirmModal,
-  } = useAdminModalState();
-
-  // 2. 後台核心資料與 Realtime Hook
-  const {
-    activeGroup,
-    setActiveGroup,
-    activeGroups,
-    selectedActiveGroupId,
-    setSelectedActiveGroupId,
-    selectedActiveGroupIdRef,
-    archivedGroups,
-    stores,
-    categories,
-    setCategories,
-    paymentMethods,
-    setPaymentMethods,
-    soldOutOptions,
-    setSoldOutOptions,
-    allMenuItems,
-    optimisticReorderMenuItems,
-    allSubmissions,
-    setAllSubmissions,
-    submissions,
-    loading,
-    fetchAdminData,
-    inputDeliveryFee,
-    setInputDeliveryFee,
-    inputDiscount,
-    setInputDiscount,
-    roundingRule,
-    setRoundingRule,
-  } = useAdminData({
-    isUnlocked,
-    playChimeSound,
-    isSoundEnabled,
-    speakOrder,
-    isSpeechEnabled,
-    showToast,
-  });
-
-  // 計算餐點彙總與全團金額
-  const itemSummary = useMemo(() => {
-    const summary: Record<string, number> = {};
-    submissions.forEach((sub) => {
-      sub.order_items?.forEach((item) => {
-        summary[item.item_name] = (summary[item.item_name] || 0) + item.quantity;
-      });
-    });
-    return summary;
-  }, [submissions]);
-
-  const grandTotal = useMemo(() => {
-    return submissions.reduce((sum, sub) => sum + sub.final_amount, 0);
-  }, [submissions]);
-
-  const paidTotal = useMemo(() => {
-    return submissions.filter((s) => s.is_paid).reduce((sum, s) => sum + s.final_amount, 0);
-  }, [submissions]);
-
-  // 3. 店家、分類、餐點品項 CRUD 操作 Hook
-  const {
-    isStoreModalOpen,
-    setIsStoreModalOpen,
-    editingStore,
-    storeForm,
-    setStoreForm,
-    storeImagePreview,
-    uploadingImage,
-    handleStoreImageChange,
-    handleSaveStore,
-    handleDeleteStore,
-    openCreateStoreModal,
-    openEditStoreModal,
-    isCatModalOpen,
-    setIsCatModalOpen,
-    editingCat,
-    catNameInput,
-    setCatNameInput,
-    openCreateCategoryModal,
-    handleSaveCategory,
-    handleDeleteCategory,
-    selectedCrudStoreId,
-    setSelectedCrudStoreId,
-    isProductModalOpen,
-    setIsProductModalOpen,
-    editingProduct,
-    productForm,
-    setProductForm,
-    productCustomGroups,
-    setProductCustomGroups,
-    openCreateProductModal,
-    openEditProductModal,
-    handleAddCustomGroup,
-    handleRemoveCustomGroup,
-    handleAddOptionToGroup,
-    handleRemoveOptionFromGroup,
-    handleSaveProduct,
-    handleDeleteProduct,
-    handleToggleProductSoldOut,
-    handleReorderProducts,
-  } = useAdminStoreCrud({
-    stores,
-    categories,
-    paymentMethods,
-    soldOutOptions,
-    allMenuItems,
-    optimisticReorderMenuItems,
-    fetchAdminData,
-    showToast,
-    openAdminConfirmModal,
-    closeAdminConfirmModal,
-  });
-
-  // 4. 全域設定（付款方式、缺貨備案、分類順序）Hook
-  const {
-    handleMoveCategory,
-    handleCreatePaymentMethod,
-    handleSavePaymentMethod,
-    handleDeletePaymentMethod,
-    handleTogglePaymentMethodActive,
-    onCreateSoldOutOption,
-    onSaveSoldOutOption,
-    onDeleteSoldOutOption,
-    onMoveSoldOutOption,
-  } = useAdminGlobalSettingsCrud({
-    categories,
-    paymentMethods,
-    soldOutOptions,
-    fetchAdminData,
-    showToast,
-    openAdminConfirmModal,
-    closeAdminConfirmModal,
-  });
-
-  // 5. 訂單對帳、平攤、簽名與匯出 Hook
-  const {
-    selectedSubmissionIds,
-    setSelectedSubmissionIds,
-    selectedArchivedGroupId,
-    setSelectedArchivedGroupId,
-    calculateAdjustedAmount,
-    handleApplyFeeSplit,
-    handleSaveSignature,
-    handleArchiveGroup,
-    handleReopenGroup,
-    handleDeleteArchivedGroup,
-    handleBatchDeleteArchivedGroups,
-    handleSaveGroupSettings,
-    handleToggleGroupStatus,
-    handleTogglePaid,
-    handleBatchMarkPaid,
-    handleUpdateProgressStatus,
-    handleBatchUpdateProgressStatus,
-    handleDeleteOrder,
-    handleBatchDeleteOrders,
-    handleCopyPersonalReceipt,
-    handleCopyStoreOrderText,
-    handleCopyUnpaidReminder,
-    handleExportOrdersCSV,
-  } = useAdminOrderActions({
-    activeGroup,
-    setActiveGroup,
-    submissions,
-    allSubmissions,
-    setAllSubmissions,
-    itemSummary,
-    grandTotal,
-    inputDeliveryFee,
-    inputDiscount,
-    roundingRule,
-    selectedActiveGroupIdRef,
-    fetchAdminData,
-    showToast,
-    openAdminConfirmModal,
-    closeAdminConfirmModal,
-    setActiveTab,
-    signatureTarget,
-    setSignatureTarget,
-  });
-
-  // 初始化視圖模式偏好
-  useEffect(() => {
-    try {
-      const savedMode = localStorage.getItem('menu_app_admin_view_mode') as AdminViewMode;
-      if (savedMode === 'mobile' || savedMode === 'desktop') {
-        setViewMode(savedMode);
-      } else if (typeof window !== 'undefined' && window.innerWidth < 768) {
-        setViewMode('mobile');
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, []);
-
-  const handleToggleViewMode = (mode: AdminViewMode) => {
-    setViewMode(mode);
-    try {
-      localStorage.setItem('menu_app_admin_view_mode', mode);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleToggleSound = () => {
-    const next = toggleSound();
-    showToast(next ? '已開啟新訂單叮咚提醒（試聽播放）' : '已靜音新訂單提示音效');
-  };
-
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/admin/logout', { method: 'POST' });
-    } catch {}
-    setIsUnlocked(false);
-    showToast('已安全登出團長後台');
-  };
-
-  const isDesktop = viewMode === 'desktop';
+  const c = useAdminPageCoordinator();
 
   // 🔒 若尚未解鎖後台密碼，渲染安全驗證卡片
-  if (!isUnlocked) {
-    return <AdminAuthLock onUnlockSuccess={() => setIsUnlocked(true)} onInitAudio={initAudio} />;
+  if (!c.isUnlocked) {
+    return <AdminAuthLock onUnlockSuccess={() => c.setIsUnlocked(true)} onInitAudio={c.initAudio} />;
   }
 
   return (
     <div
-      onClick={initAudio}
+      onClick={c.initAudio}
       className="min-h-[100dvh] bg-slate-50 dark:bg-[#080D1A] text-slate-800 dark:text-slate-100 flex flex-col pb-[calc(5rem+env(safe-area-inset-bottom,0px))] select-none transition-colors duration-200"
     >
       <Header />
       <OfflineBanner />
 
       {/* 浮動提示 Toast */}
-      {toastMessage && (
+      {c.toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] bg-slate-900/95 dark:bg-slate-800/95 text-white px-4 py-2.5 rounded-2xl text-xs font-bold shadow-2xl border border-slate-700/80 backdrop-blur-md animate-in fade-in zoom-in duration-200">
-          {toastMessage}
+          {c.toastMessage}
         </div>
       )}
 
       {/* 團長控制台頂部功能列 */}
       <AdminTopBar
-        isSoundEnabled={isSoundEnabled}
-        handleToggleSound={handleToggleSound}
-        isSpeechEnabled={isSpeechEnabled}
-        isSpeaking={isSpeaking}
-        toggleSpeech={toggleSpeech}
-        onOpenVoiceSettings={() => setShowVoiceSettingsModal(true)}
-        viewMode={viewMode}
-        handleToggleViewMode={handleToggleViewMode}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        handleLogout={handleLogout}
-        showToast={showToast}
+        isSoundEnabled={c.isSoundEnabled}
+        handleToggleSound={c.handleToggleSound}
+        isSpeechEnabled={c.isSpeechEnabled}
+        isSpeaking={c.isSpeaking}
+        toggleSpeech={c.toggleSpeech}
+        onOpenVoiceSettings={() => c.setShowVoiceSettingsModal(true)}
+        viewMode={c.viewMode}
+        handleToggleViewMode={c.handleToggleViewMode}
+        theme={c.theme}
+        toggleTheme={c.toggleTheme}
+        handleLogout={c.handleLogout}
+        showToast={c.showToast}
       />
 
       {/* 分頁 Tab 導覽切換 */}
       <AdminTabsNav
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        activeSubmissionsCount={submissions.length}
+        activeTab={c.activeTab}
+        setActiveTab={c.setActiveTab}
+        activeSubmissionsCount={c.submissions.length}
       />
 
-      <main className={`mx-auto p-4 transition-all duration-200 ${isDesktop ? 'max-w-7xl' : 'max-w-md'}`}>
-        {loading ? (
+      <main className={`mx-auto p-4 transition-all duration-200 ${c.isDesktop ? 'max-w-7xl' : 'max-w-md'}`}>
+        {c.loading ? (
           <div className="text-center py-20 text-slate-400 dark:text-slate-500 text-xs animate-pulse">
             正在同步最新團購資料...
           </div>
         ) : (
           <>
-            {activeTab === 'active' && (
+            {c.activeTab === 'active' && (
               <AdminDashboardSection
-                viewMode={viewMode}
-                groupOrder={activeGroup}
-                activeGroups={activeGroups}
-                selectedActiveGroupId={selectedActiveGroupId}
-                onSelectActiveGroup={(groupId) => {
-                  setSelectedActiveGroupId(groupId);
-                  selectedActiveGroupIdRef.current = groupId;
-                  if (groupId !== 'all') {
-                    const g = activeGroups.find((item) => item.id === groupId);
-                    if (g) {
-                      setActiveGroup(g);
-                      setInputDeliveryFee(g.delivery_fee || 0);
-                      setInputDiscount(g.discount_amount || 0);
-                      setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
-                    }
-                  } else if (activeGroups.length > 0) {
-                    const g = activeGroups.find((item) => (item.order_count || 0) > 0) || activeGroups[0];
-                    if (g) {
-                      setActiveGroup(g);
-                      setInputDeliveryFee(g.delivery_fee || 0);
-                      setInputDiscount(g.discount_amount || 0);
-                      setRoundingRule((g.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor');
-                    }
-                  }
-                }}
-                submissions={submissions}
-                itemSummary={itemSummary}
-                grandTotal={grandTotal}
-                paidTotal={paidTotal}
-                inputDeliveryFee={inputDeliveryFee}
-                inputDiscount={inputDiscount}
-                roundingRule={roundingRule}
-                selectedSubmissionIds={selectedSubmissionIds}
-                setSelectedSubmissionIds={setSelectedSubmissionIds}
-                calculateAdjustedAmount={calculateAdjustedAmount}
-                setInputDeliveryFee={setInputDeliveryFee}
-                setInputDiscount={setInputDiscount}
-                setRoundingRule={setRoundingRule}
-                handleApplyFeeSplit={handleApplyFeeSplit}
-                handleBatchMarkPaid={handleBatchMarkPaid}
-                handleTogglePaid={handleTogglePaid}
-                handleUpdateProgressStatus={handleUpdateProgressStatus}
-                handleBatchUpdateProgressStatus={handleBatchUpdateProgressStatus}
-                setSignatureTarget={setSignatureTarget}
-                setChangeModalTarget={setChangeModalTarget}
-                handleCopyPersonalReceipt={handleCopyPersonalReceipt}
-                handleCopyStoreOrderText={handleCopyStoreOrderText}
-                handleCopyUnpaidReminder={handleCopyUnpaidReminder}
-                handleExportOrdersCSV={handleExportOrdersCSV}
-                handleOpenPrintModal={() => setIsPrintModalOpen(true)}
-                handleOpenManualOrderModal={() => setIsManualOrderModalOpen(true)}
-                handleOpenGroupSettingsModal={() => setIsGroupSettingsModalOpen(true)}
-                handleArchiveGroup={handleArchiveGroup}
-                handleToggleGroupStatus={handleToggleGroupStatus}
-                handleDeleteOrder={handleDeleteOrder}
-                handleBatchDeleteOrders={handleBatchDeleteOrders}
+                viewMode={c.viewMode}
+                groupOrder={c.activeGroup}
+                activeGroups={c.activeGroups}
+                selectedActiveGroupId={c.selectedActiveGroupId}
+                onSelectActiveGroup={c.handleSelectActiveGroup}
+                submissions={c.submissions}
+                itemSummary={c.itemSummary}
+                grandTotal={c.grandTotal}
+                paidTotal={c.paidTotal}
+                inputDeliveryFee={c.inputDeliveryFee}
+                inputDiscount={c.inputDiscount}
+                roundingRule={c.roundingRule}
+                selectedSubmissionIds={c.selectedSubmissionIds}
+                setSelectedSubmissionIds={c.setSelectedSubmissionIds}
+                calculateAdjustedAmount={c.calculateAdjustedAmount}
+                setInputDeliveryFee={c.setInputDeliveryFee}
+                setInputDiscount={c.setInputDiscount}
+                setRoundingRule={c.setRoundingRule}
+                handleApplyFeeSplit={c.handleApplyFeeSplit}
+                handleBatchMarkPaid={c.handleBatchMarkPaid}
+                handleTogglePaid={c.handleTogglePaid}
+                handleUpdateProgressStatus={c.handleUpdateProgressStatus}
+                handleBatchUpdateProgressStatus={c.handleBatchUpdateProgressStatus}
+                setSignatureTarget={c.setSignatureTarget}
+                setChangeModalTarget={c.setChangeModalTarget}
+                handleCopyPersonalReceipt={c.handleCopyPersonalReceipt}
+                handleCopyStoreOrderText={c.handleCopyStoreOrderText}
+                handleCopyUnpaidReminder={c.handleCopyUnpaidReminder}
+                handleExportOrdersCSV={c.handleExportOrdersCSV}
+                handleOpenPrintModal={() => c.setIsPrintModalOpen(true)}
+                handleOpenManualOrderModal={() => c.setIsManualOrderModalOpen(true)}
+                handleOpenGroupSettingsModal={() => c.setIsGroupSettingsModalOpen(true)}
+                handleArchiveGroup={c.handleArchiveGroup}
+                handleToggleGroupStatus={c.handleToggleGroupStatus}
+                handleDeleteOrder={c.handleDeleteOrder}
+                handleBatchDeleteOrders={c.handleBatchDeleteOrders}
               />
             )}
 
-            {activeTab === 'crud' && (
+            {c.activeTab === 'crud' && (
               <AdminCrudSection
-                viewMode={viewMode}
-                stores={stores}
-                categories={categories}
-                menuItems={allMenuItems}
-                paymentMethods={paymentMethods}
-                soldOutOptions={soldOutOptions}
-                selectedStudioStoreId={selectedCrudStoreId}
-                onSelectStudioStore={(storeId) => setSelectedCrudStoreId(storeId)}
-                onCreateStore={openCreateStoreModal}
-                onEditStore={(store: Store) => openEditStoreModal(store)}
+                viewMode={c.viewMode}
+                stores={c.stores}
+                categories={c.categories}
+                menuItems={c.allMenuItems}
+                paymentMethods={c.paymentMethods}
+                soldOutOptions={c.soldOutOptions}
+                selectedStudioStoreId={c.selectedCrudStoreId}
+                onSelectStudioStore={(storeId) => c.setSelectedCrudStoreId(storeId)}
+                onCreateStore={c.openCreateStoreModal}
+                onEditStore={(store: Store) => c.openEditStoreModal(store)}
                 onDeleteStore={(id: string) => {
-                  const store = stores.find((s) => s.id === id);
-                  if (store) handleDeleteStore(id, store.name);
+                  const store = c.stores.find((s) => s.id === id);
+                  if (store) c.handleDeleteStore(id, store.name);
                 }}
-                onCreateCategory={openCreateCategoryModal}
+                onCreateCategory={c.openCreateCategoryModal}
                 onMoveCategory={(id: string, direction: 'up' | 'down') => {
-                  const category = categories.find((c) => c.id === id);
-                  if (category) handleMoveCategory(category, direction);
+                  const category = c.categories.find((cat) => cat.id === id);
+                  if (category) c.handleMoveCategory(category, direction);
                 }}
                 onDeleteCategory={(id: string) => {
-                  const category = categories.find((c) => c.id === id);
-                  if (category) handleDeleteCategory(id, category.name);
+                  const category = c.categories.find((cat) => cat.id === id);
+                  if (category) c.handleDeleteCategory(id, category.name);
                 }}
-                onCreateMenuItem={(storeId) => openCreateProductModal(storeId || (stores[0]?.id ?? ''))}
-                onEditMenuItem={(item: MenuItem) => openEditProductModal(item)}
+                onCreateMenuItem={(storeId) => c.openCreateProductModal(storeId || (c.stores[0]?.id ?? ''))}
+                onEditMenuItem={(item: MenuItem) => c.openEditProductModal(item)}
                 onOpenBatchImportModal={(storeId) => {
-                  if (storeId) setSelectedCrudStoreId(storeId);
-                  setIsBatchImportModalOpen(true);
+                  if (storeId) c.setSelectedCrudStoreId(storeId);
+                  c.setIsBatchImportModalOpen(true);
                 }}
                 onDeleteMenuItem={(id: string) => {
-                  const product = allMenuItems.find((p) => p.id === id);
-                  if (product) handleDeleteProduct(id, product.name);
+                  const product = c.allMenuItems.find((p) => p.id === id);
+                  if (product) c.handleDeleteProduct(id, product.name);
                 }}
                 onToggleMenuItemActive={(id: string) => {
-                  const product = allMenuItems.find((p) => p.id === id);
-                  if (product) handleToggleProductSoldOut(id, product.is_sold_out);
+                  const product = c.allMenuItems.find((p) => p.id === id);
+                  if (product) c.handleToggleProductSoldOut(id, product.is_sold_out);
                 }}
-                onReorderMenuItems={handleReorderProducts}
-                onCreatePaymentMethod={handleCreatePaymentMethod}
-                onDeletePaymentMethod={handleDeletePaymentMethod}
-                onTogglePaymentMethodActive={handleTogglePaymentMethodActive}
+                onReorderMenuItems={c.handleReorderProducts}
+                onCreatePaymentMethod={c.handleCreatePaymentMethod}
+                onDeletePaymentMethod={c.handleDeletePaymentMethod}
+                onTogglePaymentMethodActive={c.handleTogglePaymentMethodActive}
                 onUpdatePaymentMethod={(id: string, field: 'name' | 'account_info', value: string | null) => {
-                  setPaymentMethods((prev) =>
+                  c.setPaymentMethods((prev) =>
                     prev.map((method) =>
                       method.id === id
                         ? {
@@ -454,36 +162,36 @@ export default function AdminPageContent() {
                     )
                   );
                 }}
-                onSavePaymentMethod={handleSavePaymentMethod}
-                onCreateSoldOutOption={onCreateSoldOutOption}
-                onDeleteSoldOutOption={onDeleteSoldOutOption}
-                onMoveSoldOutOption={onMoveSoldOutOption}
+                onSavePaymentMethod={c.handleSavePaymentMethod}
+                onCreateSoldOutOption={c.onCreateSoldOutOption}
+                onDeleteSoldOutOption={c.onDeleteSoldOutOption}
+                onMoveSoldOutOption={c.onMoveSoldOutOption}
                 onUpdateSoldOutOption={(id: string, title: string) => {
-                  setSoldOutOptions((prev) => prev.map((x) => (x.id === id ? { ...x, title } : x)));
+                  c.setSoldOutOptions((prev) => prev.map((x) => (x.id === id ? { ...x, title } : x)));
                 }}
-                onSaveSoldOutOption={onSaveSoldOutOption}
+                onSaveSoldOutOption={c.onSaveSoldOutOption}
                 onUpdateCategory={(id: string, field: 'name', value: string) => {
                   if (field === 'name' && typeof value === 'string') {
-                    setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, name: value } : cat)));
+                    c.setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, name: value } : cat)));
                   }
                 }}
               />
             )}
 
-            {activeTab === 'archive' && (
+            {c.activeTab === 'archive' && (
               <AdminArchiveSection
-                viewMode={viewMode}
-                archivedGroups={archivedGroups}
-                selectedArchivedGroupId={selectedArchivedGroupId}
-                setSelectedArchivedGroupId={setSelectedArchivedGroupId}
-                handleReopenGroup={handleReopenGroup}
-                handleDeleteArchivedGroup={handleDeleteArchivedGroup}
-                handleBatchDeleteArchivedGroups={handleBatchDeleteArchivedGroups}
+                viewMode={c.viewMode}
+                archivedGroups={c.archivedGroups}
+                selectedArchivedGroupId={c.selectedArchivedGroupId}
+                setSelectedArchivedGroupId={c.setSelectedArchivedGroupId}
+                handleReopenGroup={c.handleReopenGroup}
+                handleDeleteArchivedGroup={c.handleDeleteArchivedGroup}
+                handleBatchDeleteArchivedGroups={c.handleBatchDeleteArchivedGroups}
               />
             )}
 
-            {activeTab === 'maintenance' && (
-              <AdminMaintenanceSection showToast={showToast} />
+            {c.activeTab === 'maintenance' && (
+              <AdminMaintenanceSection showToast={c.showToast} />
             )}
           </>
         )}
@@ -491,71 +199,71 @@ export default function AdminPageContent() {
 
       {/* 🌟 集中化掛載後台所有彈窗 */}
       <AdminModalsContainer
-        isPrintModalOpen={isPrintModalOpen}
-        setIsPrintModalOpen={setIsPrintModalOpen}
-        activeGroup={activeGroup}
-        submissions={submissions}
-        itemSummary={itemSummary}
-        grandTotal={grandTotal}
-        isManualOrderModalOpen={isManualOrderModalOpen}
-        setIsManualOrderModalOpen={setIsManualOrderModalOpen}
-        allMenuItems={allMenuItems}
-        paymentMethods={paymentMethods}
-        soldOutOptions={soldOutOptions}
-        fetchAdminData={fetchAdminData}
-        isBatchImportModalOpen={isBatchImportModalOpen}
-        setIsBatchImportModalOpen={setIsBatchImportModalOpen}
-        selectedCrudStoreId={selectedCrudStoreId}
-        stores={stores}
-        isGroupSettingsModalOpen={isGroupSettingsModalOpen}
-        setIsGroupSettingsModalOpen={setIsGroupSettingsModalOpen}
-        handleSaveGroupSettings={handleSaveGroupSettings}
-        isStoreModalOpen={isStoreModalOpen}
-        setIsStoreModalOpen={setIsStoreModalOpen}
-        editingStore={editingStore}
-        categories={categories}
-        storeForm={storeForm}
-        setStoreForm={setStoreForm}
-        storeImagePreview={storeImagePreview}
-        uploadingImage={uploadingImage}
-        handleSaveStore={handleSaveStore}
-        handleStoreImageChange={handleStoreImageChange}
-        isCatModalOpen={isCatModalOpen}
-        setIsCatModalOpen={setIsCatModalOpen}
-        editingCat={editingCat}
-        catNameInput={catNameInput}
-        setCatNameInput={setCatNameInput}
-        handleSaveCategory={handleSaveCategory}
-        isProductModalOpen={isProductModalOpen}
-        setIsProductModalOpen={setIsProductModalOpen}
-        editingProduct={editingProduct}
-        productForm={productForm}
-        setProductForm={setProductForm}
-        productCustomGroups={productCustomGroups}
-        setProductCustomGroups={setProductCustomGroups}
-        handleSaveProduct={handleSaveProduct}
-        handleAddCustomGroup={handleAddCustomGroup}
-        handleRemoveCustomGroup={handleRemoveCustomGroup}
-        handleAddOptionToGroup={handleAddOptionToGroup}
-        handleRemoveOptionFromGroup={handleRemoveOptionFromGroup}
-        signatureTarget={signatureTarget}
-        setSignatureTarget={setSignatureTarget}
-        handleSaveSignature={handleSaveSignature}
-        changeModalTarget={changeModalTarget}
-        setChangeModalTarget={setChangeModalTarget}
-        receivedCash={receivedCash}
-        setReceivedCash={setReceivedCash}
-        adminConfirmModal={adminConfirmModal}
-        closeAdminConfirmModal={closeAdminConfirmModal}
-        showVoiceSettingsModal={showVoiceSettingsModal}
-        setShowVoiceSettingsModal={setShowVoiceSettingsModal}
-        isSpeechEnabled={isSpeechEnabled}
-        toggleSpeech={toggleSpeech}
-        speechMode={speechMode}
-        setSpeechMode={setSpeechMode}
-        speechRate={speechRate}
-        setSpeechRate={setSpeechRate}
-        playTestSpeech={playTestSpeech}
+        isPrintModalOpen={c.isPrintModalOpen}
+        setIsPrintModalOpen={c.setIsPrintModalOpen}
+        activeGroup={c.activeGroup}
+        submissions={c.submissions}
+        itemSummary={c.itemSummary}
+        grandTotal={c.grandTotal}
+        isManualOrderModalOpen={c.isManualOrderModalOpen}
+        setIsManualOrderModalOpen={c.setIsManualOrderModalOpen}
+        allMenuItems={c.allMenuItems}
+        paymentMethods={c.paymentMethods}
+        soldOutOptions={c.soldOutOptions}
+        fetchAdminData={c.fetchAdminData}
+        isBatchImportModalOpen={c.isBatchImportModalOpen}
+        setIsBatchImportModalOpen={c.setIsBatchImportModalOpen}
+        selectedCrudStoreId={c.selectedCrudStoreId}
+        stores={c.stores}
+        isGroupSettingsModalOpen={c.isGroupSettingsModalOpen}
+        setIsGroupSettingsModalOpen={c.setIsGroupSettingsModalOpen}
+        handleSaveGroupSettings={c.handleSaveGroupSettings}
+        isStoreModalOpen={c.isStoreModalOpen}
+        setIsStoreModalOpen={c.setIsStoreModalOpen}
+        editingStore={c.editingStore}
+        categories={c.categories}
+        storeForm={c.storeForm}
+        setStoreForm={c.setStoreForm}
+        storeImagePreview={c.storeImagePreview}
+        uploadingImage={c.uploadingImage}
+        handleSaveStore={c.handleSaveStore}
+        handleStoreImageChange={c.handleStoreImageChange}
+        isCatModalOpen={c.isCatModalOpen}
+        setIsCatModalOpen={c.setIsCatModalOpen}
+        editingCat={c.editingCat}
+        catNameInput={c.catNameInput}
+        setCatNameInput={c.setCatNameInput}
+        handleSaveCategory={c.handleSaveCategory}
+        isProductModalOpen={c.isProductModalOpen}
+        setIsProductModalOpen={c.setIsProductModalOpen}
+        editingProduct={c.editingProduct}
+        productForm={c.productForm}
+        setProductForm={c.setProductForm}
+        productCustomGroups={c.productCustomGroups}
+        setProductCustomGroups={c.setProductCustomGroups}
+        handleSaveProduct={c.handleSaveProduct}
+        handleAddCustomGroup={c.handleAddCustomGroup}
+        handleRemoveCustomGroup={c.handleRemoveCustomGroup}
+        handleAddOptionToGroup={c.handleAddOptionToGroup}
+        handleRemoveOptionFromGroup={c.handleRemoveOptionFromGroup}
+        signatureTarget={c.signatureTarget}
+        setSignatureTarget={c.setSignatureTarget}
+        handleSaveSignature={c.handleSaveSignature}
+        changeModalTarget={c.changeModalTarget}
+        setChangeModalTarget={c.setChangeModalTarget}
+        receivedCash={c.receivedCash}
+        setReceivedCash={c.setReceivedCash}
+        adminConfirmModal={c.adminConfirmModal}
+        closeAdminConfirmModal={c.closeAdminConfirmModal}
+        showVoiceSettingsModal={c.showVoiceSettingsModal}
+        setShowVoiceSettingsModal={c.setShowVoiceSettingsModal}
+        isSpeechEnabled={c.isSpeechEnabled}
+        toggleSpeech={c.toggleSpeech}
+        speechMode={c.speechMode}
+        setSpeechMode={c.setSpeechMode}
+        speechRate={c.speechRate}
+        setSpeechRate={c.setSpeechRate}
+        playTestSpeech={c.playTestSpeech}
       />
     </div>
   );

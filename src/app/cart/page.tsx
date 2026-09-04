@@ -1,240 +1,38 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import OfflineBanner from '@/components/OfflineBanner';
 import CustomModal from '@/components/CustomModal';
 import DoubleConfirmModal from '@/components/DoubleConfirmModal';
-import { supabase } from '@/lib/supabase';
-import { MultiStoreCart, CartItem } from '@/types/cart';
-import { MenuItem, GroupOrder, Store } from '@/types/database';
-import { mergeCartItems } from '@/lib/useMultiCart';
 import { ShoppingCart, ChevronLeft } from 'lucide-react';
 import { CartEmptyState } from './components/CartEmptyState';
 import { CartStoreGroup } from './components/CartStoreGroup';
+import { useCartPage } from './hooks/useCartPage';
 
 export default function MultiCartPage() {
-  const [multiCart, setMultiCart] = useState<MultiStoreCart>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('menu_app_multi_cart');
-        return saved ? JSON.parse(saved) : {};
-      } catch {}
-    }
-    return {};
-  });
-
-  const [activeStoreId, setActiveStoreId] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('menu_app_multi_cart');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          const keys = Object.keys(parsed);
-          if (keys.length > 0) return keys[0];
-        }
-      } catch {}
-    }
-    return '';
-  });
-
-  const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
-  const [editingMenuItem, setEditingMenuItem] = useState<MenuItem | null>(null);
-  const [activeGroupOrder, setActiveGroupOrder] = useState<GroupOrder | null>(null);
-  const [activeStoreData, setActiveStoreData] = useState<Store | null>(null);
-  const [clearConfirmModal, setClearConfirmModal] = useState<{
-    isOpen: boolean;
-    storeId: string;
-    storeName: string;
-  }>({
-    isOpen: false,
-    storeId: '',
-    storeName: '',
-  });
-
-  useEffect(() => {
-    const saved = localStorage.getItem('menu_app_multi_cart');
-    if (saved) {
-      try {
-        const parsed: MultiStoreCart = JSON.parse(saved);
-        setMultiCart(parsed);
-        const storeIds = Object.keys(parsed);
-        if (storeIds.length > 0 && !activeStoreId) {
-          setActiveStoreId(storeIds[0]);
-        }
-      } catch (e) {
-        console.error('讀取購物車失敗', e);
-      }
-    }
-  }, [activeStoreId]);
-
-  // 抓取當前店家即時營運設定與團購狀態
-  useEffect(() => {
-    if (!activeStoreId) {
-      setActiveGroupOrder(null);
-      setActiveStoreData(null);
-      return;
-    }
-
-    async function fetchStoreAndGroupInfo() {
-      const [storeRes, groupRes] = await Promise.all([
-        supabase
-          .from('stores')
-          .select('*')
-          .eq('id', activeStoreId)
-          .maybeSingle(),
-        supabase
-          .from('group_orders')
-          .select('*')
-          .eq('store_id', activeStoreId)
-          .neq('status', 'completed')
-          .order('created_at', { ascending: false })
-          .limit(1),
-      ]);
-
-      if (storeRes.data) {
-        setActiveStoreData(storeRes.data as Store);
-      }
-
-      if (groupRes.data && groupRes.data.length > 0) {
-        setActiveGroupOrder(groupRes.data[0] as GroupOrder);
-      } else {
-        setActiveGroupOrder(null);
-      }
-    }
-
-    fetchStoreAndGroupInfo();
-  }, [activeStoreId]);
-
-  const isStoreAccepting = useMemo(() => {
-    if (!activeStoreData) return true;
-    if (activeStoreData.is_accepting_orders === false) return false;
-    if (activeStoreData.enable_countdown && activeStoreData.cutoff_time) {
-      if (new Date(activeStoreData.cutoff_time).getTime() <= Date.now()) {
-        return false;
-      }
-    }
-    return true;
-  }, [activeStoreData]);
-
-  const saveMultiCart = (updated: MultiStoreCart) => {
-    setMultiCart(updated);
-    localStorage.setItem('menu_app_multi_cart', JSON.stringify(updated));
-  };
-
-  const handleUpdateQuantity = (storeId: string, cartItemId: string, delta: number) => {
-    const updated = { ...multiCart };
-    const group = updated[storeId];
-    if (!group) return;
-
-    group.items = group.items
-      .map((item) => {
-        if (item.cartItemId === cartItemId) {
-          const newQty = item.quantity + delta;
-          if (newQty <= 0) return null;
-          const singlePrice = item.totalPrice / item.quantity;
-          return {
-            ...item,
-            quantity: newQty,
-            totalPrice: singlePrice * newQty,
-          };
-        }
-        return item;
-      })
-      .filter(Boolean) as CartItem[];
-
-    if (group.items.length === 0) {
-      delete updated[storeId];
-      const remainingStoreIds = Object.keys(updated);
-      setActiveStoreId(remainingStoreIds[0] || '');
-    }
-
-    saveMultiCart(updated);
-  };
-
-  const handleRemoveItem = (storeId: string, cartItemId: string) => {
-    const updated = { ...multiCart };
-    const group = updated[storeId];
-    if (!group) return;
-
-    group.items = group.items.filter((i) => i.cartItemId !== cartItemId);
-    if (group.items.length === 0) {
-      delete updated[storeId];
-      const remainingStoreIds = Object.keys(updated);
-      setActiveStoreId(remainingStoreIds[0] || '');
-    }
-
-    saveMultiCart(updated);
-  };
-
-  const handleClearStoreCart = (storeId: string) => {
-    const group = multiCart[storeId];
-    if (!group) return;
-    setClearConfirmModal({
-      isOpen: true,
-      storeId,
-      storeName: group.storeName,
-    });
-  };
-
-  const executeClearStoreCart = (storeId: string) => {
-    const updated = { ...multiCart };
-    delete updated[storeId];
-    const remainingStoreIds = Object.keys(updated);
-    setActiveStoreId(remainingStoreIds[0] || '');
-    saveMultiCart(updated);
-    setClearConfirmModal({ isOpen: false, storeId: '', storeName: '' });
-  };
-
-  // 開啟規格修改彈窗
-  const handleStartEditItem = async (cartItem: CartItem) => {
-    setEditingCartItem(cartItem);
-    const { data } = await supabase
-      .from('menu_items')
-      .select('*')
-      .eq('id', cartItem.menuItemId)
-      .single();
-
-    if (data) {
-      setEditingMenuItem(data as MenuItem);
-    } else {
-      setEditingMenuItem({
-        id: cartItem.menuItemId,
-        store_id: cartItem.storeId,
-        name: cartItem.name,
-        price: cartItem.unitPrice,
-        description: null,
-        is_sold_out: false,
-        stock_quantity: null,
-        custom_groups: [],
-      });
-    }
-  };
-
-  const handleSaveEditedItem = (updatedItem: CartItem) => {
-    if (!editingCartItem) return;
-    const storeId = editingCartItem.storeId;
-    const updated = { ...multiCart };
-    const group = updated[storeId];
-    if (!group) return;
-
-    // 替換修改後的品項，並自動合併相同規格 (餐點+客製化+備註) 的項目
-    const replacedItems = group.items.map((i) =>
-      i.cartItemId === editingCartItem.cartItemId ? updatedItem : i
-    );
-    group.items = mergeCartItems(replacedItems);
-
-    saveMultiCart(updated);
-    setEditingCartItem(null);
-    setEditingMenuItem(null);
-  };
-
-  const storeIds = Object.keys(multiCart);
-  const currentGroup = multiCart[activeStoreId];
-  const currentStoreTotal = currentGroup
-    ? currentGroup.items.reduce((sum, item) => sum + item.totalPrice, 0)
-    : 0;
+  const {
+    multiCart,
+    storeIds,
+    activeStoreId,
+    setActiveStoreId,
+    currentGroup,
+    currentStoreTotal,
+    editingCartItem,
+    editingMenuItem,
+    setEditingCartItem,
+    setEditingMenuItem,
+    activeGroupOrder,
+    isStoreAccepting,
+    clearConfirmModal,
+    setClearConfirmModal,
+    handleUpdateQuantity,
+    handleRemoveItem,
+    handleClearStoreCart,
+    handleConfirmClearStore,
+    handleStartEditItem,
+    handleSaveEditedItem,
+  } = useCartPage();
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0B0F17] text-slate-900 dark:text-slate-100 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] transition-colors duration-200">
@@ -269,7 +67,7 @@ export default function MultiCartPage() {
               {storeIds.map((sId) => {
                 const group = multiCart[sId];
                 const isActive = sId === activeStoreId;
-                const storeTotal = group.items.reduce((sum, item) => sum + item.totalPrice, 0);
+                const storeTotal = (group?.items || []).reduce((sum, item) => sum + item.totalPrice, 0);
                 return (
                   <button
                     key={sId}
@@ -281,7 +79,7 @@ export default function MultiCartPage() {
                         : 'bg-white dark:bg-[#131B2B] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-[#182338]'
                     }`}
                   >
-                    <span>{group.storeName}</span>
+                    <span>{group?.storeName}</span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
                         isActive
@@ -338,7 +136,7 @@ export default function MultiCartPage() {
         confirmText="確定清空"
         cancelText="保留餐點"
         isDanger={true}
-        onConfirm={() => executeClearStoreCart(clearConfirmModal.storeId)}
+        onConfirm={handleConfirmClearStore}
         onCancel={() => setClearConfirmModal({ isOpen: false, storeId: '', storeName: '' })}
       />
     </div>

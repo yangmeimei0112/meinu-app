@@ -185,6 +185,7 @@ export function useAdminSound() {
   return {
     isSoundEnabled,
     playChimeSound,
+    playNewOrderSound: playChimeSound,
     initAudio,
     toggleSound,
   };
