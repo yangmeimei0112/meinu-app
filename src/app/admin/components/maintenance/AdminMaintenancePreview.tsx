@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { MaintenanceData, MaintenanceScreen } from '@/components/MaintenanceGuard';
-import { Smartphone, Monitor, Maximize2, X, AlertTriangle, Home, Search, ShoppingCart, ClipboardList } from 'lucide-react';
+import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
+import { Smartphone, Monitor, Maximize2, X, AlertTriangle, Home, Search, ShoppingCart, ClipboardList, User } from 'lucide-react';
 
 interface AdminMaintenancePreviewProps {
   config: MaintenanceData;
@@ -10,13 +11,42 @@ interface AdminMaintenancePreviewProps {
   setPreviewDevice: (device: 'mobile' | 'desktop') => void;
 }
 
-// 📱 模擬底部導覽列（供單頁維護即時預覽）
-function SimulatedBottomNav({ scope }: { scope?: string }) {
+// 📱 模擬底部導覽列（供單頁/多頁維護即時預覽）
+function SimulatedBottomNav({ scopes, scope }: { scopes?: MaintenanceScope[]; scope?: MaintenanceScope }) {
+  const activeScopes = scopes && scopes.length > 0 ? scopes : [scope || 'all'];
+  const isFullMaint = activeScopes.includes('all');
+
   const navItems = [
-    { id: 'home', label: '美食大廳', icon: Home, inMaint: scope === 'home' || scope === 'all' },
-    { id: 'search', label: '搜尋探索', icon: Search, inMaint: scope === 'search' || scope === 'all' },
-    { id: 'cart', label: '購物車', icon: ShoppingCart, inMaint: scope === 'cart' || scope === 'checkout' || scope === 'all' },
-    { id: 'orders', label: '我的訂單', icon: ClipboardList, inMaint: scope === 'my-orders' || scope === 'all' },
+    {
+      id: 'home',
+      label: '美食大廳',
+      icon: Home,
+      inMaint: isFullMaint || activeScopes.includes('home'),
+    },
+    {
+      id: 'search',
+      label: '搜尋探索',
+      icon: Search,
+      inMaint: isFullMaint || activeScopes.includes('search'),
+    },
+    {
+      id: 'cart',
+      label: '購物車',
+      icon: ShoppingCart,
+      inMaint: isFullMaint || activeScopes.includes('cart') || activeScopes.includes('checkout'),
+    },
+    {
+      id: 'orders',
+      label: '我的訂單',
+      icon: ClipboardList,
+      inMaint: isFullMaint || activeScopes.includes('my-orders'),
+    },
+    {
+      id: 'account',
+      label: '我的帳戶',
+      icon: User,
+      inMaint: isFullMaint || activeScopes.includes('account'),
+    },
   ];
 
   return (
@@ -50,7 +80,8 @@ export function AdminMaintenancePreview({
   setPreviewDevice,
 }: AdminMaintenancePreviewProps) {
   const [showFullScreen, setShowFullScreen] = useState<boolean>(false);
-  const isSinglePage = Boolean(config.scope && config.scope !== 'all');
+  const activeScopes = config.scopes && config.scopes.length > 0 ? config.scopes : [config.scope || 'all'];
+  const isSinglePage = !activeScopes.includes('all');
 
   // 監聽 ESC 鍵自動關閉全螢幕預覽
   useEffect(() => {
@@ -128,8 +159,8 @@ export function AdminMaintenancePreview({
           />
         </div>
 
-        {/* 若為單頁維護，在預覽底部呈現導覽列模擬 */}
-        {isSinglePage && <SimulatedBottomNav scope={config.scope} />}
+        {/* 若為單頁/多頁維護，在預覽底部呈現導覽列模擬 */}
+        {isSinglePage && <SimulatedBottomNav scopes={config.scopes} scope={config.scope} />}
       </div>
 
       {/* 🌟 1:1 沉浸式全螢幕真實預覽 Modal 彈窗 */}
@@ -194,7 +225,7 @@ export function AdminMaintenancePreview({
               isPreview={false}
               isSinglePage={isSinglePage}
             />
-            {isSinglePage && <SimulatedBottomNav scope={config.scope} />}
+            {isSinglePage && <SimulatedBottomNav scopes={config.scopes} scope={config.scope} />}
           </div>
         </div>
       )}

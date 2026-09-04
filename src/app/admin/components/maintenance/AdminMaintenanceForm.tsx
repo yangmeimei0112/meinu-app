@@ -16,6 +16,12 @@ import {
   CreditCard,
   ClipboardList,
   Layers,
+  UserCheck,
+  ShieldCheck,
+  Check,
+  CheckSquare,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 
 const QUICK_REASONS = [
@@ -29,18 +35,33 @@ const QUICK_REASONS = [
 interface ScopeOption {
   id: MaintenanceScope;
   label: string;
+  pathDesc: string;
   desc: string;
   icon: React.ComponentType<{ className?: string }>;
+  isAll?: boolean;
 }
 
 const SCOPE_OPTIONS: ScopeOption[] = [
-  { id: 'all', label: '全站所有頁面', desc: '封鎖全站前台（預設）', icon: Globe },
-  { id: 'home', label: '首頁大廳', desc: '僅鎖定首頁 (/)', icon: Home },
-  { id: 'search', label: '探索搜尋頁', desc: '僅鎖定搜尋 (/search)', icon: Search },
-  { id: 'stores', label: '店家菜單頁', desc: '僅鎖定菜單 (/stores/*)', icon: Store },
-  { id: 'cart', label: '購物車功能', desc: '僅鎖定購物車 (/cart)', icon: ShoppingBag },
-  { id: 'checkout', label: '結帳送單頁', desc: '僅鎖定結帳 (/checkout)', icon: CreditCard },
-  { id: 'my-orders', label: '歷史訂單頁', desc: '僅鎖定訂單 (/my-orders)', icon: ClipboardList },
+  { id: 'all', label: '全站所有頁面', pathDesc: '/* 全部前台', desc: '封鎖全站所有前台頁面', icon: Globe, isAll: true },
+  { id: 'home', label: '首頁大廳', pathDesc: '/', desc: '僅鎖定首頁大廳', icon: Home },
+  { id: 'search', label: '探索搜尋頁', pathDesc: '/search', desc: '僅鎖定搜尋與店家列表', icon: Search },
+  { id: 'stores', label: '店家菜單頁', pathDesc: '/stores/*', desc: '僅鎖定店家菜單點餐頁', icon: Store },
+  { id: 'cart', label: '購物車功能', pathDesc: '/cart', desc: '僅鎖定購物車檢視與操作', icon: ShoppingBag },
+  { id: 'checkout', label: '結帳送單頁', pathDesc: '/checkout', desc: '僅鎖定結帳送出訂單流程', icon: CreditCard },
+  { id: 'my-orders', label: '歷史訂單頁', pathDesc: '/my-orders', desc: '僅鎖定歷史訂單查閱', icon: ClipboardList },
+  { id: 'account', label: '會員專區頁', pathDesc: '/account', desc: '僅鎖定個人帳號與設定', icon: UserCheck },
+  { id: 'legal', label: '法律協議中心', pathDesc: '/legal/*', desc: '僅鎖定服務條款與政策', icon: ShieldCheck },
+];
+
+const ALL_SUB_SCOPES: MaintenanceScope[] = [
+  'home',
+  'search',
+  'stores',
+  'cart',
+  'checkout',
+  'my-orders',
+  'account',
+  'legal',
 ];
 
 interface AdminMaintenanceFormProps {
@@ -62,7 +83,62 @@ export function AdminMaintenanceForm({
   onRemoveImage,
   onSaveConfig,
 }: AdminMaintenanceFormProps) {
-  const currentScope = config.scope || 'all';
+  const activeScopes: MaintenanceScope[] =
+    config.scopes && config.scopes.length > 0
+      ? config.scopes
+      : [config.scope || 'all'];
+
+  const isAllSelected = activeScopes.includes('all');
+
+  const handleToggleScope = (scopeId: MaintenanceScope) => {
+    if (scopeId === 'all') {
+      setConfig((prev) => ({
+        ...prev,
+        scope: 'all',
+        scopes: ['all'],
+      }));
+      return;
+    }
+
+    let newScopes: MaintenanceScope[];
+    if (isAllSelected) {
+      // 若原先為全站，點選單項則切換為僅選取該單項
+      newScopes = [scopeId];
+    } else {
+      if (activeScopes.includes(scopeId)) {
+        newScopes = activeScopes.filter((s) => s !== scopeId);
+        // 若全部取消勾選，預設回到全站
+        if (newScopes.length === 0) {
+          newScopes = ['all'];
+        }
+      } else {
+        newScopes = [...activeScopes, scopeId];
+      }
+    }
+
+    const primaryScope = newScopes.includes('all') ? 'all' : newScopes[0] || 'all';
+
+    setConfig((prev) => ({
+      ...prev,
+      scope: primaryScope,
+      scopes: newScopes,
+    }));
+  };
+
+  const handleApplyPreset = (scopes: MaintenanceScope[]) => {
+    const primaryScope = scopes.includes('all') ? 'all' : scopes[0] || 'all';
+    setConfig((prev) => ({
+      ...prev,
+      scope: primaryScope,
+      scopes: scopes,
+    }));
+  };
+
+  const selectedCountText = isAllSelected
+    ? '全站所有頁面'
+    : `已選取 ${activeScopes.length} 個頁面（${activeScopes
+        .map((s) => SCOPE_OPTIONS.find((opt) => opt.id === s)?.label || s)
+        .join('、')}）`;
 
   return (
     <div className="space-y-4">
@@ -72,7 +148,7 @@ export function AdminMaintenanceForm({
           <div>
             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">維護模式總開關</span>
             <span className="text-[11px] text-slate-400">
-              開啟後將依據下方選定之「維護範圍」進行阻擋與鎖定
+              開啟後將依據下方勾選之「多選維護範圍」進行阻擋與鎖定
             </span>
           </div>
 
@@ -92,43 +168,127 @@ export function AdminMaintenanceForm({
         </div>
       </div>
 
-      {/* 2. 🌟 維護生效範圍選擇器 (單頁或全站維護) */}
-      <div className="space-y-2 p-4 rounded-3xl bg-slate-50 dark:bg-[#131B2B] border border-slate-200/80 dark:border-slate-800">
-        <label className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
+      {/* 2. 🌟 維護生效範圍選擇器 (支援多選/複選單一或複合頁面維護) */}
+      <div className="space-y-3 p-4 rounded-3xl bg-slate-50 dark:bg-[#131B2B] border border-slate-200/80 dark:border-slate-800">
+        <div className="flex items-center justify-between flex-wrap gap-1">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
             <Layers className="w-3.5 h-3.5 text-sky-500" />
-            <span>維護生效範圍（支援單頁維護）</span>
-          </div>
-          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold font-mono">
-            {SCOPE_OPTIONS.find((s) => s.id === currentScope)?.label}
+            <span>維護生效範圍（支援複選多頁面）</span>
+          </label>
+          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-bold font-mono">
+            {isAllSelected ? '🌐 全站維護' : `⚡ 複選 ${activeScopes.length} 個分頁`}
           </span>
-        </label>
+        </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+        {/* 快捷套用預設組合按鈕 */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+          <span className="text-[10px] font-bold text-slate-400">快捷套用：</span>
+          <button
+            type="button"
+            onClick={() => handleApplyPreset(['all'])}
+            className={`text-[10px] font-extrabold px-2 py-0.8 rounded-lg border transition active:scale-95 cursor-pointer flex items-center gap-1 ${
+              isAllSelected
+                ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-amber-400'
+            }`}
+          >
+            <Globe className="w-2.5 h-2.5" />
+            <span>全站鎖定</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleApplyPreset(['stores', 'cart', 'checkout'])}
+            className="text-[10px] font-extrabold px-2 py-0.8 rounded-lg border bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-sky-400 active:scale-95 transition cursor-pointer flex items-center gap-1"
+          >
+            <Sparkles className="w-2.5 h-2.5 text-sky-500" />
+            <span>核心點餐流程 (菜單+購物車+結帳)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleApplyPreset(ALL_SUB_SCOPES)}
+            className="text-[10px] font-extrabold px-2 py-0.8 rounded-lg border bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-sky-400 active:scale-95 transition cursor-pointer flex items-center gap-1"
+          >
+            <CheckSquare className="w-2.5 h-2.5 text-emerald-500" />
+            <span>全選子頁面</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleApplyPreset(['all'])}
+            className="text-[10px] font-bold px-2 py-0.8 rounded-lg border bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:text-slate-700 active:scale-95 transition cursor-pointer flex items-center gap-1"
+            title="重設為全站維護"
+          >
+            <RotateCcw className="w-2.5 h-2.5" />
+            <span>重設</span>
+          </button>
+        </div>
+
+        {/* 複選 Checkbox 卡片矩陣清單 */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
           {SCOPE_OPTIONS.map((opt) => {
             const Icon = opt.icon;
-            const isSelected = currentScope === opt.id;
+            const isChecked = opt.isAll ? isAllSelected : !isAllSelected && activeScopes.includes(opt.id);
+
             return (
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => setConfig((prev) => ({ ...prev, scope: opt.id }))}
-                className={`p-2.5 rounded-2xl border text-left transition active:scale-95 cursor-pointer flex flex-col justify-between gap-1 ${
-                  isSelected
-                    ? 'bg-amber-500/15 border-amber-500/60 text-amber-800 dark:text-amber-300 shadow-xs ring-1 ring-amber-400/40'
-                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:border-sky-400'
+                onClick={() => handleToggleScope(opt.id)}
+                className={`p-2.5 rounded-2xl border text-left transition active:scale-95 cursor-pointer flex flex-col justify-between gap-1 relative overflow-hidden ${
+                  isChecked
+                    ? opt.isAll
+                      ? 'bg-amber-500/15 border-amber-500/70 text-amber-900 dark:text-amber-200 shadow-xs ring-1 ring-amber-400/50'
+                      : 'bg-sky-500/15 border-sky-500/70 text-sky-900 dark:text-sky-200 shadow-xs ring-1 ring-sky-400/50'
+                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-600 dark:text-slate-300 hover:border-sky-300 dark:hover:border-slate-600 opacity-80 hover:opacity-100'
                 }`}
               >
-                <div className="flex items-center gap-1.5 font-bold text-xs">
-                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-amber-500' : 'text-slate-400'}`} />
-                  <span>{opt.label}</span>
+                {/* 勾選圖示指示器 */}
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-1.5 font-black text-xs">
+                    <Icon
+                      className={`w-3.5 h-3.5 shrink-0 ${
+                        isChecked
+                          ? opt.isAll
+                            ? 'text-amber-500'
+                            : 'text-sky-500'
+                          : 'text-slate-400'
+                      }`}
+                    />
+                    <span>{opt.label}</span>
+                  </div>
+
+                  <div
+                    className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
+                      isChecked
+                        ? opt.isAll
+                          ? 'bg-amber-500 border-amber-500 text-white'
+                          : 'bg-sky-500 border-sky-500 text-white'
+                        : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700'
+                    }`}
+                  >
+                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                  </div>
                 </div>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-                  {opt.desc}
-                </span>
+
+                <div className="flex items-center justify-between text-[10px] mt-0.5">
+                  <span className="text-slate-400 dark:text-slate-500 leading-tight">
+                    {opt.desc}
+                  </span>
+                  <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-900/60 text-slate-400 font-bold shrink-0 ml-1">
+                    {opt.pathDesc}
+                  </span>
+                </div>
               </button>
             );
           })}
+        </div>
+
+        {/* 當前選取摘要提示條 */}
+        <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-300 flex items-center gap-1.5 font-medium">
+          <Layers className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+          <span className="truncate">{selectedCountText}</span>
         </div>
       </div>
 

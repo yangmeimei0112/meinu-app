@@ -10,6 +10,7 @@ import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
 export interface MaintenanceData {
   is_maintenance: boolean;
   scope?: MaintenanceScope;
+  scopes?: MaintenanceScope[];
   title: string;
   message: string;
   estimated_end_time?: string;
@@ -36,6 +37,8 @@ const SCOPE_LABELS: Record<MaintenanceScope, string> = {
   cart: '購物車功能維護中',
   checkout: '結帳送單維護中',
   'my-orders': '歷史訂單維護中',
+  account: '會員專區維護中',
+  legal: '法律協議中心維護中',
 };
 
 // ----------------------------------------------------
@@ -51,8 +54,15 @@ export function MaintenanceScreen({
   isSinglePage = false,
 }: MaintenanceScreenProps) {
   const { theme, toggleTheme } = useTheme();
-  const currentScope = data.scope || 'all';
-  const scopeText = SCOPE_LABELS[currentScope] || '系統維護中';
+  const activeScopes = data.scopes && data.scopes.length > 0 ? data.scopes : [data.scope || 'all'];
+  const currentScope = activeScopes[0] || 'all';
+
+  let scopeText = SCOPE_LABELS[currentScope] || '系統維護中';
+  if (activeScopes.includes('all')) {
+    scopeText = '全站維護升級中';
+  } else if (activeScopes.length > 1) {
+    scopeText = `特定多頁面維護中 (${activeScopes.length} 頁)`;
+  }
 
   return (
     <div

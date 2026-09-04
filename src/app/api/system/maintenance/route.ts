@@ -7,11 +7,33 @@ import { verifyAdminToken } from '@/lib/auth-util';
 const configFilePath = path.join(process.cwd(), 'src', 'data', 'maintenance.json');
 const tmpFilePath = path.join('/tmp', 'meinu_maintenance.json');
 
-export type MaintenanceScope = 'all' | 'home' | 'search' | 'stores' | 'cart' | 'checkout' | 'my-orders';
+export type MaintenanceScope =
+  | 'all'
+  | 'home'
+  | 'search'
+  | 'stores'
+  | 'cart'
+  | 'checkout'
+  | 'my-orders'
+  | 'account'
+  | 'legal';
+
+export const VALID_SCOPES: MaintenanceScope[] = [
+  'all',
+  'home',
+  'search',
+  'stores',
+  'cart',
+  'checkout',
+  'my-orders',
+  'account',
+  'legal',
+];
 
 export interface MaintenanceConfig {
   is_maintenance: boolean;
-  scope?: MaintenanceScope; // 'all' (全站) | 'home' | 'search' | 'stores' | 'cart' | 'checkout' | 'my-orders'
+  scope?: MaintenanceScope; // 向下相容單選
+  scopes?: MaintenanceScope[]; // 🌟 支援多選 / 複選單一頁面維護 (例如: ['cart', 'checkout'])
   title: string;
   message: string;
   estimated_end_time?: string;
@@ -23,6 +45,7 @@ export interface MaintenanceConfig {
 const defaultConfig: MaintenanceConfig = {
   is_maintenance: false,
   scope: 'all',
+  scopes: ['all'],
   title: '網站更新維護中，請稍後再下單',
   message: '為了提供更好的揪團點餐體驗，網站目前正在進行例行升級維護。暫停點餐服務，請稍後再下單，感謝您的耐心等候。',
   estimated_end_time: '預計 15-30 分鐘內完成',
@@ -85,16 +108,16 @@ function writeConfig(config: MaintenanceConfig): boolean {
   return written || !!memoryCache;
 }
 
-const VALID_SCOPES: MaintenanceScope[] = ['all', 'home', 'search', 'stores', 'cart', 'checkout', 'my-orders'];
-
 // 供前台訪客快速查詢維護狀態與生效範圍
 export async function GET() {
   const config = readConfig();
+  const activeScopes = config.scopes && config.scopes.length > 0 ? config.scopes : [config.scope || 'all'];
 
   return NextResponse.json(
     {
       is_maintenance: config.is_maintenance,
       scope: config.is_maintenance ? (config.scope || 'all') : 'all',
+      scopes: config.is_maintenance ? activeScopes : ['all'],
       title: config.is_maintenance ? config.title : '',
       message: config.is_maintenance ? config.message : '',
       estimated_end_time: config.is_maintenance ? (config.estimated_end_time || '') : '',
@@ -149,9 +172,25 @@ export async function POST(req: NextRequest) {
         : current.estimated_end_time;
     const rawReason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 50) : current.reason;
 
-    // 4. 維護範圍校驗 (預設為 'all')
-    const rawScope: MaintenanceScope = VALID_SCOPES.includes(body.scope) ? body.scope : (current.scope || 'all');
-    
+    // 4. 維護範圍校驗 (支援複選多頁面或全站)
+    let rawScopes: MaintenanceScope[] = [];
+    if (Array.isArray(body.scopes) && body.scopes.length > 0) {
+      rawScopes = body.scopes.filter((s: any) => VALID_SCOPES.includes(s));
+    }
+
+    // 若未傳入 scopes，則兼容舊版 body.scope
+    if (rawScopes.length === 0) {
+      const singleScope: MaintenanceScope = VALID_SCOPES.includes(body.scope) ? body.scope : (current.scope || 'all');
+      rawScopes = [singleScope];
+    }
+
+    // 若包含 'all'，則規範為 ['all']
+    if (rawScopes.includes('all')) {
+      rawScopes = ['all'];
+    }
+
+    const primaryScope: MaintenanceScope = rawScopes[0] || 'all';
+
     let rawCustomImage = current.custom_image_url || '';
     if (typeof body.custom_image_url === 'string') {
       const imgCandidate = body.custom_image_url.trim();
@@ -163,7 +202,8 @@ export async function POST(req: NextRequest) {
 
     const updatedConfig: MaintenanceConfig = {
       is_maintenance: typeof body.is_maintenance === 'boolean' ? body.is_maintenance : current.is_maintenance,
-      scope: rawScope,
+      scope: primaryScope,
+      scopes: rawScopes,
       title: rawTitle,
       message: rawMessage,
       estimated_end_time: rawEstimated,
@@ -185,12 +225,18 @@ export async function POST(req: NextRequest) {
       cart: '購物車頁',
       checkout: '結帳送單頁',
       'my-orders': '歷史訂單頁',
+      account: '會員專區頁',
+      legal: '法律協議中心',
     };
+
+    const formattedScopeNames = rawScopes.includes('all')
+      ? '全站所有頁面'
+      : rawScopes.map((s) => scopeLabels[s] || s).join('、');
 
     const res = NextResponse.json({
       success: true,
       message: updatedConfig.is_maintenance
-        ? `已開啟「${scopeLabels[rawScope] || '特定頁面'}」系統維護模式`
+        ? `已開啟「${formattedScopeNames}」系統維護模式`
         : '已關閉維護模式，前台恢復正常點餐',
       config: updatedConfig,
       build_id: process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || process.env.VERCEL_GIT_COMMIT_SHA || 'dev',

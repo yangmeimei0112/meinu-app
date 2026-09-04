@@ -96,15 +96,11 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
         setConfig((prev) => ({
           ...prev,
           is_maintenance: targetState,
-          updated_at: json.data?.updated_at || new Date().toISOString(),
+          updated_at: json.config?.updated_at || new Date().toISOString(),
         }));
-        showToast(
-          targetState
-            ? '🚨 已開啟全站維護模式！所有訪客將看到維護畫面'
-            : '✅ 已關閉維護模式，網站已恢復正常點餐！'
-        );
+        showToast(json.message || (targetState ? '🚨 維護模式已啟動！' : '✅ 已關閉維護模式，網站已恢復正常點餐！'));
       } else {
-        showToast(`儲存失敗：${json.error || '未知錯誤'}`);
+        showToast(`儲存失敗：${json.message || json.error || '未知錯誤'}`);
       }
     } catch (e) {
       console.error('儲存維護設定失敗', e);
@@ -121,6 +117,9 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
       </div>
     );
   }
+
+  const activeScopes = config.scopes && config.scopes.length > 0 ? config.scopes : [config.scope || 'all'];
+  const isFullSite = activeScopes.includes('all');
 
   return (
     <div className="space-y-6">
@@ -148,11 +147,17 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
           </div>
           <div>
             <h3 className="text-sm font-black">
-              {config.is_maintenance ? '全站維護模式進行中' : '全站營運正常（未進入維護）'}
+              {config.is_maintenance
+                ? isFullSite
+                  ? '全站維護模式進行中'
+                  : `特定分頁維護進行中 (${activeScopes.length} 個分頁)`
+                : '全站營運正常（未進入維護）'}
             </h3>
             <p className="text-[11px] opacity-80 mt-0.5">
               {config.is_maintenance
-                ? '前台所有非管理員頁面目前皆處於全螢幕維護阻擋狀態'
+                ? isFullSite
+                  ? '前台所有非管理員頁面目前皆處於全螢幕維護阻擋狀態'
+                  : '僅阻擋已勾選之特定頁面，其他頁面開放正常瀏覽與點餐'
                 : '前台開放所有使用者正常進入與送單點餐'}
             </p>
           </div>

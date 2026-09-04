@@ -60,16 +60,20 @@ export default function MobileBottomNav() {
   }
 
   const isMaintActive = Boolean(maintenanceData?.is_maintenance);
-  const maintScope = maintenanceData?.scope || 'all';
+  const activeScopes =
+    maintenanceData?.scopes && maintenanceData.scopes.length > 0
+      ? maintenanceData.scopes
+      : [maintenanceData?.scope || 'all'];
 
   // 判斷各分頁是否正處於維修狀態
   const isItemUnderMaintenance = (itemId: string) => {
     if (!isMaintActive) return false;
-    if (maintScope === 'all') return true;
-    if (itemId === 'home' && maintScope === 'home') return true;
-    if (itemId === 'search' && maintScope === 'search') return true;
-    if (itemId === 'cart' && (maintScope === 'cart' || maintScope === 'checkout')) return true;
-    if (itemId === 'orders' && maintScope === 'my-orders') return true;
+    if (activeScopes.includes('all')) return true;
+    if (itemId === 'home' && activeScopes.includes('home')) return true;
+    if (itemId === 'search' && activeScopes.includes('search')) return true;
+    if (itemId === 'cart' && (activeScopes.includes('cart') || activeScopes.includes('checkout'))) return true;
+    if (itemId === 'orders' && activeScopes.includes('my-orders')) return true;
+    if (itemId === 'account' && activeScopes.includes('account')) return true;
     return false;
   };
 

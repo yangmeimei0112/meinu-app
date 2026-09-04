@@ -8,18 +8,42 @@ const STORAGE_KEY_LOCKED = 'meinu_maintenance_locked';
 const STORAGE_KEY_DATA = 'meinu_maintenance_data';
 const STORAGE_KEY_DEADLINE = 'meinu_maintenance_deadline';
 
-export function isRouteInMaintenance(pathname: string, scope?: MaintenanceScope): boolean {
+export function isRouteInMaintenance(
+  pathname: string,
+  scope?: MaintenanceScope,
+  scopes?: MaintenanceScope[]
+): boolean {
   if (!pathname || pathname.startsWith('/admin')) return false; // 後台永遠不攔截
-  if (!scope || scope === 'all') return true;
 
-  if (scope === 'home') return pathname === '/';
-  if (scope === 'search') return pathname === '/search' || pathname.startsWith('/search/');
-  if (scope === 'stores') return pathname.startsWith('/stores/');
-  if (scope === 'cart') return pathname === '/cart' || pathname.startsWith('/cart/');
-  if (scope === 'checkout') return pathname === '/checkout' || pathname.startsWith('/checkout/');
-  if (scope === 'my-orders') return pathname === '/my-orders' || pathname.startsWith('/my-orders/');
+  // 優先採用複選 scopes 陣列，若無則兼容舊版單選 scope
+  const activeScopes: MaintenanceScope[] =
+    scopes && Array.isArray(scopes) && scopes.length > 0
+      ? scopes
+      : scope
+      ? [scope]
+      : ['all'];
 
-  return false;
+  if (activeScopes.includes('all')) return true;
+
+  return activeScopes.some((s) => {
+    if (s === 'home') return pathname === '/';
+    if (s === 'search') return pathname === '/search' || pathname.startsWith('/search/');
+    if (s === 'stores') return pathname.startsWith('/stores/');
+    if (s === 'cart') return pathname === '/cart' || pathname.startsWith('/cart/');
+    if (s === 'checkout') return pathname === '/checkout' || pathname.startsWith('/checkout/');
+    if (s === 'my-orders') return pathname === '/my-orders' || pathname.startsWith('/my-orders/');
+    if (s === 'account') return pathname === '/account' || pathname.startsWith('/account/');
+    if (s === 'legal') {
+      return (
+        pathname.startsWith('/legal') ||
+        pathname === '/terms' ||
+        pathname === '/privacy' ||
+        pathname === '/user-terms' ||
+        pathname === '/security'
+      );
+    }
+    return false;
+  });
 }
 
 // 🧹 強制清除所有快取並帶隨機時間戳硬重整至最新版本
@@ -60,9 +84,15 @@ export async function forceHardReloadToLatestVersion(targetUrl?: string) {
 function isMaintenanceDataEqual(a: MaintenanceData | null, b: MaintenanceData | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
+
+  const scopesEqual =
+    JSON.stringify(a.scopes || (a.scope ? [a.scope] : ['all'])) ===
+    JSON.stringify(b.scopes || (b.scope ? [b.scope] : ['all']));
+
   return (
     a.is_maintenance === b.is_maintenance &&
     a.scope === b.scope &&
+    scopesEqual &&
     a.title === b.title &&
     a.message === b.message &&
     a.estimated_end_time === b.estimated_end_time &&
@@ -432,7 +462,8 @@ export function useMaintenanceStatus(currentPathname: string = '/', initialData?
     try {
       const data = await globalMaintenanceStore.fetchStatus();
       if (data) {
-        const isInMaintenance = data.is_maintenance && isRouteInMaintenance(currentPathname, data.scope);
+        const isInMaintenance =
+          data.is_maintenance && isRouteInMaintenance(currentPathname, data.scope, data.scopes);
         if (!isInMaintenance) {
           setCheckMessage('✅ 該頁面維護已完成！即將自動為您整理並載入最新版本...');
           setTimeout(() => {

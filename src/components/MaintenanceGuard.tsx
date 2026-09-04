@@ -18,6 +18,8 @@ const SCOPE_NAMES: Record<string, string> = {
   cart: '購物車',
   checkout: '結帳送單',
   'my-orders': '歷史訂單',
+  account: '會員專區',
+  legal: '法律協議',
 };
 
 function IconAlertTriangle({ className = 'w-4 h-4' }: { className?: string }) {
@@ -48,7 +50,7 @@ function IconChevronUp({ className = 'w-4 h-4' }: { className?: string }) {
 
 /**
  * 🌟 僅在前台使用者頁面掛載的維護狀態監聽器
- * 嚴格與後台管理 (/admin) 隔離，支援「全站維護」與「單一頁面特定維護」
+ * 嚴格與後台管理 (/admin) 隔離，支援「全站維護」與「單一/多頁面特定維護」
  */
 function FrontendMaintenanceWatcher({
   children,
@@ -73,13 +75,21 @@ function FrontendMaintenanceWatcher({
 
   // 判定當前頁面是否處於維護範圍內
   const isCurrentRouteLocked =
-    maintenanceData?.is_maintenance && isRouteInMaintenance(pathname, maintenanceData.scope);
+    maintenanceData?.is_maintenance &&
+    isRouteInMaintenance(pathname, maintenanceData.scope, maintenanceData.scopes);
 
-  const isSinglePageMaintenance =
-    maintenanceData?.is_maintenance && maintenanceData.scope && maintenanceData.scope !== 'all';
+  const activeScopes =
+    maintenanceData?.scopes && maintenanceData.scopes.length > 0
+      ? maintenanceData.scopes
+      : [maintenanceData?.scope || 'all'];
 
-  const currentScope = maintenanceData?.scope || 'all';
-  const scopeLabel = SCOPE_NAMES[currentScope] || '本頁';
+  const isFullSiteMaintenance = activeScopes.includes('all');
+  const isSinglePageMaintenance = Boolean(maintenanceData?.is_maintenance && !isFullSiteMaintenance);
+
+  const currentScope = activeScopes[0] || 'all';
+  const scopeLabel = isFullSiteMaintenance
+    ? '全站'
+    : activeScopes.map((s) => SCOPE_NAMES[s] || s).join('、');
 
   // 伺服端維護中、命中當前頁面範圍且倒數已結束（或重新載入/新訪客 0ms 鎖定）：
   if (isCurrentRouteLocked && isCountDownFinished) {
@@ -96,7 +106,7 @@ function FrontendMaintenanceWatcher({
       );
     }
 
-    // 2. 若為「單一頁面維護」：顯示該頁維護畫面，但保留底部導覽列供訪客前往其他正常頁面
+    // 2. 若為「單一或部分頁面維護」：顯示該頁維護畫面，但保留底部導覽列供訪客前往其他正常頁面
     return (
       <div className="min-h-[100dvh] flex flex-col justify-between">
         <MaintenanceScreen
