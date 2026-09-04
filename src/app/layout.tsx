@@ -87,7 +87,7 @@ export const metadata: Metadata = {
     images: ['/logo.png'],
   },
   verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || '',
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || 'google125a36c5a4373474',
   },
   robots: {
     index: true,
