@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { CartItem, MultiStoreCart } from '@/types/cart';
 import { parseOrderProgressStatus } from '@/types/orderStatus';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 export interface OrderItemDetail {
   id: string;
@@ -321,7 +322,7 @@ export function useOrderStatus(submissionId: string) {
       }
     } catch (e) {
       console.error(e);
-      showToast('操作失敗，可能訂單已被處理或網路不穩，請稍後重試');
+      showToast(formatErrorMessage(e, '操作失敗，可能訂單已被處理或網路不穩，請稍後重試'));
     } finally {
       setIsActionLoading(false);
     }

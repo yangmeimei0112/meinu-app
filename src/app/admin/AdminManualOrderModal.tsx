@@ -8,6 +8,7 @@ import { generateSequentialOrderNumber } from '@/lib/order-utils';
 import { serializeOrderProgressStatus } from '@/types/orderStatus';
 import { PenTool, X, Plus, Minus } from 'lucide-react';
 import { stripEmojis } from '@/lib/icon-utils';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface AdminManualOrderModalProps {
   isOpen: boolean;
@@ -93,7 +94,7 @@ export default function AdminManualOrderModal({
       }, 1000);
     } catch (err) {
       console.error(err);
-      setStatusMsg({ text: '代點失敗，請稍後重試', isError: true });
+      setStatusMsg({ text: formatErrorMessage(err, '代點失敗，請稍後重試'), isError: true });
     } finally {
       setIsSubmitting(false);
     }

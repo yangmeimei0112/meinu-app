@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Store } from '@/types/database';
 import { X, Save, Sparkles } from 'lucide-react';
 import { StoreOperationFormFields } from './store-operation/StoreOperationFormFields';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface AdminStoreOperationModalProps {
   isOpen: boolean;
@@ -67,7 +68,7 @@ export function AdminStoreOperationModal({
       onClose();
     } catch (err: any) {
       console.error('儲存店家即時營運設定失敗:', err);
-      setModalError(`儲存失敗：${err?.message || err}`);
+      setModalError(formatErrorMessage(err, '儲存營運設定失敗，請稍後再試！'));
     } finally {
       setIsSaving(false);
     }

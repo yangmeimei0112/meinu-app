@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { CustomGroup } from '@/types/database';
 import { Download, X, Coffee, UtensilsCrossed, FileText, Upload } from 'lucide-react';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface AdminBatchImportModalProps {
   isOpen: boolean;
@@ -156,7 +157,7 @@ export default function AdminBatchImportModal({
       }, 1200);
     } catch (err) {
       console.error('Batch import error:', err);
-      setStatusMsg({ text: '匯入失敗，請檢查 CSV 格式是否符合範本', isError: true });
+      setStatusMsg({ text: formatErrorMessage(err, '匯入失敗，請檢查 CSV 格式是否符合範本'), isError: true });
     } finally {
       setIsImporting(false);
     }

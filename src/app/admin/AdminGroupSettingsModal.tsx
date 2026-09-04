@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { GroupOrderAdmin } from './admin-types';
 import { Store } from '@/types/database';
 import { Settings, X, Megaphone, Truck, Clock, Banknote, Save } from 'lucide-react';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface AdminGroupSettingsModalProps {
   isOpen: boolean;
@@ -97,7 +98,7 @@ export default function AdminGroupSettingsModal({
       onClose();
     } catch (err: any) {
       console.error(err);
-      setModalError(`儲存失敗：${err?.message || err}`);
+      setModalError(formatErrorMessage(err, '儲存設定失敗，請稍後再試！'));
     } finally {
       setIsSaving(false);
     }

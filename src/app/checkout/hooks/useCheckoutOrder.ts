@@ -6,6 +6,7 @@ import { CartItem, MultiStoreCart } from '@/types/cart';
 import { PaymentMethod, SoldOutOption, GroupOrder } from '@/types/database';
 import { sanitizeInput, checkRateLimit, isHumanInteractionTime } from '@/lib/security';
 import { executeOrderSubmissionPipeline } from '../services/orderSubmissionService';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseCheckoutOrderProps {
   targetStoreId: string;
@@ -217,7 +218,7 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
       });
     } catch (err: any) {
       console.error('送單出錯:', err);
-      showToast(err?.message || '送出失敗，請重試或檢查網路連線');
+      showToast(formatErrorMessage(err, '送出失敗，請重試或檢查網路連線'));
     } finally {
       setIsSubmitting(false);
     }

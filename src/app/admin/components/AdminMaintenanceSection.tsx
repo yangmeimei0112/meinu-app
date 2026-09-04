@@ -5,6 +5,7 @@ import { MaintenanceData } from '@/components/MaintenanceGuard';
 import { CheckCircle2, AlertTriangle, Settings } from 'lucide-react';
 import { AdminMaintenanceForm } from './maintenance/AdminMaintenanceForm';
 import { AdminMaintenancePreview } from './maintenance/AdminMaintenancePreview';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface AdminMaintenanceSectionProps {
   showToast: (msg: string) => void;
@@ -100,11 +101,11 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
         }));
         showToast(json.message || (targetState ? '🚨 維護模式已啟動！' : '✅ 已關閉維護模式，網站已恢復正常點餐！'));
       } else {
-        showToast(`儲存失敗：${json.message || json.error || '未知錯誤'}`);
+        showToast(formatErrorMessage(json.message || json.error, '儲存維護設定失敗，請稍後再試！'));
       }
     } catch (e) {
       console.error('儲存維護設定失敗', e);
-      showToast('儲存維護設定時發生錯誤');
+      showToast(formatErrorMessage(e, '儲存維護設定時發生錯誤，請稍後重試！'));
     } finally {
       setSaving(false);
     }

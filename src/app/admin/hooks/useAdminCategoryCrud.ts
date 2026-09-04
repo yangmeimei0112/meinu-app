@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Category } from '@/types/database';
 import { AdminConfirmModalState } from '../admin-types';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminCategoryCrudProps {
   categories: Category[];
@@ -90,7 +91,7 @@ export function useAdminCategoryCrud({
           fetchAdminData();
         } catch (err: any) {
           console.error('刪除分類失敗:', err);
-          showToast(`刪除分類失敗：${err?.message || err}`);
+          showToast(`刪除分類失敗：${formatErrorMessage(err, '資料庫關聯異常')}`);
         }
       },
     });

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { MenuItem, CustomGroup } from '@/types/database';
 import { AdminConfirmModalState } from '../admin-types';
 import { patchStoreMenuItem } from '@/lib/storeMenuCache';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminProductCrudProps {
   allMenuItems: MenuItem[];
@@ -129,7 +130,7 @@ export function useAdminProductCrud({
 
       if (error) {
         console.error('更新餐點失敗:', error);
-        showToast('更新餐點失敗');
+        showToast(formatErrorMessage(error, '更新餐點失敗，請檢查網路連線'));
         return;
       }
       showToast('餐點已更新！');
@@ -144,7 +145,7 @@ export function useAdminProductCrud({
 
       if (error) {
         console.error('新增餐點失敗:', error);
-        showToast('新增餐點失敗');
+        showToast(formatErrorMessage(error, '新增餐點失敗，請檢查輸入資料'));
         return;
       }
       showToast('餐點新增成功！');
@@ -172,7 +173,7 @@ export function useAdminProductCrud({
           fetchAdminData();
         } catch (err: any) {
           console.error('刪除餐點失敗:', err);
-          showToast(`刪除餐點失敗：${err?.message || err}`);
+          showToast(`刪除餐點失敗：${formatErrorMessage(err, '資料庫關聯衝突，無法刪除')}`);
         }
       },
     });

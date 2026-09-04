@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { formatErrorMessage } from '@/lib/errorUtils';
 import {
   Plus,
   Trash2,
@@ -144,7 +145,7 @@ export function AdminAiMenuReviewTable({
       onImportSuccess(rowsToInsert.length);
     } catch (e: any) {
       console.error('批次匯入錯誤:', e);
-      setErrorMessage(e.message || '匯入時發生未知錯誤，請檢查網路連線後重試');
+      setErrorMessage(formatErrorMessage(e, '匯入時發生錯誤，請檢查網路連線後重試'));
     } finally {
       setIsSaving(false);
     }

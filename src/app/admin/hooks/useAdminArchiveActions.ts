@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { GroupOrderAdmin, AdminConfirmModalState, AdminTabType } from '../admin-types';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminArchiveActionsProps {
   activeGroup: GroupOrderAdmin | null;
@@ -96,7 +97,7 @@ export function useAdminArchiveActions({
           setActiveTab('archive');
         } catch (err: any) {
           console.error('結案歸檔失敗:', err);
-          showToast(`結案歸檔失敗：${err?.message || err}`);
+          showToast(`結案歸檔失敗：${formatErrorMessage(err, '資料庫存取異常')}`);
         }
       },
     });
@@ -143,7 +144,7 @@ export function useAdminArchiveActions({
           setActiveTab('active');
         } catch (err: any) {
           console.error('重開團購活動失敗:', err);
-          showToast(`發起失敗：${err?.message || err}`);
+          showToast(`發起失敗：${formatErrorMessage(err, '新增活動失敗')}`);
         }
       },
     });
@@ -179,7 +180,7 @@ export function useAdminArchiveActions({
           fetchAdminData();
         } catch (err: any) {
           console.error('刪除歷史活動失敗:', err);
-          showToast(`刪除失敗：${err?.message || err}`);
+          showToast(`刪除失敗：${formatErrorMessage(err, '刪除歷史紀錄異常')}`);
         }
       },
     });
@@ -218,7 +219,7 @@ export function useAdminArchiveActions({
           fetchAdminData();
         } catch (err: any) {
           console.error('批次刪除歷史活動失敗:', err);
-          showToast(`批次刪除失敗：${err?.message || err}`);
+          showToast(`批次刪除失敗：${formatErrorMessage(err, '批次刪除歷史紀錄異常')}`);
         }
       },
     });

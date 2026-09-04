@@ -10,6 +10,7 @@ import {
   copyUnpaidReminder,
   exportOrdersCSV,
 } from '../lib/adminOrderExport';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminOrderActionsProps {
   activeGroup: GroupOrderAdmin | null;
@@ -145,7 +146,7 @@ export function useAdminOrderActions({
     if (error) {
       console.error('儲存簽名失敗:', error);
       fetchAdminData(selectedActiveGroupIdRef.current, true);
-      showToast(`儲存簽名失敗：${error.message || '資料庫錯誤'}`);
+      showToast(`儲存簽名失敗：${formatErrorMessage(error, '資料庫存取異常')}`);
     }
   };
 
@@ -214,7 +215,7 @@ export function useAdminOrderActions({
       fetchAdminData(selectedActiveGroupIdRef.current, true);
     } catch (err: any) {
       console.error('切換店家接單狀態失敗:', err);
-      showToast(`切換接單狀態失敗：${err?.message || err}`);
+      showToast(`切換接單狀態失敗：${formatErrorMessage(err, '連線異常，請稍後再試')}`);
     }
   };
 
@@ -356,9 +357,9 @@ export function useAdminOrderActions({
           const { error } = await supabase.from('order_submissions').delete().eq('id', subId);
           if (error) throw error;
           fetchAdminData(selectedActiveGroupIdRef.current, true);
-        } catch (err) {
+        } catch (err: any) {
           console.error('刪除訂單失敗:', err);
-          showToast('刪除訂單失敗，正在重新同步...');
+          showToast(`刪除失敗：${formatErrorMessage(err, '資料庫關聯錯誤，無法刪除')}`);
           fetchAdminData(selectedActiveGroupIdRef.current, true);
         }
       },

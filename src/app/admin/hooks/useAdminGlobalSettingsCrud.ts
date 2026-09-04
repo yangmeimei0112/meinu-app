@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabase';
 import { Category, PaymentMethod, SoldOutOption } from '@/types/database';
 import { AdminConfirmModalState } from '../admin-types';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminGlobalSettingsCrudProps {
   categories: Category[];
@@ -48,7 +49,7 @@ export function useAdminGlobalSettingsCrud({
       .from('payment_methods')
       .insert([{ name: '新付款方式', account_info: '', is_active: true }]);
     if (error) {
-      showToast('新增付款方式失敗');
+      showToast(formatErrorMessage(error, '新增付款方式失敗，請稍後再試！'));
       return;
     }
     showToast('已新增付款方式');
@@ -58,7 +59,7 @@ export function useAdminGlobalSettingsCrud({
   const handleSavePaymentMethod = async (id: string, payload: { name: string; account_info: string | null }) => {
     const { error } = await supabase.from('payment_methods').update(payload).eq('id', id);
     if (error) {
-      showToast('儲存失敗');
+      showToast(formatErrorMessage(error, '儲存付款方式失敗，請稍後再試！'));
       return;
     }
     showToast('付款方式已儲存');
@@ -77,7 +78,7 @@ export function useAdminGlobalSettingsCrud({
         closeAdminConfirmModal();
         const { error } = await supabase.from('payment_methods').delete().eq('id', id);
         if (error) {
-          showToast('刪除失敗');
+          showToast(formatErrorMessage(error, '刪除付款方式失敗，請確認無關聯訂單！'));
           return;
         }
         showToast('已刪除付款方式');
@@ -92,7 +93,7 @@ export function useAdminGlobalSettingsCrud({
       .update({ is_active: !currentStatus })
       .eq('id', id);
     if (error) {
-      showToast('更新狀態失敗');
+      showToast(formatErrorMessage(error, '更新付款方式狀態失敗，請稍後再試！'));
       return;
     }
     showToast(!currentStatus ? '已啟用付款方式' : '已停用付款方式');
@@ -106,7 +107,7 @@ export function useAdminGlobalSettingsCrud({
       .from('sold_out_options')
       .insert([{ title: '新備案選項', sort_order: nextOrder }]);
     if (error) {
-      showToast('新增缺貨備案失敗');
+      showToast(formatErrorMessage(error, '新增缺貨備案失敗，請稍後再試！'));
       return;
     }
     showToast('已新增缺貨備案');
@@ -116,7 +117,7 @@ export function useAdminGlobalSettingsCrud({
   const handleSaveSoldOutOption = async (id: string, title: string) => {
     const { error } = await supabase.from('sold_out_options').update({ title }).eq('id', id);
     if (error) {
-      showToast('儲存失敗');
+      showToast(formatErrorMessage(error, '儲存缺貨備案失敗，請稍後再試！'));
       return;
     }
     showToast('缺貨備案已儲存');
@@ -135,7 +136,7 @@ export function useAdminGlobalSettingsCrud({
         closeAdminConfirmModal();
         const { error } = await supabase.from('sold_out_options').delete().eq('id', id);
         if (error) {
-          showToast('刪除失敗');
+          showToast(formatErrorMessage(error, '刪除缺貨備案失敗，請確認無關聯資料！'));
           return;
         }
         showToast('已刪除缺貨備案');

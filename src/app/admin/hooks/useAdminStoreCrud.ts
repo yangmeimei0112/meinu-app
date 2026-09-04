@@ -7,6 +7,7 @@ import { compressImageToWebP, dataUrlToFile } from '@/lib/image-compress';
 import { AdminConfirmModalState } from '../admin-types';
 import { useAdminCategoryCrud } from './useAdminCategoryCrud';
 import { useAdminProductCrud } from './useAdminProductCrud';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminStoreCrudProps {
   stores: Store[];
@@ -195,7 +196,7 @@ export function useAdminStoreCrud({
       const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id);
       if (error) {
         console.error('更新店家失敗:', error);
-        showToast('更新店家失敗');
+        showToast(formatErrorMessage(error, '更新店家失敗，請檢查資料欄位'));
         setUploadingImage(false);
         return;
       }
@@ -204,7 +205,7 @@ export function useAdminStoreCrud({
       const { error } = await supabase.from('stores').insert([{ ...payload, is_active: true }]);
       if (error) {
         console.error('新增店家失敗:', error);
-        showToast('新增店家失敗');
+        showToast(formatErrorMessage(error, '新增店家失敗，請檢查代號是否重複'));
         setUploadingImage(false);
         return;
       }
@@ -235,7 +236,7 @@ export function useAdminStoreCrud({
           fetchAdminData();
         } catch (err: any) {
           console.error('刪除店家失敗:', err);
-          showToast(`刪除店家失敗：${err?.message || err}`);
+          showToast(`刪除店家失敗：${formatErrorMessage(err, '尚有關聯訂單資料，無法直接刪除')}`);
         }
       },
     });

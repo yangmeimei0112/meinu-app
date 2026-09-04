@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 export interface UserProfile {
   id: string;
@@ -201,12 +202,7 @@ export function useUserAuth() {
         });
 
         if (error) {
-          let msg = error.message;
-          if (msg.includes('already registered')) {
-            msg = '此電子信箱已被註冊，請直接登入！';
-          } else if (msg.includes('Password should be')) {
-            msg = '密碼強度不足，請使用至少 6 碼密碼';
-          }
+          const msg = formatErrorMessage(error, '註冊失敗，請確認輸入資訊');
           setAuthError(msg);
           return { success: false, error: msg };
         }
@@ -221,7 +217,7 @@ export function useUserAuth() {
 
         return { success: true, user: data.user };
       } catch (err: any) {
-        const msg = err?.message || '註冊失敗，請稍後重試';
+        const msg = formatErrorMessage(err, '註冊失敗，請稍後重試');
         setAuthError(msg);
         return { success: false, error: msg };
       }
@@ -252,12 +248,7 @@ export function useUserAuth() {
       });
 
       if (error) {
-        let msg = error.message;
-        if (msg.includes('Invalid login credentials')) {
-          msg = '帳號或密碼錯誤，請重新確認！';
-        } else if (msg.includes('Email not confirmed')) {
-          msg = '請先至您的電子信箱點擊認證連結後再登入！';
-        }
+        const msg = formatErrorMessage(error, '帳號或密碼錯誤，請重新確認！');
         setAuthError(msg);
         return { success: false, error: msg };
       }
@@ -274,7 +265,7 @@ export function useUserAuth() {
 
       return { success: true, user: data.user };
     } catch (err: any) {
-      const msg = err?.message || '登入失敗，請稍後重試';
+      const msg = formatErrorMessage(err, '登入失敗，請稍後重試');
       setAuthError(msg);
       return { success: false, error: msg };
     }
@@ -297,20 +288,14 @@ export function useUserAuth() {
       });
 
       if (error) {
-        let msg = error.message;
-        if (msg.includes('Unsupported provider') || msg.includes('not enabled') || msg.includes('validation_failed')) {
-          msg = 'Supabase 後台尚未啟用 Google 登入功能，請至 Supabase Dashboard > Authentication > Providers > Google 開啟並配置 Client ID！';
-        }
+        const msg = formatErrorMessage(error, 'Google 登入連線失敗，請稍後再試！');
         setAuthError(msg);
         return { success: false, error: msg };
       }
 
       return { success: true, data };
     } catch (err: any) {
-      let msg = err?.message || 'Google 登入連線失敗';
-      if (msg.includes('Unsupported provider') || msg.includes('not enabled')) {
-        msg = 'Supabase 後台尚未啟用 Google 登入功能，請至 Supabase Dashboard > Authentication > Providers > Google 開啟並配置 Client ID！';
-      }
+      const msg = formatErrorMessage(err, 'Google 登入連線失敗，請稍後再試！');
       setAuthError(msg);
       return { success: false, error: msg };
     }
@@ -326,20 +311,14 @@ export function useUserAuth() {
 
       const { data, error } = await (supabase.auth as any).signInWithPasskey();
       if (error) {
-        // 使用者取消或生物辨識未通過
-        let msg = error.message;
-        if (msg.includes('AbortError') || msg.includes('cancelled') || msg.includes('canceled')) {
-          msg = '已取消生物辨識驗證';
-        } else if (msg.includes('No passkeys found') || msg.includes('credential')) {
-          msg = '找不到此裝置上的 Passkey，請先使用帳號密碼登入並綁定裝置！';
-        }
+        const msg = formatErrorMessage(error, '生物辨識登入未成功，請稍後再試');
         setAuthError(msg);
         return { success: false, error: msg };
       }
 
       return { success: true, user: data?.user };
     } catch (err: any) {
-      const msg = err?.message || 'Passkey 登入失敗';
+      const msg = formatErrorMessage(err, 'Passkey 登入失敗');
       setAuthError(msg);
       return { success: false, error: msg };
     }
@@ -372,22 +351,14 @@ export function useUserAuth() {
       });
 
       if (error) {
-        let msg = error.message;
-        if (msg.includes('AbortError') || msg.includes('cancelled') || msg.includes('canceled')) {
-          msg = '已取消綁定生物辨識裝置';
-        } else if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('disabled')) {
-          msg = 'Supabase 後台 RP ID 或 Origins 設定不符，請至 Supabase Dashboard > Authentication > Passkeys 確認 RP ID 設定！';
-        }
+        const msg = formatErrorMessage(error, 'Passkey 綁定失敗');
         return { success: false, error: msg };
       }
 
       await fetchPasskeys();
       return { success: true, data };
     } catch (err: any) {
-      let msg = err?.message || 'Passkey 綁定失敗';
-      if (msg.includes('403') || msg.includes('Forbidden')) {
-        msg = 'Supabase 後台 RP ID 或 Origins 設定不符，請至 Supabase Dashboard > Authentication > Passkeys 確認 RP ID 設定！';
-      }
+      const msg = formatErrorMessage(err, 'Passkey 綁定失敗');
       return { success: false, error: msg };
     }
   }, [fetchPasskeys]);
@@ -400,7 +371,7 @@ export function useUserAuth() {
       setPasskeys((prev) => prev.filter((p) => p.id !== passkeyId));
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err?.message || '刪除金鑰失敗' };
+      return { success: false, error: formatErrorMessage(err, '刪除金鑰失敗') };
     }
   }, []);
 
@@ -421,13 +392,14 @@ export function useUserAuth() {
       });
 
       if (error) {
-        setAuthError(error.message);
-        return { success: false, error: error.message };
+        const msg = formatErrorMessage(error, '發送重設密碼信件失敗，請稍後再試！');
+        setAuthError(msg);
+        return { success: false, error: msg };
       }
 
       return { success: true };
     } catch (err: any) {
-      const msg = err?.message || '發送重設密碼信件失敗';
+      const msg = formatErrorMessage(err, '發送重設密碼信件失敗，請稍後再試！');
       setAuthError(msg);
       return { success: false, error: msg };
     }
@@ -448,14 +420,15 @@ export function useUserAuth() {
       });
 
       if (error) {
-        setAuthError(error.message);
-        return { success: false, error: error.message };
+        const msg = formatErrorMessage(error, '密碼重設失敗，請重新確認！');
+        setAuthError(msg);
+        return { success: false, error: msg };
       }
 
       setIsPasswordRecovery(false);
       return { success: true, user: data.user };
     } catch (err: any) {
-      const msg = err?.message || '密碼重設失敗，請稍後重試';
+      const msg = formatErrorMessage(err, '密碼重設失敗，請稍後重試');
       setAuthError(msg);
       return { success: false, error: msg };
     }
@@ -483,7 +456,7 @@ export function useUserAuth() {
 
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err?.message || '更新失敗' };
+      return { success: false, error: formatErrorMessage(err, '更新暱稱失敗') };
     }
   }, []);
 
@@ -512,7 +485,7 @@ export function useUserAuth() {
 
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err?.message || '更新手機號碼失敗' };
+      return { success: false, error: formatErrorMessage(err, '更新手機號碼失敗') };
     }
   }, []);
 
@@ -527,7 +500,7 @@ export function useUserAuth() {
       return { success: true };
     } catch (err: any) {
       console.error('登出失敗:', err);
-      return { success: false, error: err?.message };
+      return { success: false, error: formatErrorMessage(err, '登出失敗') };
     }
   }, []);
 
@@ -575,7 +548,7 @@ export function useUserAuth() {
       return { success: true };
     } catch (err: any) {
       console.error('註銷帳號出錯:', err);
-      return { success: false, error: err?.message || '註銷失敗' };
+      return { success: false, error: formatErrorMessage(err, '註銷帳號失敗') };
     }
   }, []);
 

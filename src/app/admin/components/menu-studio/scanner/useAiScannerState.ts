@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { RecognizedItem } from '../AdminAiMenuReviewTable';
 import { compressMenuImage } from '@/lib/imageCompressor';
 import { MOCK_BEVERAGE_ITEMS, MOCK_BENTO_ITEMS } from '../mockMenuPresets';
+import { formatErrorMessage } from '@/lib/errorUtils';
 
 export type ScanStep = 'upload' | 'processing' | 'review';
 
@@ -90,7 +91,7 @@ export function useAiScannerState({ storeId }: UseAiScannerStateProps) {
     } catch (e: any) {
       setDiagResult({
         healthy: false,
-        message: `偵錯請求連線失敗: ${e?.message || '網路異常'}`,
+        message: `偵錯請求連線失敗: ${formatErrorMessage(e, '網路連線異常')}`,
       });
     } finally {
       setIsDiagnosing(false);
@@ -171,7 +172,7 @@ export function useAiScannerState({ storeId }: UseAiScannerStateProps) {
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       console.error('AI 辨識失敗:', err);
-      setErrorMessage(err.message || '圖片分析失敗，請稍後再試');
+      setErrorMessage(formatErrorMessage(err, '圖片分析失敗，請稍後再試'));
       setCurrentStep('upload');
     }
   };
