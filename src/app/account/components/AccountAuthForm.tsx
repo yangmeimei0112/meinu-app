@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import {
   Mail,
   Lock,
@@ -451,7 +452,14 @@ export function AccountAuthForm({
 
       {/* 底部小提示 */}
       <p className="text-[11px] text-center text-slate-400 dark:text-slate-500 pt-1">
-        點擊登入或註冊即表示您同意咩nu的服務協議與隱私政策
+        點擊登入或註冊即表示您同意咩nu的{' '}
+        <Link href="/legal?tab=terms" className="text-sky-600 dark:text-sky-400 hover:underline">
+          服務協議
+        </Link>{' '}
+        與{' '}
+        <Link href="/legal?tab=privacy" className="text-sky-600 dark:text-sky-400 hover:underline">
+          隱私政策
+        </Link>
       </p>
     </div>
   );

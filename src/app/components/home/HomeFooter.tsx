@@ -15,8 +15,9 @@ export function HomeFooter({ commitMsg, commitHash }: HomeFooterProps) {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <footer className="w-full py-6 flex flex-col sm:flex-row items-center justify-center gap-2.5 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800/80 mt-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
-      <div className="flex items-center gap-2">
+    <footer className="w-full py-6 flex flex-col items-center justify-center gap-3 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800/80 mt-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
+      {/* 1. 版本號與後台登入 */}
+      <div className="flex items-center justify-center gap-2">
         <span
           title={commitMsg}
           className="cursor-help transition-colors hover:text-slate-600 dark:hover:text-slate-300 select-none font-mono"
@@ -32,9 +33,38 @@ export function HomeFooter({ commitMsg, commitHash }: HomeFooterProps) {
         </Link>
       </div>
 
-      <span className="hidden sm:inline text-slate-300 dark:text-slate-700">•</span>
+      {/* 2. 服務協議、隱私政策、使用者條款、安全協議連結（版本號/後台登入下方，亮色模式上方） */}
+      <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] text-slate-400 dark:text-slate-500 font-medium select-none">
+        <Link
+          href="/legal?tab=terms"
+          className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors hover:underline underline-offset-2"
+        >
+          服務協議
+        </Link>
+        <span>•</span>
+        <Link
+          href="/legal?tab=privacy"
+          className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors hover:underline underline-offset-2"
+        >
+          隱私政策
+        </Link>
+        <span>•</span>
+        <Link
+          href="/legal?tab=user-terms"
+          className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors hover:underline underline-offset-2"
+        >
+          使用者條款
+        </Link>
+        <span>•</span>
+        <Link
+          href="/legal?tab=security"
+          className="hover:text-sky-600 dark:hover:text-sky-400 transition-colors hover:underline underline-offset-2"
+        >
+          安全協議
+        </Link>
+      </div>
 
-      {/* 🌗 主題切換按鈕 */}
+      {/* 3. 亮色 / 暗色主題切換按鈕 */}
       <button
         type="button"
         onClick={(e) => toggleTheme(e)}
