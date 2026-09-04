@@ -8,8 +8,9 @@ import OfflineBanner from '@/components/OfflineBanner';
 import { supabase } from '@/lib/supabase';
 import { CartItem, MultiStoreCart } from '@/types/cart';
 import { mergeCartItems } from '@/lib/useMultiCart';
-import { ClipboardList, ChevronLeft } from 'lucide-react';
+import { ClipboardList, ChevronLeft, Trash2 } from 'lucide-react';
 import { useToast } from '@/lib/useToast';
+import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import { MyOrderHistoryCard, OrderHistoryRecord } from './components/MyOrderHistoryCard';
 import { MyOrdersEmptyState } from './components/MyOrdersEmptyState';
 import {
@@ -17,6 +18,7 @@ import {
   setOrderHistoryCache,
   subscribeOrderHistory,
   prefetchOrderHistory,
+  clearAllOrderHistory,
 } from '@/lib/storeMenuCache';
 
 export default function MyOrdersPage() {
@@ -26,9 +28,17 @@ export default function MyOrdersPage() {
   const initialOrders = getOrderHistoryCache();
   const [orders, setOrders] = useState<OrderHistoryRecord[]>(initialOrders || []);
   const [loading, setLoading] = useState<boolean>(!initialOrders);
+  const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
 
   // 使用共用 useToast Hook
   const { toastMessage, showToast } = useToast();
+
+  const handleConfirmClearAll = () => {
+    clearAllOrderHistory();
+    setOrders([]);
+    setShowClearConfirm(false);
+    showToast('🎉 已成功清除所有歷史訂單紀錄！');
+  };
 
   useEffect(() => {
     // 進入「我的訂單」頁面時，標記新訂單已查看，解除 Header 上的紅點閃爍
@@ -144,9 +154,22 @@ export default function MyOrdersPage() {
             <ClipboardList className="w-5 h-5 text-sky-500" />
             <span>我的歷史訂單</span>
           </h2>
-          <span className="text-xs text-slate-400 dark:text-slate-500 font-bold">
-            共 {orders.length} 筆送訂紀錄
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 dark:text-slate-500 font-bold">
+              共 {orders.length} 筆送訂紀錄
+            </span>
+            {orders.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(true)}
+                className="text-[11px] font-bold text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2.5 py-1 rounded-xl border border-rose-200 dark:border-rose-900/60 transition flex items-center gap-1 cursor-pointer active:scale-95"
+                title="清空此裝置的所有歷史訂單"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>清除全部</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -167,6 +190,18 @@ export default function MyOrdersPage() {
           </div>
         )}
       </main>
+
+      {/* ⚠️ 清空歷史紀錄雙重確認彈窗 */}
+      <DoubleConfirmModal
+        isOpen={showClearConfirm}
+        title="⚠️ 確認清除所有歷史訂單紀錄？"
+        message="清除後將移除您此裝置上保存的所有歷史點餐與收據明細，此操作無法復原。請問確定要清除嗎？"
+        confirmText="確認清除全部紀錄"
+        cancelText="保留紀錄"
+        isDanger={true}
+        onConfirm={handleConfirmClearAll}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </div>
   );
 }

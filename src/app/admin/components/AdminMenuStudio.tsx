@@ -9,6 +9,7 @@ import { AdminMenuStudioToolbar } from './menu-studio/AdminMenuStudioToolbar';
 import { AdminMenuItemCard } from './menu-studio/AdminMenuItemCard';
 import { useMenuStudioDrag } from './menu-studio/useMenuStudioDrag';
 import AdminAiMenuScannerModal from './menu-studio/AdminAiMenuScannerModal';
+import AdminBatchProductStudioModal from './menu-studio/AdminBatchProductStudioModal';
 
 interface AdminMenuStudioProps {
   isDesktop: boolean;
@@ -23,6 +24,8 @@ interface AdminMenuStudioProps {
   onDeleteMenuItem: (id: string) => void;
   onToggleMenuItemActive: (id: string) => void;
   onReorderMenuItems?: (storeId: string, orderedItemIds: string[]) => void;
+  onRefreshData?: () => void;
+  showToast?: (msg: string) => void;
 }
 
 export default function AdminMenuStudio({
@@ -38,10 +41,13 @@ export default function AdminMenuStudio({
   onDeleteMenuItem,
   onToggleMenuItemActive,
   onReorderMenuItems,
+  onRefreshData,
+  showToast,
 }: AdminMenuStudioProps) {
   const [productSearch, setProductSearch] = useState<string>('');
   const [itemStatusFilter, setItemStatusFilter] = useState<'all' | 'active' | 'sold_out'>('all');
   const [isAiScannerOpen, setIsAiScannerOpen] = useState<boolean>(false);
+  const [isBatchStudioOpen, setIsBatchStudioOpen] = useState<boolean>(false);
   const debouncedProductSearch = useDebounce(productSearch, 180);
 
   const categoryName = categories.find((c) => c.id === activeStudioStore.category_id)?.name || '未分類';
@@ -220,6 +226,7 @@ export default function AdminMenuStudio({
           onCreateMenuItem={onCreateMenuItem}
           onOpenBatchImportModal={onOpenBatchImportModal}
           onOpenAiScannerModal={() => setIsAiScannerOpen(true)}
+          onOpenBatchStudioModal={() => setIsBatchStudioOpen(true)}
         />
 
         <AdminMenuStudioToolbar
@@ -305,6 +312,17 @@ export default function AdminMenuStudio({
             window.location.reload();
           }
         }}
+      />
+
+      {/* ⚡ 極速多商品批量上架工作台 Modal */}
+      <AdminBatchProductStudioModal
+        isOpen={isBatchStudioOpen}
+        onClose={() => setIsBatchStudioOpen(false)}
+        store={activeStudioStore}
+        onBatchSuccess={() => {
+          onRefreshData?.();
+        }}
+        showToast={showToast || ((msg: string) => alert(msg))}
       />
     </div>
   );

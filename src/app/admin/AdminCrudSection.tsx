@@ -38,6 +38,8 @@ interface AdminCrudSectionProps {
   onUpdateSoldOutOption: (id: string, title: string) => void;
   onSaveSoldOutOption: (id: string, title: string) => void;
   onUpdateCategory: (id: string, field: 'name', value: string) => void;
+  onRefreshData?: () => void;
+  showToast?: (msg: string) => void;
 }
 
 export function AdminCrudSection({
@@ -72,6 +74,8 @@ export function AdminCrudSection({
   onUpdateSoldOutOption,
   onSaveSoldOutOption,
   onUpdateCategory,
+  onRefreshData,
+  showToast,
 }: AdminCrudSectionProps) {
   const isDesktop = viewMode === 'desktop';
   const activeStudioStore = useMemo(
@@ -97,6 +101,8 @@ export function AdminCrudSection({
         onDeleteMenuItem={onDeleteMenuItem}
         onToggleMenuItemActive={onToggleMenuItemActive}
         onReorderMenuItems={onReorderMenuItems}
+        onRefreshData={onRefreshData}
+        showToast={showToast}
       />
     );
   }

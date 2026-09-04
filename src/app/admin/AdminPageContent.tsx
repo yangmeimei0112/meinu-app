@@ -179,6 +179,8 @@ export default function AdminPageContent() {
                     c.setCategories((prev) => prev.map((cat) => (cat.id === id ? { ...cat, name: value } : cat)));
                   }
                 }}
+                onRefreshData={c.fetchAdminData}
+                showToast={c.showToast}
               />
             )}
 
@@ -266,6 +268,9 @@ export default function AdminPageContent() {
         setReceivedCash={c.setReceivedCash}
         adminConfirmModal={c.adminConfirmModal}
         closeAdminConfirmModal={c.closeAdminConfirmModal}
+        deleteChoiceTarget={c.deleteChoiceTarget}
+        setDeleteChoiceTarget={c.setDeleteChoiceTarget}
+        handleConfirmDeleteChoice={c.handleConfirmDeleteChoice}
         showVoiceSettingsModal={c.showVoiceSettingsModal}
         setShowVoiceSettingsModal={c.setShowVoiceSettingsModal}
         isSpeechEnabled={c.isSpeechEnabled}

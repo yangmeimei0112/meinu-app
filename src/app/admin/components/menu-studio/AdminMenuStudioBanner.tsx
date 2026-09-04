@@ -9,6 +9,7 @@ import {
   Download,
   Plus,
   Camera,
+  Zap,
 } from 'lucide-react';
 
 interface AdminMenuStudioBannerProps {
@@ -21,6 +22,7 @@ interface AdminMenuStudioBannerProps {
   onCreateMenuItem: () => void;
   onOpenBatchImportModal?: () => void;
   onOpenAiScannerModal?: () => void;
+  onOpenBatchStudioModal?: () => void;
 }
 
 export function AdminMenuStudioBanner({
@@ -33,6 +35,7 @@ export function AdminMenuStudioBanner({
   onCreateMenuItem,
   onOpenBatchImportModal,
   onOpenAiScannerModal,
+  onOpenBatchStudioModal,
 }: AdminMenuStudioBannerProps) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-sky-100/90 dark:border-sky-900/40 pb-4 pl-2">
@@ -83,6 +86,18 @@ export function AdminMenuStudioBanner({
           <Pencil className="w-3.5 h-3.5" />
           <span>店家資料</span>
         </button>
+
+        {onOpenBatchStudioModal && (
+          <button
+            type="button"
+            onClick={onOpenBatchStudioModal}
+            className="bg-gradient-to-r from-indigo-500 to-sky-600 hover:from-indigo-600 hover:to-sky-700 text-white text-xs font-black px-3.5 py-2 rounded-2xl shadow-sm hover:shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            title="開啟極速多商品批量上架工作台"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>⚡ 極速批量上架</span>
+          </button>
+        )}
 
         {onOpenBatchImportModal && (
           <button

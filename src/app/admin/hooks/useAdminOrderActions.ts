@@ -4,13 +4,16 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { GroupOrderAdmin, OrderSubmissionAdmin, AdminConfirmModalState, AdminTabType } from '../admin-types';
 import { useAdminArchiveActions } from './useAdminArchiveActions';
+import { formatErrorMessage } from '@/lib/errorUtils';
+import { recordPurgedOrderId } from '@/lib/cache/orderHistoryCache';
+import { serializeOrderProgressStatus } from '@/types/orderStatus';
+import type { DeleteOrderChoiceTarget } from '../components/modals/AdminDeleteOrderChoiceModal';
 import {
   copyPersonalReceipt,
   copyStoreOrderText,
   copyUnpaidReminder,
   exportOrdersCSV,
 } from '../lib/adminOrderExport';
-import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminOrderActionsProps {
   activeGroup: GroupOrderAdmin | null;
@@ -37,6 +40,7 @@ export function useAdminOrderActions({
   activeGroup,
   setActiveGroup,
   submissions,
+  allSubmissions,
   setAllSubmissions,
   itemSummary,
   grandTotal,
@@ -65,6 +69,7 @@ export function useAdminOrderActions({
   const [changeModalTarget, setChangeModalTarget] = useState<{ nickname: string; amount: number } | null>(null);
   const [receivedCash, setReceivedCash] = useState<string>('');
   const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<string[]>([]);
+  const [deleteChoiceTarget, setDeleteChoiceTarget] = useState<DeleteOrderChoiceTarget | null>(null);
 
   // 1. 歷史歸檔子模組 Hook
   const {
@@ -337,64 +342,152 @@ export function useAdminOrderActions({
     }
   };
 
-  // 9. 刪除單筆訂單
+  // 🌟 執行訂單刪除與狀態映射核心函式
+  const handleConfirmDeleteChoice = async (
+    action: 'mark_completed' | 'mark_cancelled' | 'purge_everywhere',
+    target: DeleteOrderChoiceTarget
+  ) => {
+    const targetIds = Array.isArray(target.id) ? target.id : [target.id];
+
+    // 樂觀更新後台狀態
+    setAllSubmissions((prev) => prev.filter((s) => !targetIds.includes(s.id)));
+    setSelectedSubmissionIds((prev) => prev.filter((id) => !targetIds.includes(id)));
+
+    if (action === 'purge_everywhere') {
+      recordPurgedOrderId(targetIds);
+      showToast(`已徹底抹除 ${targetIds.length} 筆訂單（前後台全數刪除）`);
+    } else if (action === 'mark_completed') {
+      showToast(`已自後台刪除訂單，前台顧客端顯示為【已完成】`);
+    } else {
+      showToast(`已自後台刪除訂單，前台顧客端顯示為【已取消】`);
+    }
+
+    try {
+      // 1. 若非徹底抹除，先更新 signature_url 為指定狀態，確保前台顧客端能即時感知並持久化保存
+      if (action !== 'purge_everywhere') {
+        const finalStatus = action === 'mark_completed' ? 'completed' : 'cancelled';
+        const payloadSignatureUrl = serializeOrderProgressStatus(finalStatus, '後台結單刪除');
+        await supabase
+          .from('order_submissions')
+          .update({ signature_url: payloadSignatureUrl })
+          .in('id', targetIds);
+      } else {
+        const payloadSignatureUrl = JSON.stringify({ status: 'purged', tombstone: 'purge_everywhere' });
+        await supabase
+          .from('order_submissions')
+          .update({ signature_url: payloadSignatureUrl })
+          .in('id', targetIds);
+      }
+
+      // 2. 從資料庫刪除
+      await supabase.from('order_items').delete().in('submission_id', targetIds);
+      const { error } = await supabase.from('order_submissions').delete().in('id', targetIds);
+      if (error) throw error;
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
+    } catch (err: any) {
+      console.error('刪除訂單失敗:', err);
+      showToast(`刪除失敗：${formatErrorMessage(err, '資料庫存取異常')}`);
+      fetchAdminData(selectedActiveGroupIdRef.current, true);
+    }
+  };
+
+  // 9. 刪除單筆訂單（智慧狀態分流）
   const handleDeleteOrder = (subId: string, nickname: string, orderNumber: string) => {
+    const targetSub = allSubmissions.find((s) => s.id === subId);
+    const progressStatus = targetSub?.progress_status || 'pending';
+
+    // 若訂單處於進行中狀態 (preparing 製作中 或 ready 待取餐)
+    if (progressStatus === 'preparing' || progressStatus === 'ready') {
+      setDeleteChoiceTarget({
+        id: subId,
+        orderNumber,
+        nickname,
+        currentStatus: progressStatus,
+      });
+      return;
+    }
+
+    // 若訂單已完成 (completed)
+    if (progressStatus === 'completed') {
+      openAdminConfirmModal({
+        isOpen: true,
+        title: '刪除已完成訂單',
+        message: `確定要從後台刪除「${nickname}」的已完成訂單 #${orderNumber} 嗎？前台顧客端將保留紀錄並顯示為【已完成】。`,
+        confirmText: '確定刪除',
+        cancelText: '取消',
+        isDanger: true,
+        onConfirm: async () => {
+          closeAdminConfirmModal();
+          handleConfirmDeleteChoice('mark_completed', {
+            id: subId,
+            orderNumber,
+            nickname,
+            currentStatus: 'completed',
+          });
+        },
+      });
+      return;
+    }
+
+    // 若訂單為等待中 (pending) 或已取消 (cancelled)
     openAdminConfirmModal({
       isOpen: true,
       title: '刪除訂單',
-      message: `確定要刪除「${nickname}」的訂單 #${orderNumber} 嗎？此動作將一併刪除該訂單的所有餐點明細，且無法復原。`,
+      message: `確定要從後台刪除「${nickname}」的訂單 #${orderNumber} 嗎？前台顧客端將保留紀錄並顯示為【已取消】。`,
       confirmText: '確定刪除',
       cancelText: '取消',
       isDanger: true,
       onConfirm: async () => {
         closeAdminConfirmModal();
-        setAllSubmissions((prev) => prev.filter((s) => s.id !== subId));
-        setSelectedSubmissionIds((prev) => prev.filter((id) => id !== subId));
-        showToast(`已刪除 ${nickname} 的訂單`);
-
-        try {
-          await supabase.from('order_items').delete().eq('submission_id', subId);
-          const { error } = await supabase.from('order_submissions').delete().eq('id', subId);
-          if (error) throw error;
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        } catch (err: any) {
-          console.error('刪除訂單失敗:', err);
-          showToast(`刪除失敗：${formatErrorMessage(err, '資料庫關聯錯誤，無法刪除')}`);
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        }
+        handleConfirmDeleteChoice('mark_cancelled', {
+          id: subId,
+          orderNumber,
+          nickname,
+          currentStatus: progressStatus,
+        });
       },
     });
   };
 
-  // 10. 批次刪除訂單
+  // 10. 批次刪除訂單（智慧狀態分流）
   const handleBatchDeleteOrders = () => {
     if (!selectedSubmissionIds.length) return;
     const idsToDelete = [...selectedSubmissionIds];
     const count = idsToDelete.length;
 
+    const selectedSubs = allSubmissions.filter((s) => idsToDelete.includes(s.id));
+    const hasInProgress = selectedSubs.some(
+      (s) => s.progress_status === 'preparing' || s.progress_status === 'ready'
+    );
+
+    // 若選取的訂單中有進行中的項目
+    if (hasInProgress) {
+      setDeleteChoiceTarget({
+        id: idsToDelete,
+        count,
+        currentStatus: 'preparing',
+      });
+      return;
+    }
+
+    const allCompleted = selectedSubs.every((s) => s.progress_status === 'completed');
+    const targetStatus = allCompleted ? 'mark_completed' : 'mark_cancelled';
+    const statusLabel = allCompleted ? '已完成' : '已取消';
+
     openAdminConfirmModal({
       isOpen: true,
       title: '批次刪除訂單',
-      message: `確定要批次刪除選取的 ${count} 筆訂單嗎？此動作將一併刪除這些訂單的所有餐點明細，且無法復原。`,
+      message: `確定要批次刪除選取的 ${count} 筆訂單嗎？前台顧客端將保留紀錄並顯示為【${statusLabel}】。`,
       confirmText: '確定批次刪除',
       cancelText: '取消',
       isDanger: true,
       onConfirm: async () => {
         closeAdminConfirmModal();
-        setAllSubmissions((prev) => prev.filter((s) => !idsToDelete.includes(s.id)));
-        setSelectedSubmissionIds([]);
-        showToast(`已批次刪除 ${count} 筆訂單`);
-
-        try {
-          await supabase.from('order_items').delete().in('submission_id', idsToDelete);
-          const { error } = await supabase.from('order_submissions').delete().in('id', idsToDelete);
-          if (error) throw error;
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        } catch (err) {
-          console.error('批次刪除訂單失敗:', err);
-          showToast('批次刪除失敗，正在重新同步...');
-          fetchAdminData(selectedActiveGroupIdRef.current, true);
-        }
+        handleConfirmDeleteChoice(targetStatus, {
+          id: idsToDelete,
+          count,
+          currentStatus: allCompleted ? 'completed' : 'pending',
+        });
       },
     });
   };
@@ -416,6 +509,9 @@ export function useAdminOrderActions({
     setReceivedCash,
     selectedSubmissionIds,
     setSelectedSubmissionIds,
+    deleteChoiceTarget,
+    setDeleteChoiceTarget,
+    handleConfirmDeleteChoice,
     selectedArchivedGroupId,
     setSelectedArchivedGroupId,
     calculateAdjustedAmount,

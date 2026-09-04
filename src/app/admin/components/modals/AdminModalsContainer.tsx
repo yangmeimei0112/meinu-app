@@ -15,6 +15,10 @@ import AdminChangeModal from '../AdminChangeModal';
 import AdminVoiceSettingsModal from '../AdminVoiceSettingsModal';
 import SignatureModal from '@/components/SignatureModal';
 import DoubleConfirmModal from '@/components/DoubleConfirmModal';
+import {
+  AdminDeleteOrderChoiceModal,
+  DeleteOrderChoiceTarget,
+} from './AdminDeleteOrderChoiceModal';
 
 interface ProductFormState {
   name: string;
@@ -111,6 +115,14 @@ interface AdminModalsContainerProps {
   adminConfirmModal: AdminConfirmModalState;
   closeAdminConfirmModal: () => void;
 
+  // 刪除訂單狀態抉擇 Modal
+  deleteChoiceTarget: DeleteOrderChoiceTarget | null;
+  setDeleteChoiceTarget: (target: DeleteOrderChoiceTarget | null) => void;
+  handleConfirmDeleteChoice: (
+    action: 'mark_completed' | 'mark_cancelled' | 'purge_everywhere',
+    target: DeleteOrderChoiceTarget
+  ) => void;
+
   // 語音設定 Modal
   showVoiceSettingsModal: boolean;
   setShowVoiceSettingsModal: (open: boolean) => void;
@@ -180,6 +192,9 @@ export function AdminModalsContainer({
   setReceivedCash,
   adminConfirmModal,
   closeAdminConfirmModal,
+  deleteChoiceTarget,
+  setDeleteChoiceTarget,
+  handleConfirmDeleteChoice,
   showVoiceSettingsModal,
   setShowVoiceSettingsModal,
   isSpeechEnabled,
@@ -310,6 +325,14 @@ export function AdminModalsContainer({
         isDanger={adminConfirmModal.isDanger}
         onConfirm={adminConfirmModal.onConfirm}
         onCancel={closeAdminConfirmModal}
+      />
+
+      {/* 🛑 刪除進行中訂單狀態抉擇彈窗 */}
+      <AdminDeleteOrderChoiceModal
+        isOpen={Boolean(deleteChoiceTarget)}
+        target={deleteChoiceTarget}
+        onClose={() => setDeleteChoiceTarget(null)}
+        onConfirmChoice={handleConfirmDeleteChoice}
       />
 
       {/* 🗣️ 新訂單語音詳細播報設定與試聽 Modal */}
