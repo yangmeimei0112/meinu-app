@@ -368,6 +368,8 @@ export function useUserAuth() {
         let msg = error.message;
         if (msg.includes('AbortError') || msg.includes('cancelled') || msg.includes('canceled')) {
           msg = '已取消綁定生物辨識裝置';
+        } else if (msg.includes('403') || msg.includes('Forbidden') || msg.includes('disabled')) {
+          msg = 'Supabase 後台 RP ID 或 Origins 設定不符，請至 Supabase Dashboard > Authentication > Passkeys 確認 RP ID 設定！';
         }
         return { success: false, error: msg };
       }
@@ -375,7 +377,11 @@ export function useUserAuth() {
       await fetchPasskeys();
       return { success: true, data };
     } catch (err: any) {
-      return { success: false, error: err?.message || 'Passkey 綁定失敗' };
+      let msg = err?.message || 'Passkey 綁定失敗';
+      if (msg.includes('403') || msg.includes('Forbidden')) {
+        msg = 'Supabase 後台 RP ID 或 Origins 設定不符，請至 Supabase Dashboard > Authentication > Passkeys 確認 RP ID 設定！';
+      }
+      return { success: false, error: msg };
     }
   }, [fetchPasskeys]);
 
