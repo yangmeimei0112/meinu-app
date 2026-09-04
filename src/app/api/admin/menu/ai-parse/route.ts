@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyAdminToken } from '@/lib/auth-util';
-import { AiParseResponse } from './types';
 import { callGeminiVision, runDiagnostics } from './geminiVisionService';
 
 export * from './types';

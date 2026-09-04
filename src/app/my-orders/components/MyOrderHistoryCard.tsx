@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Store, CheckCircle2, Clock, RotateCcw, ArrowRight, Tag } from 'lucide-react';
+import { Store, CheckCircle2, Clock, RotateCcw, ArrowRight } from 'lucide-react';
 import { PaymentMethodIcon, stripEmojis } from '@/lib/icon-utils';
 import { parseOrderProgressStatus, ORDER_STATUS_META } from '@/types/orderStatus';
 

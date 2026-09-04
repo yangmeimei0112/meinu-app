@@ -94,8 +94,8 @@ export default function OrderStatusPage({
               progressStatus={progressStatus}
             />
 
-            {/* 1 分鐘限時自主修改/取消卡片（僅訂單擁有者裝置可見可操作） */}
-            {isOrderOwner && progressStatus !== 'cancelled' && progressStatus !== 'completed' && (
+            {/* 1 分鐘限時自主修改/取消卡片（僅訂單擁有者裝置且店家尚未接單製作時可操作） */}
+            {isOrderOwner && progressStatus === 'pending' && (
               <OrderStatusActions
                 timeLeft={timeLeft}
                 isClosed={isClosed}

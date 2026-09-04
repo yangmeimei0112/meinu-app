@@ -128,12 +128,7 @@ export async function POST(request: NextRequest) {
       code?: string;
     };
 
-    if (!storeId || typeof storeId !== 'string' || storeId.trim().length === 0 || storeId.length > 64) {
-      return NextResponse.json(
-        { success: false, message: '參數錯誤：缺少或無效的 storeId' },
-        { status: 400 }
-      );
-    }
+    const targetStoreId = typeof storeId === 'string' && storeId.trim().length > 0 ? storeId.trim() : null;
 
     const rawInput = codeNumber !== undefined ? codeNumber : code;
     if (rawInput === undefined || rawInput === null || String(rawInput).trim() === '') {
@@ -158,7 +153,7 @@ export async function POST(request: NextRequest) {
 
     // 絕對唯一性防重檢查（排除自己）
     for (const [existingStoreId, existingCode] of Object.entries(codeMap)) {
-      if (existingStoreId !== storeId && existingCode.toUpperCase() === normalizedCode.toUpperCase()) {
+      if ((!targetStoreId || existingStoreId !== targetStoreId) && existingCode.toUpperCase() === normalizedCode.toUpperCase()) {
         return NextResponse.json(
           {
             success: false,
@@ -169,13 +164,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    codeMap[storeId] = normalizedCode;
-    writeCodeMap(codeMap);
+    if (targetStoreId && targetStoreId !== 'new') {
+      codeMap[targetStoreId] = normalizedCode;
+      writeCodeMap(codeMap);
+    }
 
     return NextResponse.json({
       success: true,
-      message: `商家編號已成功更新為 ${normalizedCode}！`,
-      storeId,
+      message: `商家編號「${normalizedCode}」可用！`,
+      storeId: targetStoreId,
       code: normalizedCode,
     });
   } catch (err: any) {

@@ -138,7 +138,7 @@ export default function CustomModal({
     return () => {
       isMounted = false;
     };
-  }, [item?.id]);
+  }, [item]);
 
   if (!item) return null;
 

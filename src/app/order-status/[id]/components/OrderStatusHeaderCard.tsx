@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Check, CheckCircle2, Clock, ShieldCheck, Tag } from 'lucide-react';
+import { Check, CheckCircle2, Clock, Tag } from 'lucide-react';
 import { OrderProgressStatus, ORDER_STATUS_META } from '@/types/orderStatus';
 
 interface OrderStatusHeaderCardProps {

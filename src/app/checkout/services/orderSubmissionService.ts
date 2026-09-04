@@ -3,6 +3,7 @@ import { CartItem, MultiStoreCart } from '@/types/cart';
 import { GroupOrder } from '@/types/database';
 import { sanitizeInput } from '@/lib/security';
 import { generateSequentialOrderNumber } from '@/lib/order-utils';
+import { serializeOrderProgressStatus } from '@/types/orderStatus';
 
 export interface OrderSubmissionParams {
   targetStoreId: string;
@@ -114,6 +115,8 @@ export async function executeOrderSubmissionPipeline({
 
   const safeGrandTotal = Math.max(0, Math.round(grandTotal));
 
+  const initialProgressPayload = serializeOrderProgressStatus('pending');
+
   const subPayload: any = {
     group_order_id: activeGroupId || null,
     user_nickname: cleanNickname,
@@ -123,6 +126,7 @@ export async function executeOrderSubmissionPipeline({
     final_amount: safeGrandTotal,
     order_number: orderNumber,
     is_paid: false,
+    signature_url: initialProgressPayload,
   };
 
   const { data: submission, error: subErr } = await supabase
@@ -225,6 +229,7 @@ export async function executeOrderSubmissionPipeline({
           total_amount: safeGrandTotal,
           final_amount: safeGrandTotal,
           is_paid: false,
+          signature_url: initialProgressPayload,
           created_at: new Date().toISOString(),
         },
         orderItems: itemsPayload.map((item, idx) => ({

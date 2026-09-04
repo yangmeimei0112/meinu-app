@@ -72,6 +72,8 @@ export const ORDER_STATUS_META: Record<OrderProgressStatus, OrderStatusConfig> =
   },
 };
 
+export const ORDER_PROGRESS_META = ORDER_STATUS_META;
+
 /**
  * 🛡️ 從 signature_url 解析訂單進度狀態
  */

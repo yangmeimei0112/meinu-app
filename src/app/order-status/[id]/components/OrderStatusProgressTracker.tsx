@@ -12,20 +12,17 @@ import {
   ShoppingBag,
   CheckCircle2,
   XCircle,
-  Sparkles,
-  Radio,
 } from 'lucide-react';
 
 interface OrderStatusProgressTrackerProps {
   status: OrderProgressStatus;
   orderNumber: string;
-  userNickname: string;
+  userNickname?: string;
 }
 
 export function OrderStatusProgressTracker({
   status,
   orderNumber,
-  userNickname,
 }: OrderStatusProgressTrackerProps) {
   const meta = ORDER_STATUS_META[status] || ORDER_STATUS_META.pending;
   const isCancelled = status === 'cancelled';
@@ -118,7 +115,6 @@ export function OrderStatusProgressTracker({
               {ORDER_PROGRESS_STEPS.map((step, idx) => {
                 const isPassed = idx < currentStepIdx;
                 const isCurrent = idx === currentStepIdx;
-                const isFuture = idx > currentStepIdx;
 
                 return (
                   <div key={step.key} className="flex flex-col items-center text-center w-16 select-none">

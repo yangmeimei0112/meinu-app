@@ -5,6 +5,7 @@ import type { MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { GroupOrderAdmin } from './admin-types';
 import { supabase } from '@/lib/supabase';
 import { generateSequentialOrderNumber } from '@/lib/order-utils';
+import { serializeOrderProgressStatus } from '@/types/orderStatus';
 import { PenTool, X, Plus, Minus } from 'lucide-react';
 import { stripEmojis } from '@/lib/icon-utils';
 
@@ -67,6 +68,7 @@ export default function AdminManualOrderModal({
           total_amount: itemTotal,
           final_amount: itemTotal,
           is_paid: false,
+          signature_url: serializeOrderProgressStatus('pending'),
         })
         .select('id')
         .single();

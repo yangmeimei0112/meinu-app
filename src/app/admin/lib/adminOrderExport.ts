@@ -1,19 +1,23 @@
 'use client';
 
 import { GroupOrderAdmin, OrderSubmissionAdmin } from '../admin-types';
+import { parseOrderProgressStatus, ORDER_PROGRESS_META } from '@/types/orderStatus';
 
 // 📋 複製個人對帳明細
 export async function copyPersonalReceipt(
   sub: OrderSubmissionAdmin,
   showToast: (msg: string) => void
 ) {
+  const progressStatus = sub.progress_status || parseOrderProgressStatus(sub.signature_url);
+  const progressLabel = ORDER_PROGRESS_META[progressStatus]?.label || '處理中';
+
   let text = `【咩nu 團購金額對帳】\n${sub.user_nickname} 你好！你點了：\n---\n`;
   (sub.order_items || []).forEach((item) => {
     text += `• ${item.item_name} x ${item.quantity} ($${item.unit_price * item.quantity})\n`;
     if (item.custom_notes) text += `   備註：${item.custom_notes}\n`;
   });
   text += `---\n個人小計：$${sub.final_amount} 元 (${sub.payment_method_name})\n`;
-  text += `狀態：${sub.is_paid ? '已付款' : '待付款'}\n請儘速核對金額，謝謝！`;
+  text += `狀態：${sub.is_paid ? '已付款' : '待付款'} | 進度：${progressLabel}\n請儘速核對金額，謝謝！`;
 
   try {
     await navigator.clipboard.writeText(text);
@@ -81,8 +85,11 @@ export function exportOrdersCSV(
     return;
   }
 
-  const headers = ['訂單編號', '訂購人', '付款方式', '缺貨備案', '付款狀態', '應付金額', '點餐明細', '下單時間'];
+  const headers = ['訂單編號', '訂購人', '付款方式', '缺貨備案', '付款狀態', '訂單進度', '應付金額', '點餐明細', '下單時間'];
   const rows = submissions.map((sub) => {
+    const progressStatus = sub.progress_status || parseOrderProgressStatus(sub.signature_url);
+    const progressLabel = ORDER_PROGRESS_META[progressStatus]?.label || '處理中';
+
     const itemsDetail = (sub.order_items || [])
       .map((i) => `${i.item_name} x ${i.quantity}${i.custom_notes ? ` (${i.custom_notes})` : ''}`)
       .join('; ');
@@ -92,6 +99,7 @@ export function exportOrdersCSV(
       `"${sub.payment_method_name}"`,
       `"${sub.sold_out_option || '無'}"`,
       sub.is_paid ? '已付款' : '未付款',
+      `"${progressLabel}"`,
       sub.final_amount,
       `"${itemsDetail.replace(/"/g, '""')}"`,
       new Date(sub.created_at).toLocaleString(),

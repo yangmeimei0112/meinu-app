@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { CartItem, MultiStoreCart } from '@/types/cart';
+import { parseOrderProgressStatus } from '@/types/orderStatus';
 
 export interface OrderItemDetail {
   id: string;
@@ -80,7 +81,7 @@ export function useOrderStatus(submissionId: string) {
   const [isActionLoading, setIsActionLoading] = useState<boolean>(false);
 
   // 🔒 擁有者鑑權防護
-  const [isOrderOwner, setIsOrderOwner] = useState<boolean>(() => {
+  const [isOrderOwner] = useState<boolean>(() => {
     if (typeof window !== 'undefined' && submissionId) {
       try {
         const lastId = localStorage.getItem('menu_app_last_order_id');
@@ -209,6 +210,7 @@ export function useOrderStatus(submissionId: string) {
       clearInterval(pollingInterval);
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submissionId]);
 
   // 3. 1分鐘倒數計時
@@ -260,6 +262,13 @@ export function useOrderStatus(submissionId: string) {
   const handleExecuteModalAction = async () => {
     if (!isOrderOwner) {
       showToast('權限限制：此訂單不屬於此裝置，無法執行修改或取消操作！');
+      setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
+      return;
+    }
+
+    const currentProgress = order ? parseOrderProgressStatus(order.signature_url) : 'pending';
+    if (currentProgress !== 'pending') {
+      showToast('店家已在處理製作餐點中，無法取消或修改訂單！');
       setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
       return;
     }

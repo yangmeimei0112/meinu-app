@@ -82,7 +82,6 @@ export function HomeStoreList({
 
             <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-[#182234] flex items-center justify-center shrink-0 overflow-hidden border border-slate-100 dark:border-slate-800/80">
               {store.image_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={store.image_url}
                   alt={store.name}

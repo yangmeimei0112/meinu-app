@@ -31,7 +31,7 @@ const cspHeader = `
   style-src 'self' 'unsafe-inline' https:;
   img-src 'self' blob: data: https:;
   font-src 'self' data: https:;
-  connect-src 'self' https://*.supabase.co wss://*.supabase.co;
+  connect-src 'self' blob: data: https://*.supabase.co wss://*.supabase.co https:;
   media-src 'self' blob: data:;
   frame-src 'self';
 `.replace(/\s{2,}/g, ' ').trim();

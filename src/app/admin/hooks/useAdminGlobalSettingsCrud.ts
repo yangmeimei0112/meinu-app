@@ -6,7 +6,7 @@ import { AdminConfirmModalState } from '../admin-types';
 
 interface UseAdminGlobalSettingsCrudProps {
   categories: Category[];
-  paymentMethods: PaymentMethod[];
+  paymentMethods?: PaymentMethod[];
   soldOutOptions: SoldOutOption[];
   fetchAdminData: (targetGroupId?: string, isSilent?: boolean) => Promise<void>;
   showToast: (msg: string) => void;
@@ -16,7 +16,6 @@ interface UseAdminGlobalSettingsCrudProps {
 
 export function useAdminGlobalSettingsCrud({
   categories,
-  paymentMethods,
   soldOutOptions,
   fetchAdminData,
   showToast,

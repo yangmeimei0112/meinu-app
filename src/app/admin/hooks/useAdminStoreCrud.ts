@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
-import { compressImageToWebP } from '@/lib/image-compress';
+import { compressImageToWebP, dataUrlToFile } from '@/lib/image-compress';
 import { AdminConfirmModalState } from '../admin-types';
 import { useAdminCategoryCrud } from './useAdminCategoryCrud';
 import { useAdminProductCrud } from './useAdminProductCrud';
@@ -109,11 +109,10 @@ export function useAdminStoreCrud({
       try {
         const compressedWebPDataUrl = await compressImageToWebP(file);
         setStoreImagePreview(compressedWebPDataUrl);
-        const res = await fetch(compressedWebPDataUrl);
-        const blob = await res.blob();
-        const compressedFile = new File([blob], `${file.name.replace(/\.[^/.]+$/, '')}.webp`, {
-          type: 'image/webp',
-        });
+        const compressedFile = dataUrlToFile(
+          compressedWebPDataUrl,
+          `${file.name.replace(/\.[^/.]+$/, '')}.webp`
+        );
         setStoreImageFile(compressedFile);
       } catch (err) {
         console.error('WebP 壓縮失敗，使用原始檔案', err);
@@ -136,20 +135,29 @@ export function useAdminStoreCrud({
     let imageUrl = editingStore?.image_url || null;
 
     if (storeImageFile) {
-      const fileExt = storeImageFile.name.split('.').pop();
+      const fileExt = storeImageFile.name.split('.').pop() || 'webp';
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `stores/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('store-images')
-        .upload(filePath, storeImageFile);
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from('store-images')
+          .upload(filePath, storeImageFile);
 
-      if (uploadError) {
-        console.error('圖片上傳失敗:', uploadError);
-        showToast('店家封面圖片上傳失敗');
-      } else {
-        const { data } = supabase.storage.from('store-images').getPublicUrl(filePath);
-        imageUrl = data.publicUrl;
+        if (uploadError) {
+          console.warn('Storage Bucket 未建立或上傳失敗，自動降級使用 WebP 輕量 Base64 儲存:', uploadError.message);
+          // 🛡️ 彈性備援：若 Storage 儲存庫未建立，直接將已壓縮的 WebP DataURL 存入資料庫
+          if (storeImagePreview) {
+            imageUrl = storeImagePreview;
+          }
+        } else {
+          const { data } = supabase.storage.from('store-images').getPublicUrl(filePath);
+          imageUrl = data.publicUrl;
+        }
+      } catch {
+        if (storeImagePreview) {
+          imageUrl = storeImagePreview;
+        }
       }
     }
 
@@ -168,12 +176,12 @@ export function useAdminStoreCrud({
 
       const json = await res.json();
       if (!res.ok) {
-        showToast(json.error || '店家代號已存在，請更換其他編號！');
+        showToast(json.message || json.error || '店家代號已存在，請更換其他編號！');
         setUploadingImage(false);
         return;
       }
     } catch (err) {
-      console.error('檢查代號失敗:', err);
+      console.warn('檢查代號略過:', err);
     }
 
     const payload = {

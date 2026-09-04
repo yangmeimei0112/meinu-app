@@ -219,7 +219,6 @@ export function AdminMaintenanceForm({
 
         {config.custom_image_url ? (
           <div className="relative inline-block border-2 border-amber-400 dark:border-amber-500 rounded-2xl overflow-hidden shadow-md">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={config.custom_image_url}
               alt="維護自訂圖片"

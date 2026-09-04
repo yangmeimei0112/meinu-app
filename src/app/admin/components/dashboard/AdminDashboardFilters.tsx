@@ -8,7 +8,6 @@ import {
   Trash2,
   ChefHat,
   ShoppingBag,
-  Clock,
   XCircle,
   ChevronDown,
   Layers,

@@ -1,5 +1,5 @@
 /**
- * 前端圖片自動壓縮至輕量 WebP 格式（將 5MB~10MB 壓縮至 ~150KB）
+ * 🖼️ 前端圖片自動壓縮至輕量 WebP 格式（將 5MB~10MB 壓縮至 ~50KB~150KB）
  */
 export async function compressImageToWebP(
   file: File,
@@ -45,4 +45,19 @@ export async function compressImageToWebP(
     reader.onerror = () => reject(new Error('讀取檔案失敗'));
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * ⚡ 純同步 Base64 DataURL 轉 File 物件（不呼叫 fetch，徹底避免 CSP 違規與記憶體複製）
+ */
+export function dataUrlToFile(dataUrl: string, fileName: string): File {
+  const arr = dataUrl.split(',');
+  const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/webp';
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], fileName, { type: mime });
 }

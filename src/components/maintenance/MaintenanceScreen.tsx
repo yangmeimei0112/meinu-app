@@ -120,7 +120,6 @@ export function MaintenanceScreen({
             <div className="absolute -bottom-1 -left-1 w-3.5 h-3.5 border-b-2 border-l-2 border-amber-500 dark:border-amber-400 rounded-bl-sm pointer-events-none" />
             <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 border-b-2 border-r-2 border-amber-500 dark:border-amber-400 rounded-br-sm pointer-events-none" />
 
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={data.custom_image_url}
               alt="維護公告自訂圖片"

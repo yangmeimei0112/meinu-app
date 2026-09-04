@@ -4,7 +4,6 @@ import React from 'react';
 import {
   Banknote,
   Landmark,
-  Smartphone,
   CreditCard,
   Coins,
   CheckCircle2,
