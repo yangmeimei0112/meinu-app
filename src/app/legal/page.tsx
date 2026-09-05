@@ -8,8 +8,6 @@ import MobileBottomNav from '@/components/MobileBottomNav';
 import {
   FileText,
   Shield,
-  UserCheck,
-  Lock,
   ArrowLeft,
   Calendar,
   Sparkles,
@@ -17,33 +15,46 @@ import {
   Printer,
   Share2,
   CheckCircle2,
+  History,
 } from 'lucide-react';
 import Link from 'next/link';
 import { LEGAL_DOCS, LegalDoc } from './legalContent';
 
-const VALID_TABS: ('terms' | 'privacy' | 'user-terms' | 'security')[] = [
-  'terms',
-  'privacy',
-  'user-terms',
-  'security',
-];
+const VALID_TABS: ('terms' | 'privacy')[] = ['terms', 'privacy'];
 
 function LegalPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const rawTab = searchParams.get('tab') || 'terms';
 
-  const initialTab = VALID_TABS.includes(rawTab as any) ? (rawTab as any) : 'terms';
-  const [activeTab, setActiveTab] = useState<'terms' | 'privacy' | 'user-terms' | 'security'>(initialTab);
+  // 相容舊版 'user-terms' -> 'terms', 'security' -> 'privacy'
+  const normalizedTab: 'terms' | 'privacy' =
+    rawTab === 'user-terms'
+      ? 'terms'
+      : rawTab === 'security'
+      ? 'privacy'
+      : VALID_TABS.includes(rawTab as any)
+      ? (rawTab as any)
+      : 'terms';
+
+  const [activeTab, setActiveTab] = useState<'terms' | 'privacy'>(normalizedTab);
   const [copiedToast, setCopiedToast] = useState(false);
 
   useEffect(() => {
-    if (rawTab && VALID_TABS.includes(rawTab as any)) {
-      setActiveTab(rawTab as any);
+    if (rawTab) {
+      const mapped =
+        rawTab === 'user-terms'
+          ? 'terms'
+          : rawTab === 'security'
+          ? 'privacy'
+          : VALID_TABS.includes(rawTab as any)
+          ? (rawTab as any)
+          : 'terms';
+      setActiveTab(mapped);
     }
   }, [rawTab]);
 
-  const handleTabChange = (tab: 'terms' | 'privacy' | 'user-terms' | 'security') => {
+  const handleTabChange = (tab: 'terms' | 'privacy') => {
     setActiveTab(tab);
     router.replace(`/legal?tab=${tab}`, { scroll: false });
   };
@@ -70,10 +81,6 @@ function LegalPageContent() {
         return <FileText className="w-4 h-4" />;
       case 'privacy':
         return <Shield className="w-4 h-4" />;
-      case 'user-terms':
-        return <UserCheck className="w-4 h-4" />;
-      case 'security':
-        return <Lock className="w-4 h-4" />;
       default:
         return <FileText className="w-4 h-4" />;
     }
@@ -93,7 +100,7 @@ function LegalPageContent() {
       )}
 
       <main className="max-w-3xl mx-auto px-4 pt-4 space-y-4">
-        {/* 頂部導航與標題 */}
+        {/* 頂部導航與功能按鈕 */}
         <div className="flex items-center justify-between">
           <Link
             href="/"
@@ -104,6 +111,14 @@ function LegalPageContent() {
           </Link>
 
           <div className="flex items-center gap-2">
+            <Link
+              href="/changelog"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-200/80 dark:border-sky-500/30 text-xs font-bold transition shadow-2xs"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>更新日誌</span>
+            </Link>
+
             <button
               type="button"
               onClick={handlePrint}
@@ -124,30 +139,36 @@ function LegalPageContent() {
         </div>
 
         {/* 🌟 條款中心 Header Banner */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-white via-sky-50/40 to-blue-50/50 dark:from-[#131B2B] dark:via-[#162136] dark:to-[#0E1524] rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-2">
-          <div className="flex items-center gap-2">
+        <div className="relative overflow-hidden bg-gradient-to-br from-white via-sky-50/40 to-blue-50/50 dark:from-[#131B2B] dark:via-[#162136] dark:to-[#0E1524] rounded-3xl p-6 border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-[10px] font-extrabold text-sky-600 dark:text-sky-400 bg-sky-500/10 dark:bg-sky-500/20 border border-sky-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               <span>咩nu 平台法律與安全中心</span>
             </span>
+
+            <Link
+              href="/changelog"
+              className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 flex items-center gap-1 transition"
+            >
+              <span>查看版本演進歷程</span>
+              <ChevronRight className="w-3 h-3" />
+            </Link>
           </div>
 
           <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-            服務協議、隱私與安全政策
+            服務條款與隱私安全政策
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            我們致力於保障您的點餐權益、個人資料隱私與最高標準的生物辨識資安防護。請詳細審閱下列各項協議條款。
+            我們嚴格遵循中華民國個人資料保護法與國際 FIDO2 / WebAuthn 資安標準，致力於保障您的點餐權益、個人資訊安全與透明化的營運責任。請詳細審閱下列各項約定內容。
           </p>
         </div>
 
-        {/* 🏷️ 4 大協議分頁切換膠囊導覽 */}
+        {/* 🏷️ 2 大核心權威條款分頁切換膠囊導覽 */}
         <div className="sticky top-2 z-20 bg-slate-50/90 dark:bg-[#0B0F17]/90 backdrop-blur-md py-1">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-slate-200/80 dark:bg-slate-900/90 rounded-2xl border border-slate-300/80 dark:border-slate-800 shadow-inner">
+          <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-200/80 dark:bg-slate-900/90 rounded-2xl border border-slate-300/80 dark:border-slate-800 shadow-inner">
             {[
-              { id: 'terms', label: '服務協議' },
-              { id: 'privacy', label: '隱私政策' },
-              { id: 'user-terms', label: '使用者條款' },
-              { id: 'security', label: '安全協議' },
+              { id: 'terms', label: '服務條款 (Terms of Service)' },
+              { id: 'privacy', label: '隱私權政策 (Privacy Policy)' },
             ].map((t) => {
               const isActive = activeTab === t.id;
               return (
@@ -155,7 +176,7 @@ function LegalPageContent() {
                   key={t.id}
                   type="button"
                   onClick={() => handleTabChange(t.id as any)}
-                  className={`py-2 px-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  className={`py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer ${
                     isActive
                       ? 'bg-white dark:bg-sky-600 text-sky-600 dark:text-white shadow-sm'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
@@ -181,7 +202,7 @@ function LegalPageContent() {
                 <span>{currentDoc.title}</span>
               </h2>
 
-              <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1">
+              <span className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1 font-mono">
                 <Calendar className="w-3.5 h-3.5" />
                 最後更新生效日：{currentDoc.lastUpdated}
               </span>
@@ -192,10 +213,10 @@ function LegalPageContent() {
           </div>
 
           {/* 各章節條款列表 */}
-          <div className="space-y-6">
+          <div className="space-y-7">
             {currentDoc.sections.map((sec, idx) => (
               <section key={idx} className="space-y-2.5">
-                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-sky-500" />
                   <span>{sec.title}</span>
                 </h3>
@@ -215,20 +236,29 @@ function LegalPageContent() {
           </div>
 
           {/* 底部保障標語 */}
-          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-emerald-500" />
-              <span className="font-bold text-slate-700 dark:text-slate-300">
-                咩nu 平台遵循中華民國法律規範與國際 FIDO2 安全標準
+              <Shield className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span className="font-bold text-slate-700 dark:text-slate-300 text-[11px] sm:text-xs">
+                咩nu 平台遵循中華民國法律規範與國際 FIDO2 資安標準
               </span>
             </div>
-            <Link
-              href="/"
-              className="text-sky-600 dark:text-sky-400 font-bold hover:underline flex items-center gap-0.5"
-            >
-              <span>回首頁點餐</span>
-              <ChevronRight className="w-3 h-3" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/changelog"
+                className="text-sky-600 dark:text-sky-400 font-bold hover:underline flex items-center gap-0.5"
+              >
+                <span>更新日誌</span>
+                <ChevronRight className="w-3 h-3" />
+              </Link>
+              <Link
+                href="/"
+                className="text-sky-600 dark:text-sky-400 font-bold hover:underline flex items-center gap-0.5"
+              >
+                <span>回首頁點餐</span>
+                <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
           </div>
         </article>
       </main>
