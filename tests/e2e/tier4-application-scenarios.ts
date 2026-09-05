@@ -19,6 +19,7 @@ import {
 } from '../../src/lib/cache/orderHistoryCache';
 import { formatStoreCode } from '../../src/app/api/stores/code/route';
 import type { CartItem, MultiStoreCart } from '../../src/types/cart';
+import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
 
 export function registerTier4Tests() {
   describe('Tier 4: Real-World Application Scenarios', () => {
@@ -343,6 +344,61 @@ export function registerTier4Tests() {
       expect(deIdentified.nickname).toBe('已註銷會員');
       expect(deIdentified.phone).toBeNull();
       expect(deIdentified.is_deleted).toBe(true);
+    });
+
+    // =======================================================================
+    // Scenario 6: Realtime Telemetry, Topology Visualizer & Fault Flight Recording
+    // =======================================================================
+    it('Scenario 6: Realtime Telemetry, Topology Visualizer & Fault Flight Recording (F4, F8, F15)', () => {
+      telemetryHub.clearAll();
+
+      // 1. Telemetry Step 1: Real-time Order Submission
+      telemetryHub.recordEvent({
+        node: 'customer',
+        targetNode: 'database',
+        action: '顧客提交訂單',
+        title: '靜香 送單 (MN-888)',
+        status: 'success',
+        detail: '店家: 鮮茶道 | 金額: $90 | SWR 快取即時更新',
+        payload: { orderNumber: 'MN-888', amount: 90 },
+      });
+
+      // 2. Telemetry Step 2: Sudden Network/DB Exception Intercepted
+      telemetryHub.recordError({
+        node: 'database',
+        category: 'Network Exception',
+        action: 'POST /api/stores/code 連線中斷',
+        message: 'FetchFailed: Client network disconnected',
+        payloadSnapshot: { codeNumber: 888 },
+        aiSuggestion: '請檢查伺服器端連線與使用者網路訊號。',
+      });
+
+      // 3. Topology & Flight Recorder Inspection
+      const events = telemetryHub.getEvents();
+      const errors = telemetryHub.getErrors();
+
+      expect(events.length).toBe(1);
+      expect(errors.length).toBe(1);
+      expect(events[0].title).toContain('靜香');
+      expect(errors[0].category).toBe('Network Exception');
+      expect(errors[0].aiSuggestion).toContain('請檢查伺服器端連線');
+
+      // 4. JSON Diagnostic Report Export Verification
+      const diagnosticReport = {
+        title: '咩nu 平台即時運行與故障診斷報告',
+        exportedAt: new Date().toISOString(),
+        summary: {
+          totalEvents: events.length,
+          totalErrors: errors.length,
+        },
+        errors,
+        recentEvents: events,
+      };
+
+      const serializedJson = JSON.stringify(diagnosticReport);
+      expect(serializedJson).toContain('靜香');
+      expect(serializedJson).toContain('FetchFailed');
+      expect(diagnosticReport.summary.totalErrors).toBe(1);
     });
   });
 }

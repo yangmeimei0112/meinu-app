@@ -24,6 +24,7 @@ import {
 import { formatStoreCode } from '../../src/app/api/stores/code/route';
 import { BUILT_IN_CUSTOM_PRESETS } from '../../src/lib/customOptionPresets';
 import type { CartItem, SelectedOption } from '../../src/types/cart';
+import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
 
 export function registerTier1Tests() {
   // =========================================================================
@@ -1201,6 +1202,91 @@ export function registerTier1Tests() {
       const prefersReducedMotion = true;
       const transitionDuration = prefersReducedMotion ? 0 : 750;
       expect(transitionDuration).toBe(0);
+    });
+  });
+
+  // =========================================================================
+  // F15: Live Observability & Logic Visualizer (NEW v10.6.0)
+  // =========================================================================
+  describe('F15: Live Observability & Logic Visualizer', () => {
+    beforeEach(() => {
+      telemetryHub.clearAll();
+    });
+
+    it('F15-1: Records events, attaches timestamps/IDs, and notifies subscribers', () => {
+      let notified = 0;
+      const unsub = telemetryHub.subscribe(() => {
+        notified++;
+      });
+
+      const evt = telemetryHub.recordEvent({
+        node: 'customer',
+        targetNode: 'gateway',
+        action: '測試送單',
+        title: '小明 送單',
+        status: 'info',
+        detail: '測試事件細節',
+        payload: { test: 123 },
+      });
+
+      expect(evt.id).toBeDefined();
+      expect(evt.timestamp).toBeDefined();
+      expect(notified).toBe(1);
+      expect(telemetryHub.getEvents().length).toBe(1);
+      expect(telemetryHub.getEvents()[0].action).toBe('測試送單');
+
+      unsub();
+    });
+
+    it('F15-2: Captures and registers errors into flight recorder with AI suggestions', () => {
+      const err = telemetryHub.recordError({
+        node: 'database',
+        category: 'DB Timeout',
+        action: 'PostgreSQL 查詢逾時',
+        message: '連線集區已滿',
+        aiSuggestion: '建議加大連線集區上限。',
+      });
+
+      expect(err.id).toBeDefined();
+      expect(telemetryHub.getErrors().length).toBe(1);
+      expect(telemetryHub.getErrors()[0].category).toBe('DB Timeout');
+      expect(telemetryHub.getErrors()[0].aiSuggestion).toContain('連線集區');
+    });
+
+    it('F15-3: Decomposes logic steps with status and mathematical formula', () => {
+      const evt = telemetryHub.recordEvent({
+        node: 'logic',
+        action: '金流平攤計算',
+        title: '平攤每人 $25',
+        status: 'success',
+        detail: '外送費平攤',
+        formula: 'Share = Floor((100 - 0) / 4) = 25',
+        logicSteps: [
+          { step: 1, title: '統計人數', desc: '4 人', status: 'done' },
+          { step: 2, title: '套用 Floor', desc: '每人 25', status: 'done' },
+        ],
+      });
+
+      expect(evt.formula).toBe('Share = Floor((100 - 0) / 4) = 25');
+      expect(evt.logicSteps?.length).toBe(2);
+      expect(evt.logicSteps?.[0].status).toBe('done');
+    });
+
+    it('F15-4: Simulates full 6-node order flow pipeline sequentially', () => {
+      telemetryHub.simulateOrderFlow();
+      const initialEvents = telemetryHub.getEvents();
+      expect(initialEvents.length).toBeGreaterThanOrEqual(1);
+      expect(initialEvents[0].node).toBe('customer');
+      expect(initialEvents[0].targetNode).toBe('gateway');
+    });
+
+    it('F15-5: Simulates delivery fee split algorithm with floor deduction', () => {
+      telemetryHub.simulateFeeSplit();
+      const events = telemetryHub.getEvents();
+      expect(events.length).toBeGreaterThanOrEqual(1);
+      expect(events[0].node).toBe('logic');
+      expect(events[0].formula).toContain('PerPersonShare');
+      expect(events[0].logicSteps?.length).toBe(4);
     });
   });
 }

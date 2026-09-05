@@ -1,6 +1,6 @@
 import { CHANGELOG_RELEASES } from '@/app/changelog/changelogData';
 
-export const CURRENT_APP_VERSION = CHANGELOG_RELEASES[0]?.version || 'v10.6.0';
+export const CURRENT_APP_VERSION = CHANGELOG_RELEASES[0]?.version || 'v10.6.1';
 
 /**
  * 智慧版本號格式化（自動同步 Changelog 權威版號與 Git Commit 雜湊）

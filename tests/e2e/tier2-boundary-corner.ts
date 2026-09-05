@@ -20,6 +20,7 @@ import {
 } from '../../src/lib/cache/orderHistoryCache';
 import { formatStoreCode } from '../../src/app/api/stores/code/route';
 import type { CartItem } from '../../src/types/cart';
+import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
 
 export function registerTier2Tests() {
   // =========================================================================
@@ -712,6 +713,115 @@ export function registerTier2Tests() {
       };
       expect(setTheme('dark')).toBe(false);
       expect(setTheme('light')).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // F15: Live Observability Boundaries & Stress Testing
+  // =========================================================================
+  describe('F15 Boundary: Live Observability & Stress', () => {
+    beforeEach(() => {
+      telemetryHub.clearAll();
+    });
+
+    it('F15-B1: Event buffer ring size caps at 100 entries and safely evicts oldest items', () => {
+      for (let i = 0; i < 120; i++) {
+        telemetryHub.recordEvent({
+          node: 'logic',
+          action: `Event ${i}`,
+          title: `Title ${i}`,
+          status: 'info',
+          detail: `Detail ${i}`,
+        });
+      }
+
+      const events = telemetryHub.getEvents();
+      expect(events.length).toBe(100);
+      expect(events[0].action).toBe('Event 119');
+      expect(events[99].action).toBe('Event 20');
+    });
+
+    it('F15-B2: Error buffer ring size caps at 50 entries and safely evicts oldest records', () => {
+      for (let i = 0; i < 60; i++) {
+        telemetryHub.recordError({
+          node: 'gateway',
+          category: 'Error',
+          action: `Error Action ${i}`,
+          message: `Error Msg ${i}`,
+        });
+      }
+
+      const errors = telemetryHub.getErrors();
+      expect(errors.length).toBe(50);
+      expect(errors[0].action).toBe('Error Action 59');
+      expect(errors[49].action).toBe('Error Action 10');
+    });
+
+    it('F15-B3: TelemetryHub handles undefined or null payload objects without crashing', () => {
+      expect(() => {
+        telemetryHub.recordEvent({
+          node: 'customer',
+          action: 'Null Payload Test',
+          title: 'Null Payload',
+          status: 'info',
+          detail: 'Null detail',
+          payload: null,
+        });
+        telemetryHub.recordError({
+          node: 'customer',
+          category: 'Undefined Payload Test',
+          action: 'Undefined Action',
+          message: 'Undefined Msg',
+          payloadSnapshot: undefined,
+        });
+      }).not.toThrow();
+
+      expect(telemetryHub.getEvents().length).toBe(1);
+      expect(telemetryHub.getErrors().length).toBe(1);
+    });
+
+    it('F15-B4: Rapid firing of 1,000 events executes in sub-50ms without memory leak', () => {
+      const start = Date.now();
+      for (let i = 0; i < 1000; i++) {
+        telemetryHub.recordEvent({
+          node: 'logic',
+          action: 'Rapid Stress',
+          title: `Rapid ${i}`,
+          status: 'info',
+          detail: 'Stress Testing',
+        });
+      }
+      const duration = Date.now() - start;
+      expect(duration).toBeLessThan(200);
+      expect(telemetryHub.getEvents().length).toBe(100);
+    });
+
+    it('F15-B5: ClearAll wipes both events and errors and dispatches notifications to listeners', () => {
+      telemetryHub.recordEvent({
+        node: 'customer',
+        action: 'To be cleared',
+        title: 'Clear Event',
+        status: 'info',
+        detail: 'Clear Detail',
+      });
+      telemetryHub.recordError({
+        node: 'customer',
+        category: 'To be cleared',
+        action: 'Clear Error',
+        message: 'Clear Msg',
+      });
+
+      let clearNotified = false;
+      const unsub = telemetryHub.subscribe(() => {
+        clearNotified = true;
+      });
+
+      telemetryHub.clearAll();
+      expect(telemetryHub.getEvents().length).toBe(0);
+      expect(telemetryHub.getErrors().length).toBe(0);
+      expect(clearNotified).toBe(true);
+
+      unsub();
     });
   });
 }

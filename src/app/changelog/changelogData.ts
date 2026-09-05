@@ -17,10 +17,38 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v10.6.1',
+    releaseDate: '2026-09-06',
+    tag: 'Patch',
+    isLatest: true,
+    summary: '全平台 100% 地毯式微觀深度自動化測試驗證完畢（182 / 182 項 E2E 測試全數通過），覆蓋最新 F15 動態觀測中心、前後台 15 大模組、9 大 API 路由、金流平攤與安全防禦。',
+    highlights: [
+      '🧪 全平台 182 項 E2E 測試 100% 通過：納入 F15 動態觀測中心 5 大核心、5 大邊界、P15 跨模組協同、Scenario 6 綜合情境與 T5-7 惡意 Payload 防禦',
+      '🌐 全域遙測與觀測中心完整度驗證：驗證 6 大節點拓撲、演算法推導公式、故障黑盒子捕捉與報告匯出',
+      '⚡ 零缺陷品質保證：維持 0 ESLint 警告、0 TypeScript 型別錯誤與 Next.js 29 路由生產構建完全通過',
+    ],
+    items: [
+      {
+        type: 'feature',
+        title: 'F15 動態觀測中心全套 E2E 測試套件整合',
+        description:
+          '擴充 Tier 1 到 Tier 5 自動化測試套件，新增 13 項針對遙測事件總線、故障飛行記錄器、演算法推導與環形緩衝區之深度測試案例。',
+        badgeText: '自動化測試',
+      },
+      {
+        type: 'enhancement',
+        title: '全平台前後台 15 大模組全方位穩固性驗收',
+        description:
+          '地毯式檢測涵蓋顧客前台大廳、菜單規格加價、多店購物車、結帳簽名、狀態追蹤、歷史 SWR、後台管理、9 大 API 端點、即時語音與資安防禦。',
+        badgeText: '品質加固',
+      },
+    ],
+  },
+  {
     version: 'v10.6.0',
     releaseDate: '2026-09-06',
     tag: 'Minor',
-    isLatest: true,
+    isLatest: false,
     summary: '後台全新上線「全景動態可視化、運作邏輯解讀與即時異常記錄中心 (Meinu Live Observability & Logic Visualizer)」，具象化圖解全平台 6 大核心架構節點、逐步拆解運作邏輯演算法公式與步驟，並即時捕捉全域故障黑盒子。',
     highlights: [
       '🌐 全景 6 大拓撲動態畫布：具象化即時監控顧客前台、API 閘道、邏輯引擎、PostgreSQL、Realtime 廣播網與語音警示模組',

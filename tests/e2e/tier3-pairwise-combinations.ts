@@ -18,6 +18,7 @@ import {
 } from '../../src/lib/cache/orderHistoryCache';
 import { formatStoreCode } from '../../src/app/api/stores/code/route';
 import type { CartItem, MultiStoreCart } from '../../src/types/cart';
+import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
 
 export function registerTier3Tests() {
   describe('Tier 3: Cross-Feature Pairwise Interactions', () => {
@@ -433,6 +434,56 @@ export function registerTier3Tests() {
       expect(document.documentElement.classList.contains('dark')).toBe(true);
       expect(localStorage.getItem('menu_app_admin_speech_enabled')).toBe('true');
       expect(localStorage.getItem('menu_app_admin_speech_mode')).toBe('summary');
+    });
+
+    // -----------------------------------------------------------------------
+    // P15: F4 (Checkout) + F9 (Fee Split) + F8 (Workbench) + F15 (Observability Hub)
+    // -----------------------------------------------------------------------
+    it('P15: F4 (Checkout) + F9 (Fee Split) + F8 (Workbench) + F15 (Telemetry Hub): Full business telemetry tracking', () => {
+      telemetryHub.clearAll();
+
+      // 1. Customer Submits Order
+      const customerEvt = telemetryHub.recordEvent({
+        node: 'customer',
+        targetNode: 'database',
+        action: '顧客提交訂單',
+        title: '小夫 送單成功 (MN-101)',
+        status: 'success',
+        detail: '店家: 迷客夏 | 餐點: 伯爵紅茶拿鐵 | 金額: $70',
+        payload: { orderNumber: 'MN-101', nickname: '小夫', amount: 70 },
+      });
+
+      // 2. Admin applies delivery fee split
+      const feeEvt = telemetryHub.recordEvent({
+        node: 'logic',
+        targetNode: 'database',
+        action: '套用平攤演算法',
+        title: '全團 3 人平攤外送費',
+        status: 'info',
+        detail: '外送費: $60 | 每人分攤: $20',
+        formula: 'floor((60 - 0) / 3) = $20',
+        payload: { fee: 60, discount: 0, count: 3, share: 20 },
+      });
+
+      // 3. Admin updates status
+      const statusEvt = telemetryHub.recordEvent({
+        node: 'logic',
+        targetNode: 'realtime',
+        action: '推進訂單進度狀態',
+        title: '訂單狀態 ➔ 「製作中」',
+        status: 'success',
+        detail: '單號: MN-101 狀態已推進',
+        payload: { orderId: 'MN-101', status: 'preparing' },
+      });
+
+      const events = telemetryHub.getEvents();
+      expect(events.length).toBe(3);
+      expect(events[0].title).toContain('製作中');
+      expect(events[1].title).toContain('平攤外送費');
+      expect(events[2].title).toContain('小夫');
+      expect(customerEvt.node).toBe('customer');
+      expect(feeEvt.node).toBe('logic');
+      expect(statusEvt.targetNode).toBe('realtime');
     });
   });
 }

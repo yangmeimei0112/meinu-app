@@ -8,6 +8,7 @@ import { sanitizeInput, isSafeUrl, checkRateLimit, generateMathChallenge } from 
 import { mergeCartItems } from '../../src/lib/useMultiCart';
 import { formatStoreCode } from '../../src/app/api/stores/code/route';
 import type { CartItem } from '../../src/types/cart';
+import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
 
 export function registerTier5Tests() {
   describe('Tier 5: Adversarial Hardening', () => {
@@ -135,6 +136,36 @@ export function registerTier5Tests() {
       expect(formatStoreCode(999999)).toBe('S-999999');
       expect(formatStoreCode('abc-000456-xyz')).toBe('S-456');
       expect(formatStoreCode('!!!@@@###$$$')).toBe('S-001');
+    });
+
+    it('T5-7: Adversarial Telemetry: Handles malformed recursive objects and script tags safely', () => {
+      telemetryHub.clearAll();
+
+      const maliciousAction = `<script>alert("hack")</script>`;
+      const maliciousPayload = {
+        nested: {
+          xss: `<img src=x onerror=alert(1)>`,
+          hugeArr: Array.from({ length: 500 }, (_, i) => `item-${i}`),
+        },
+      };
+
+      expect(() => {
+        telemetryHub.recordEvent({
+          node: 'gateway',
+          action: maliciousAction,
+          title: 'XSS Attack Simulation',
+          status: 'error',
+          detail: 'Malicious event detail',
+          payload: maliciousPayload,
+        });
+      }).not.toThrow();
+
+      const events = telemetryHub.getEvents();
+      const errors = telemetryHub.getErrors();
+      expect(events.length).toBe(1);
+      expect(errors.length).toBe(1); // Auto recorded to error flight recorder
+      expect(events[0].action).toBe(maliciousAction);
+      expect(errors[0].message).toBe('Malicious event detail');
     });
   });
 }

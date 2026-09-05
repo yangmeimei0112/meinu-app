@@ -30,8 +30,8 @@ async function main() {
   registerTier4Tests();
   registerTier5Tests();
 
-  console.log('\x1b[33m[1/5] Running Tier 1: Feature Coverage Tests (F1 - F14)...\x1b[0m');
-  console.log('\x1b[33m[2/5] Running Tier 2: Boundary & Corner Cases Tests (F1 - F14)...\x1b[0m');
+  console.log('\x1b[33m[1/5] Running Tier 1: Feature Coverage Tests (F1 - F15)...\x1b[0m');
+  console.log('\x1b[33m[2/5] Running Tier 2: Boundary & Corner Cases Tests (F1 - F15)...\x1b[0m');
   console.log('\x1b[33m[3/5] Running Tier 3: Cross-Feature Pairwise Combinations...\x1b[0m');
   console.log('\x1b[33m[4/5] Running Tier 4: Real-World Workload Scenarios...\x1b[0m');
   console.log('\x1b[33m[5/5] Running Tier 5: Adversarial Hardening & Stress Verification...\x1b[0m\n');
