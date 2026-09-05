@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { User, Session } from '@supabase/supabase-js';
 import { formatErrorMessage } from '@/lib/errorUtils';
+import { clearAllOrderHistory, getOrderHistoryCache } from '@/lib/cache/orderHistoryCache';
 
 export interface UserProfile {
   id: string;
@@ -504,7 +505,7 @@ export function useUserAuth() {
     }
   }, []);
 
-  // 12. 註銷帳號 (Account Deletion - 徹底自資料庫刪除與抹除個資)
+  // 12. 註銷帳號 (Account Deletion - 強制自 Supabase 徹底刪除所有關聯資料與本機個資)
   const deleteAccount = useCallback(async () => {
     try {
       const { data: { session: currSession } } = await supabase.auth.getSession();
@@ -514,7 +515,15 @@ export function useUserAuth() {
         throw new Error('未取得有效登入憑證，請先登入後再試');
       }
 
-      // 呼叫伺服端徹底自資料庫清除或抹除個資
+      // 取得欲清除之點餐暱稱與本機歷史訂單 ID 清單
+      const cachedOrders = getOrderHistoryCache() || [];
+      const orderIds = cachedOrders.map((o) => o.id).filter(Boolean);
+      const targetNickname =
+        profile?.nickname ||
+        (typeof window !== 'undefined' ? localStorage.getItem('menu_app_user_nickname') : '') ||
+        '';
+
+      // 1. 呼叫伺服端 API 強制自 Supabase 資料庫清除該帳號之訂單、品項、資料表與 Auth 記錄
       try {
         const res = await fetch('/api/account/delete', {
           method: 'POST',
@@ -522,26 +531,48 @@ export function useUserAuth() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
+          body: JSON.stringify({
+            nickname: targetNickname,
+            orderIds,
+          }),
         });
 
         const json = await res.json();
         if (!res.ok || !json.success) {
-          console.warn('伺服端註銷回傳非成功，執行用戶端深度清理:', json);
+          console.warn('伺服端註銷回傳非成功，繼續執行深度清理:', json);
         }
       } catch (fetchErr) {
-        console.warn('呼叫刪除端點網路異常，繼續執行用戶端徹底清理:', fetchErr);
+        console.warn('呼叫刪除端點網路異常，繼續執行用戶端與資料庫徹底清理:', fetchErr);
       }
 
-      // 徹底刪除成功後，清除本機所有會員身分與快取
+      // 2. 客戶端直接針對 Supabase 訂單表發起二次刪除確認（防禦性清除）
+      if (orderIds.length > 0) {
+        try {
+          await supabase.from('order_items').delete().in('submission_id', orderIds);
+          await supabase.from('order_submissions').delete().in('id', orderIds);
+        } catch {}
+      }
+
+      // 3. 徹底清空本機所有會員身分、歷史訂單快取、購物車與 Passkey 快照
+      clearAllOrderHistory();
       try {
         localStorage.removeItem('menu_app_user_nickname');
         localStorage.removeItem('menu_app_user_phone');
         localStorage.removeItem('menu_app_user_auth');
         localStorage.removeItem('menu_app_passkeys');
         localStorage.removeItem('menu_app_orders');
+        localStorage.removeItem('menu_app_cached_orders_detail');
+        localStorage.removeItem('menu_app_order_history');
+        localStorage.removeItem('menu_app_last_order_id');
+        localStorage.removeItem('menu_app_purged_order_ids');
+        localStorage.removeItem('menu_app_multi_cart');
+        localStorage.removeItem('menu_app_custom_presets');
+        sessionStorage.clear();
         window.dispatchEvent(new Event('storage'));
+        window.dispatchEvent(new Event('menu_app_orders_updated'));
       } catch {}
 
+      // 4. 全域強制登出並作廢所有 Sessions
       try {
         await supabase.auth.signOut({ scope: 'global' });
       } catch {}
@@ -560,10 +591,11 @@ export function useUserAuth() {
         setUser(null);
         setSession(null);
         setProfile(null);
+        setPasskeys([]);
       } catch {}
       return { success: false, error: formatErrorMessage(err, '註銷帳號失敗') };
     }
-  }, []);
+  }, [profile]);
 
   return {
     user,

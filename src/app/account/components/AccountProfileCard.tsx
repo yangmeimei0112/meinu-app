@@ -501,7 +501,7 @@ export function AccountProfileCard({
           <h4 className="text-xs font-black text-rose-700 dark:text-rose-400">帳號進階安全設定</h4>
         </div>
         <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-          若您不再使用此帳號，可選擇註銷帳號。註銷後將永久移除您的個人設定與登入身分，本機歷史紀錄亦將一併抹除。
+          若您不再使用此帳號，可選擇註銷帳號。按下後系統將<strong>強制自 Supabase 徹底刪除</strong>您的會員帳號身分、個人設定、Passkey 生物辨識金鑰與所有歷史訂單資料，本機紀錄亦將全數抹除。
         </p>
         <button
           type="button"
@@ -515,9 +515,9 @@ export function AccountProfileCard({
       {/* 註銷帳號安全二次確認彈窗 */}
       <DoubleConfirmModal
         isOpen={showDeleteConfirm}
-        title="⚠️ 確認註銷您的會員帳號？"
-        message="註銷後，您的帳號身分、點餐暱稱、手機號碼與已綁定之 Passkey 將全部刪除並登出，此操作無法復原。請問確定要繼續嗎？"
-        confirmText={isDeletingAccount ? '正在註銷...' : '確認註銷'}
+        title="⚠️ 確認註銷並清除所有資料？"
+        message="註銷後，系統將【強制自 Supabase 資料庫徹底刪除】您的帳號身分、點餐暱稱、手機、Passkey 生物辨識以及此帳號的所有歷史訂單與餐點明細，此操作無法復原。確定要繼續嗎？"
+        confirmText={isDeletingAccount ? '正在強制刪除中...' : '確認徹底註銷'}
         cancelText="取消返回"
         isDanger={true}
         onConfirm={handleConfirmDeleteAccount}

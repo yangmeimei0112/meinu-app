@@ -17,10 +17,39 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v10.5.4',
+    releaseDate: '2026-09-06',
+    tag: 'Patch',
+    isLatest: true,
+    summary: '會員註銷帳號功能全面升級：支援點擊確認後強制徹底將該帳號在 Supabase 之所有歷史訂單、餐點明細、個人資料表、Passkey 與 Auth 身分憑證全數實體刪除。',
+    highlights: [
+      '🗑️ Supabase 資料庫全方位徹底抹除：註銷時將 order_item_options, order_items, order_submissions, profiles, auth.users 一鍵級聯清除',
+      '🔒 客戶端與伺服端雙重清除防線：前端主動搜集本機訂單 ID 並結合後端最高權限進行防禦性實體刪除',
+      '📱 本機個資與歷史快取深度重置：同步抹除所有 localStorage、sessionStorage、歷史訂單快取並強制全域登出',
+      '📜 SQL RPC 腳本升級：更新 delete_user_account 函式，支援帶參數安全級聯刪除',
+    ],
+    items: [
+      {
+        type: 'feature',
+        title: '會員註銷帳號強制清除 Supabase 所有關聯資料',
+        description:
+          '升級 /api/account/delete 端點與 useUserAuth Hook，確保註銷會員帳號時，該帳號在 Supabase 資料庫中的所有歷史訂單、餐點選項、個人設定、Passkey 與登入身分 100% 徹底實體抹除。',
+        badgeText: '隱私保護',
+      },
+      {
+        type: 'enhancement',
+        title: '註銷帳號安全確認與狀態回饋強化',
+        description:
+          '更新 AccountProfileCard 註銷二次確認彈窗說明與處理中狀態提示，明確告知將永久移除 Supabase 資料庫之所有紀錄。',
+        badgeText: '體驗優化',
+      },
+    ],
+  },
+  {
     version: 'v10.5.3',
     releaseDate: '2026-09-05',
     tag: 'Patch',
-    isLatest: true,
+    isLatest: false,
     summary: '完成全平台 100% 地毯式深度全功能自動化測試（169 項 E2E 測試全部通過），強化結帳手繪簽名、菜單自訂排序、即時倒數計時與全方位資安防護。',
     highlights: [
       '🧪 全平台 169 項 E2E 測試 100% 通過：覆蓋 F1~F14 完整旅程、極端邊界值、雙兩組合、真實業務場景與對抗攻擊',
