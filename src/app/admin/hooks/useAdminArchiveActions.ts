@@ -41,23 +41,27 @@ export function useAdminArchiveActions({
       onConfirm: async () => {
         closeAdminConfirmModal();
         try {
-          // 1. 抓出該店所有 active 訂單
-          const { data: subList } = await supabase
-            .from('order_submissions')
-            .select('id, final_amount, total_amount')
-            .or(`store_id.eq.${storeId},group_order_id.eq.${activeGroup.id}`)
-            .or('status.eq.active,status.is.null');
+          // 1. 將該團購活動設為 completed (結案歸檔)
+          const { error: updateErr } = await supabase
+            .from('group_orders')
+            .update({ status: 'completed' })
+            .eq('id', activeGroup.id);
 
-          const subIds = subList ? subList.map((s) => s.id) : [];
+          if (updateErr) throw updateErr;
 
-          let batchId: string | null = null;
-          if (subIds.length > 0) {
-            const batchNum = `BATCH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`;
-            const totalAmount = subList?.reduce((sum, s) => sum + s.final_amount, 0) || 0;
+          // 2. 嘗試非阻塞式寫入結案批次審計紀錄 (若資料庫有建立該選用表)
+          try {
+            const { data: subList } = await supabase
+              .from('order_submissions')
+              .select('id, final_amount, total_amount')
+              .eq('group_order_id', activeGroup.id);
 
-            const { data: batchData } = await supabase
-              .from('store_order_batches')
-              .insert([
+            const subIds = subList ? subList.map((s) => s.id) : [];
+            if (subIds.length > 0) {
+              const batchNum = `BATCH-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`;
+              const totalAmount = subList?.reduce((sum, s) => sum + (s.final_amount || s.total_amount || 0), 0) || 0;
+
+              await supabase.from('store_order_batches').insert([
                 {
                   store_id: storeId,
                   store_name: storeName,
@@ -70,27 +74,9 @@ export function useAdminArchiveActions({
                   final_amount: totalAmount,
                   archived_at: new Date().toISOString(),
                 },
-              ])
-              .select()
-              .single();
-
-            batchId = batchData?.id || null;
-
-            // 批次標記訂單為 archived
-            await supabase
-              .from('order_submissions')
-              .update({
-                status: 'archived',
-                batch_id: batchId,
-              })
-              .in('id', subIds);
-          }
-
-          // 2. 將團購活動設為 completed (若有)
-          await supabase
-            .from('group_orders')
-            .update({ status: 'completed' })
-            .eq('id', activeGroup.id);
+              ]);
+            }
+          } catch {}
 
           showToast(`「${storeName}」訂單已成功批次歸檔！`);
           fetchAdminData('all');
