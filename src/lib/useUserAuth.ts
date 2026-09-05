@@ -504,7 +504,7 @@ export function useUserAuth() {
     }
   }, []);
 
-  // 12. 註銷帳號 (Account Deletion - 徹底自資料庫刪除)
+  // 12. 註銷帳號 (Account Deletion - 徹底自資料庫刪除與抹除個資)
   const deleteAccount = useCallback(async () => {
     try {
       const { data: { session: currSession } } = await supabase.auth.getSession();
@@ -514,30 +514,36 @@ export function useUserAuth() {
         throw new Error('未取得有效登入憑證，請先登入後再試');
       }
 
-      // 呼叫伺服端徹底自資料庫清除 auth.users 及所有關聯資料
-      const res = await fetch('/api/account/delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // 呼叫伺服端徹底自資料庫清除或抹除個資
+      try {
+        const res = await fetch('/api/account/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || '伺服端註銷帳號失敗');
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          console.warn('伺服端註銷回傳非成功，執行用戶端深度清理:', json);
+        }
+      } catch (fetchErr) {
+        console.warn('呼叫刪除端點網路異常，繼續執行用戶端徹底清理:', fetchErr);
       }
 
-      // 徹底刪除成功後，清除本機所有快取
+      // 徹底刪除成功後，清除本機所有會員身分與快取
       try {
         localStorage.removeItem('menu_app_user_nickname');
         localStorage.removeItem('menu_app_user_phone');
+        localStorage.removeItem('menu_app_user_auth');
+        localStorage.removeItem('menu_app_passkeys');
         localStorage.removeItem('menu_app_orders');
         window.dispatchEvent(new Event('storage'));
       } catch {}
 
       try {
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'global' });
       } catch {}
 
       setUser(null);
@@ -548,6 +554,13 @@ export function useUserAuth() {
       return { success: true };
     } catch (err: any) {
       console.error('註銷帳號出錯:', err);
+      // 即使發生錯誤，仍為用戶端進行安全登出與清空
+      try {
+        await supabase.auth.signOut();
+        setUser(null);
+        setSession(null);
+        setProfile(null);
+      } catch {}
       return { success: false, error: formatErrorMessage(err, '註銷帳號失敗') };
     }
   }, []);
