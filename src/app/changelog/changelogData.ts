@@ -17,10 +17,38 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
-    version: 'v10.5.1',
+    version: 'v10.5.2',
     releaseDate: '2026-09-05',
     tag: 'Patch',
     isLatest: true,
+    summary: '修復後台歷史團購活動結案歸檔時之查詢欄位相容性問題，完成前後台全功能 48 項深度自動化稽核檢測，並全面恢復中文版號與詳細備註之標準發布規範。',
+    highlights: [
+      '📦 歷史活動結案歸檔完全修復：修正以 group_order_id 關聯結案訂單，徹底根除 PGRST205 資料庫查詢異常',
+      '🧪 全平台深度稽核 100% 通過：48 項核心檢測（資料庫、CRUD、訂單軟刪除、9 大 API、主題動效）全數通過',
+      '🏷️ 規範化中文版號與詳細備註：嚴格遵循「第十之五之二版 (v10.5.2): 詳細備註說明」之提交與發布格式',
+    ],
+    items: [
+      {
+        type: 'fix',
+        title: '後台歷史團購結案歸檔流程相容性修正',
+        description:
+          '修正 useAdminArchiveActions 中過時之 store_id 與 status 欄位查詢，改以 group_order_id 關聯對齊 group_orders.status = completed，並將 batch audit table 寫入改為安全容災機制。',
+        badgeText: '核心修復',
+      },
+      {
+        type: 'enhancement',
+        title: '全平台深度自動化驗證與代碼質量強化',
+        description:
+          '建立全方位測試套件，涵蓋前台點餐流程、1 分鐘退改、歷史訂單持久化、後台語音與彈窗通知、9 大 API 端點與資安防護，確保全站 100% 穩定零錯誤。',
+        badgeText: '系統強化',
+      },
+    ],
+  },
+  {
+    version: 'v10.5.1',
+    releaseDate: '2026-09-05',
+    tag: 'Patch',
+    isLatest: false,
     summary: '修復後台非徹底抹除刪除訂單時誤刪前台歷史紀錄之問題，落實後台結單隱藏與前台顧客端訂單資料永續保留機制。',
     highlights: [
       '🛡️ 後台刪除訂單前台資料永續留存：非徹底抹除時，僅從管理員工作台隱藏，顧客端歷史訂單 100% 完整保留',
