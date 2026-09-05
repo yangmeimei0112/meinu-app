@@ -17,10 +17,46 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v10.6.0',
+    releaseDate: '2026-09-06',
+    tag: 'Minor',
+    isLatest: true,
+    summary: '後台全新上線「全景動態可視化、運作邏輯解讀與即時異常記錄中心 (Meinu Live Observability & Logic Visualizer)」，具象化圖解全平台 6 大核心架構節點、逐步拆解運作邏輯演算法公式與步驟，並即時捕捉全域故障黑盒子。',
+    highlights: [
+      '🌐 全景 6 大拓撲動態畫布：具象化即時監控顧客前台、API 閘道、邏輯引擎、PostgreSQL、Realtime 廣播網與語音警示模組',
+      '🧮 運作邏輯逐步解剖儀：圖解點餐加價、金流平攤 (Floor/Ceil/Round) 演算法數學公式、執行步驟拆解與輸入快照 Payload 檢視',
+      '🚨 即時故障黑盒子與 AI 修復建議：全域攔截執行期未捕獲異常與 Promise Rejection，提供 AI 智慧修復方針與 JSON 診斷報告匯出',
+      '⚡ 業務路徑全域遙測：顧客下單送單、外送費平攤、狀態機推進等業務自動觸發遙測事件流，支援離線與線上多情境動態模擬',
+    ],
+    items: [
+      {
+        type: 'feature',
+        title: '後台全景動態可視化與運作邏輯解讀中心',
+        description:
+          '在後台管理面板新增「🚀 動態觀測中心」分頁，具備脈衝呼吸燈、即時訊號流水線、6 大系統節點互動式拓撲圖與延遲指標監控。',
+        badgeText: '可視化架構',
+      },
+      {
+        type: 'feature',
+        title: '演算法公式推導與步驟拆解器',
+        description:
+          '提供即時公式推導器（含外送費平攤規則 Math.floor / Math.ceil / Math.round）、各步驟執行狀態指示（Execution Pipeline）與參數快照檢視。',
+        badgeText: '邏輯透視',
+      },
+      {
+        type: 'feature',
+        title: '故障黑盒子與全域異常攔截飛行記錄器',
+        description:
+          '即時攔截 window.error 與 unhandledrejection 異常，自動分析問題癥結並給出 AI 智慧修復建議，支援一鍵複製 Call Stack 與診斷 JSON 報告匯出。',
+        badgeText: '即時除錯',
+      },
+    ],
+  },
+  {
     version: 'v10.5.4',
     releaseDate: '2026-09-06',
     tag: 'Patch',
-    isLatest: true,
+    isLatest: false,
     summary: '會員註銷帳號功能全面升級：支援點擊確認後強制徹底將該帳號在 Supabase 之所有歷史訂單、餐點明細、個人資料表、Passkey 與 Auth 身分憑證全數實體刪除。',
     highlights: [
       '🗑️ Supabase 資料庫全方位徹底抹除：註銷時將 order_item_options, order_items, order_submissions, profiles, auth.users 一鍵級聯清除',

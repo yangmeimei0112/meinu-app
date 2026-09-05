@@ -48,7 +48,7 @@ export interface GroupOrderAdmin {
 
 export type AdminViewMode = 'desktop' | 'mobile';
 
-export type AdminTabType = 'active' | 'crud' | 'archive' | 'maintenance';
+export type AdminTabType = 'active' | 'crud' | 'archive' | 'maintenance' | 'observability';
 
 export interface AdminConfirmModalState {
   isOpen: boolean;

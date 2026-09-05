@@ -34,7 +34,7 @@ export function useAdminPageCoordinator() {
 
   // 2. 視圖模式與介面狀態
   const [isUnlocked, setIsUnlocked] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive' | 'maintenance'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'crud' | 'archive' | 'maintenance' | 'observability'>('active');
   const [viewMode, setViewMode] = useState<AdminViewMode>('desktop');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 

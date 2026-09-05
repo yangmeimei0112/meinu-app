@@ -14,6 +14,7 @@ import {
   copyUnpaidReminder,
   exportOrdersCSV,
 } from '../lib/adminOrderExport';
+import { telemetryHub } from '@/lib/telemetry/telemetryHub';
 
 interface UseAdminOrderActionsProps {
   activeGroup: GroupOrderAdmin | null;
@@ -124,6 +125,39 @@ export function useAdminOrderActions({
 
     showToast(`平攤設定已更新！已重新試算全團個人金額。`);
     fetchAdminData();
+
+    try {
+      const netAdj = inputDeliveryFee - inputDiscount;
+      const perShare = netAdj / (submissions.length || 1);
+      const rounded =
+        roundingRule === 'floor'
+          ? Math.floor(perShare)
+          : roundingRule === 'ceil'
+          ? Math.ceil(perShare)
+          : Math.round(perShare);
+
+      telemetryHub.recordEvent({
+        node: 'logic',
+        targetNode: 'database',
+        action: '套用平攤演算法',
+        title: `全團 ${submissions.length} 人平攤外送費/折扣`,
+        status: 'info',
+        detail: `外送費: $${inputDeliveryFee} | 折扣: $${inputDiscount} | 規則: ${roundingRule} | 每人調整: $${rounded}`,
+        formula: `Share = ${roundingRule}((${inputDeliveryFee} - ${inputDiscount}) / ${submissions.length}) = $${rounded}`,
+        payload: {
+          delivery_fee: inputDeliveryFee,
+          discount_amount: inputDiscount,
+          rounding_rule: roundingRule,
+          total_submissions: submissions.length,
+          per_person_share: rounded,
+        },
+        logicSteps: [
+          { step: 1, title: '讀取分攤人數與總金額', desc: `有效分攤人數: ${submissions.length} 人`, status: 'done' },
+          { step: 2, title: `套用 ${roundingRule} 取整演算法`, desc: `計算結果每人分攤 $${rounded} 元`, status: 'done' },
+          { step: 3, title: '批次更新 final_amount', desc: '寫入 order_submissions 與 group_orders', status: 'done' },
+        ],
+      });
+    } catch {}
   };
 
   // 4. 儲存對帳簽名
@@ -298,6 +332,31 @@ export function useAdminOrderActions({
       console.error('更新訂單進度狀態失敗:', error);
       fetchAdminData(selectedActiveGroupIdRef.current, true);
       showToast('更新訂單進度失敗，請檢查網路');
+      telemetryHub.recordError({
+        node: 'database',
+        category: '訂單更新失敗',
+        action: `更新訂單 ${subId} 狀態為 ${newStatus} 失敗`,
+        message: error.message,
+        payloadSnapshot: { subId, newStatus, error },
+        aiSuggestion: '請檢查 Supabase 網路連線與 order_submissions 資料表 RLS 權限。',
+      });
+    } else {
+      try {
+        telemetryHub.recordEvent({
+          node: 'logic',
+          targetNode: 'realtime',
+          action: '推進訂單進度狀態',
+          title: `訂單狀態 ➔ 「${labelMap[newStatus] || newStatus}」`,
+          status: 'success',
+          detail: `單號識別: ${subId} | 新狀態: ${newStatus} | 附註: ${note || '無'}`,
+          payload: { subId, newStatus, note },
+          logicSteps: [
+            { step: 1, title: '接收推進指令', desc: `設定目標狀態為 ${newStatus}`, status: 'done' },
+            { step: 2, title: '寫入 signature_url JSONB', desc: '更新進度狀態與時間戳記至資料庫', status: 'done' },
+            { step: 3, title: 'Realtime 廣播同步', desc: '顧客端即時時間軸同步推進變更', status: 'done' },
+          ],
+        });
+      } catch {}
     }
   };
 

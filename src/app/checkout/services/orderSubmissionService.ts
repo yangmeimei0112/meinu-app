@@ -4,6 +4,7 @@ import { GroupOrder } from '@/types/database';
 import { sanitizeInput } from '@/lib/security';
 import { generateSequentialOrderNumber } from '@/lib/order-utils';
 import { serializeOrderProgressStatus } from '@/types/orderStatus';
+import { telemetryHub } from '@/lib/telemetry/telemetryHub';
 
 export interface OrderSubmissionParams {
   targetStoreId: string;
@@ -266,6 +267,32 @@ export async function executeOrderSubmissionPipeline({
     try {
       window.dispatchEvent(new Event('menu_app_orders_updated'));
       window.dispatchEvent(new Event('storage'));
+    } catch {}
+
+    // 🚀 遙測紀錄：顧客送單全流程與運作邏輯
+    try {
+      telemetryHub.recordEvent({
+        node: 'customer',
+        targetNode: 'database',
+        action: '顧客提交訂單',
+        title: `${cleanNickname} 送單成功 (${orderNumber})`,
+        status: 'success',
+        detail: `店家: ${cartItems[0]?.storeName || '合作店家'} | 餐點品項: ${cartItems.length} 項 | 總金額: $${safeGrandTotal} 元 | 付款: ${selectedPayment}`,
+        payload: {
+          submissionId: submission.id,
+          orderNumber,
+          user_nickname: cleanNickname,
+          total_amount: safeGrandTotal,
+          itemsCount: cartItems.length,
+          payment: selectedPayment,
+        },
+        logicSteps: [
+          { step: 1, title: '驗證顧客輸入', desc: '完成暱稱、付款方式與缺貨處理防護校驗', status: 'done' },
+          { step: 2, title: '產生流水單號', desc: `生成單號 ${orderNumber}`, status: 'done' },
+          { step: 3, title: '寫入 PostgreSQL 主表與明細表', desc: `插入 order_submissions (${submission.id}) 與 ${itemsPayload.length} 筆品項`, status: 'done' },
+          { step: 4, title: '更新本地 SWR 快取', desc: '寫入 localStorage menu_app_cached_orders_detail 達成 0ms 歷史留存', status: 'done' },
+        ],
+      });
     } catch {}
 
     // ⚡ 建立訂單背景預載入快取（跳轉至訂單狀態頁 0ms 瞬開）

@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { BarChart3, UtensilsCrossed, Archive, Wrench } from 'lucide-react';
+import { BarChart3, UtensilsCrossed, Archive, Wrench, Activity } from 'lucide-react';
 
 interface AdminMobileBottomNavProps {
-  activeTab: 'active' | 'crud' | 'archive' | 'maintenance';
-  setActiveTab: (tab: 'active' | 'crud' | 'archive' | 'maintenance') => void;
+  activeTab: 'active' | 'crud' | 'archive' | 'maintenance' | 'observability';
+  setActiveTab: (tab: 'active' | 'crud' | 'archive' | 'maintenance' | 'observability') => void;
   activeSubmissionsCount: number;
 }
 
@@ -35,6 +35,11 @@ export function AdminMobileBottomNav({
       id: 'maintenance' as const,
       label: '系統維護',
       icon: Wrench,
+    },
+    {
+      id: 'observability' as const,
+      label: '動態觀測',
+      icon: Activity,
     },
   ];
 

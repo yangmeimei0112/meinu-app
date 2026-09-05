@@ -9,6 +9,7 @@ import { AdminDashboardSection } from './AdminDashboardSection';
 import { AdminCrudSection } from './AdminCrudSection';
 import { AdminArchiveSection } from './AdminArchiveSection';
 import { AdminMaintenanceSection } from './components/AdminMaintenanceSection';
+import { AdminObservabilitySection } from './components/observability/AdminObservabilitySection';
 import AdminAuthLock from './components/AdminAuthLock';
 import { AdminModalsContainer } from './components/modals/AdminModalsContainer';
 import { useAdminPageCoordinator } from './hooks/useAdminPageCoordinator';
@@ -198,6 +199,10 @@ export default function AdminPageContent() {
 
             {c.activeTab === 'maintenance' && (
               <AdminMaintenanceSection showToast={c.showToast} />
+            )}
+
+            {c.activeTab === 'observability' && (
+              <AdminObservabilitySection />
             )}
           </>
         )}
