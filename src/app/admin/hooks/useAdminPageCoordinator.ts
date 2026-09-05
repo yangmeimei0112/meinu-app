@@ -18,14 +18,18 @@ export function useAdminPageCoordinator() {
   const { isSoundEnabled, toggleSound, playNewOrderSound, initAudio } = useAdminSound();
   const {
     isSpeechEnabled,
+    isCancelSpeechEnabled,
     isSpeaking,
     speechMode,
     speechRate,
     setSpeechMode,
     setSpeechRate,
     toggleSpeech,
+    toggleCancelSpeech,
     speakNewOrder,
+    speakCancelledOrder,
     playTestSpeech,
+    playTestCancelSpeech,
   } = useAdminSpeech();
 
   // 2. 視圖模式與介面狀態
@@ -45,6 +49,11 @@ export function useAdminPageCoordinator() {
   const {
     showVoiceSettingsModal,
     setShowVoiceSettingsModal,
+    isCancelModalEnabled,
+    toggleCancelModal,
+    cancelledOrderQueue,
+    pushCancelledOrder,
+    dismissCurrentCancelledOrder,
     adminConfirmModal,
     openAdminConfirmModal,
     closeAdminConfirmModal,
@@ -84,10 +93,13 @@ export function useAdminPageCoordinator() {
     setRoundingRule,
     fetchAdminData,
     optimisticReorderMenuItems,
+    markOrderPurgedByAdmin,
   } = useAdminData({
     isUnlocked,
     playNewOrderSound,
     speakNewOrder,
+    speakCancelledOrder,
+    onOrderCancelled: pushCancelledOrder,
     showToast,
   });
 
@@ -224,6 +236,7 @@ export function useAdminPageCoordinator() {
     setActiveTab,
     signatureTarget,
     setSignatureTarget,
+    markOrderPurgedByAdmin,
   });
 
   // 初始化視圖模式偏好
@@ -295,8 +308,13 @@ export function useAdminPageCoordinator() {
     isSoundEnabled,
     handleToggleSound,
     isSpeechEnabled,
+    isCancelSpeechEnabled,
     isSpeaking,
     toggleSpeech,
+    toggleCancelSpeech,
+    isCancelModalEnabled,
+    toggleCancelModal,
+    showVoiceSettingsModal,
     setShowVoiceSettingsModal,
     viewMode,
     handleToggleViewMode,
@@ -421,11 +439,13 @@ export function useAdminPageCoordinator() {
     deleteChoiceTarget,
     setDeleteChoiceTarget,
     handleConfirmDeleteChoice,
-    showVoiceSettingsModal,
     speechMode,
     setSpeechMode,
     speechRate,
     setSpeechRate,
     playTestSpeech,
+    playTestCancelSpeech,
+    cancelledOrderQueue,
+    dismissCurrentCancelledOrder,
   };
 }

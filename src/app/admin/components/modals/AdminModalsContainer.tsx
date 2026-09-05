@@ -13,6 +13,10 @@ import AdminCategoryModal from '../AdminCategoryModal';
 import AdminProductModal from '../AdminProductModal';
 import AdminChangeModal from '../AdminChangeModal';
 import AdminVoiceSettingsModal from '../AdminVoiceSettingsModal';
+import {
+  AdminCancelledOrderModal,
+  CancelledOrderNotification,
+} from './AdminCancelledOrderModal';
 import SignatureModal from '@/components/SignatureModal';
 import DoubleConfirmModal from '@/components/DoubleConfirmModal';
 import {
@@ -123,16 +127,25 @@ interface AdminModalsContainerProps {
     target: DeleteOrderChoiceTarget
   ) => void;
 
-  // 語音設定 Modal
+  // 語音與取消通知設定 Modal
   showVoiceSettingsModal: boolean;
   setShowVoiceSettingsModal: (open: boolean) => void;
   isSpeechEnabled: boolean;
   toggleSpeech: () => boolean;
+  isCancelSpeechEnabled: boolean;
+  toggleCancelSpeech: () => boolean;
+  isCancelModalEnabled: boolean;
+  toggleCancelModal: () => boolean;
   speechMode: SpeechMode;
   setSpeechMode: (mode: SpeechMode) => void;
   speechRate: number;
   setSpeechRate: (rate: number) => void;
   playTestSpeech: () => void;
+  playTestCancelSpeech: () => void;
+
+  // 顧客取消訂單彈窗
+  cancelledOrderQueue: CancelledOrderNotification[];
+  dismissCurrentCancelledOrder: () => void;
 }
 
 export function AdminModalsContainer({
@@ -199,11 +212,18 @@ export function AdminModalsContainer({
   setShowVoiceSettingsModal,
   isSpeechEnabled,
   toggleSpeech,
+  isCancelSpeechEnabled,
+  toggleCancelSpeech,
+  isCancelModalEnabled,
+  toggleCancelModal,
   speechMode,
   setSpeechMode,
   speechRate,
   setSpeechRate,
   playTestSpeech,
+  playTestCancelSpeech,
+  cancelledOrderQueue,
+  dismissCurrentCancelledOrder,
 }: AdminModalsContainerProps) {
   return (
     <>
@@ -335,17 +355,30 @@ export function AdminModalsContainer({
         onConfirmChoice={handleConfirmDeleteChoice}
       />
 
-      {/* 🗣️ 新訂單語音詳細播報設定與試聽 Modal */}
+      {/* 🗣️ 語音播報與通知詳細設定與試聽 Modal */}
       <AdminVoiceSettingsModal
         isOpen={showVoiceSettingsModal}
         onClose={() => setShowVoiceSettingsModal(false)}
         isSpeechEnabled={isSpeechEnabled}
         toggleSpeech={toggleSpeech}
+        isCancelSpeechEnabled={isCancelSpeechEnabled}
+        toggleCancelSpeech={toggleCancelSpeech}
+        isCancelModalEnabled={isCancelModalEnabled}
+        toggleCancelModal={toggleCancelModal}
         speechMode={speechMode}
         setSpeechMode={setSpeechMode}
         speechRate={speechRate}
         setSpeechRate={setSpeechRate}
         playTestSpeech={playTestSpeech}
+        playTestCancelSpeech={playTestCancelSpeech}
+      />
+
+      {/* ⚠️ 顧客取消訂單即時彈窗通知 */}
+      <AdminCancelledOrderModal
+        isOpen={cancelledOrderQueue.length > 0}
+        order={cancelledOrderQueue[0] || null}
+        remainingCount={cancelledOrderQueue.length - 1}
+        onClose={dismissCurrentCancelledOrder}
       />
     </>
   );

@@ -15,14 +15,25 @@ export interface SpeechOrderPayload {
   items: SpeechOrderItem[];
 }
 
+export interface SpeechCancelledOrderPayload {
+  orderId?: string;
+  nickname: string;
+  orderNumber?: string;
+  storeName?: string;
+  total_amount?: number;
+  items?: SpeechOrderItem[];
+}
+
 export type SpeechMode = 'full' | 'summary';
 
 const STORAGE_KEY_ENABLED = 'menu_app_admin_speech_enabled';
+const STORAGE_KEY_CANCEL_ENABLED = 'menu_app_admin_cancel_speech_enabled';
 const STORAGE_KEY_MODE = 'menu_app_admin_speech_mode';
 const STORAGE_KEY_RATE = 'menu_app_admin_speech_rate';
 
 export function useAdminSpeech() {
   const [isSpeechEnabled, setIsSpeechEnabled] = useState<boolean>(true);
+  const [isCancelSpeechEnabled, setIsCancelSpeechEnabled] = useState<boolean>(true);
   const [speechMode, setSpeechModeState] = useState<SpeechMode>('full');
   const [speechRate, setSpeechRateState] = useState<number>(1.1);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
@@ -31,6 +42,7 @@ export function useAdminSpeech() {
   const isProcessingQueueRef = useRef<boolean>(false);
   const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const isSpeechEnabledRef = useRef<boolean>(true);
+  const isCancelSpeechEnabledRef = useRef<boolean>(true);
   const speechModeRef = useRef<SpeechMode>('full');
   const speechRateRef = useRef<number>(1.1);
 
@@ -42,6 +54,12 @@ export function useAdminSpeech() {
         const val = savedEnabled === 'true';
         setIsSpeechEnabled(val);
         isSpeechEnabledRef.current = val;
+      }
+      const savedCancelEnabled = localStorage.getItem(STORAGE_KEY_CANCEL_ENABLED);
+      if (savedCancelEnabled !== null) {
+        const val = savedCancelEnabled === 'true';
+        setIsCancelSpeechEnabled(val);
+        isCancelSpeechEnabledRef.current = val;
       }
       const savedMode = localStorage.getItem(STORAGE_KEY_MODE) as SpeechMode;
       if (savedMode === 'full' || savedMode === 'summary') {
@@ -172,7 +190,41 @@ export function useAdminSpeech() {
     return `收到 ${nickname} 的新訂單：${itemsText}。共 ${totalItemCount} 份，金額 ${totalAmount} 元。`;
   }, []);
 
-  // 5. 朗讀訂單明細主入口 (支援 immediate: true 代表接單音效沒開時 0ms 直接即時播報)
+  // 4.1 訂單取消文案組裝產生器
+  const buildCancelledSpeechScript = useCallback(
+    (order: SpeechCancelledOrderPayload, mode: SpeechMode = speechModeRef.current): string => {
+      const nickname = (order.nickname || '團員').trim();
+      const storePrefix = order.storeName ? `${order.storeName.trim()} ` : '';
+      const totalAmount = Math.round(order.total_amount || 0);
+
+      if (mode === 'summary' || !order.items || order.items.length === 0) {
+        return `注意！來自 ${nickname} 的 ${storePrefix}訂單已取消${totalAmount > 0 ? `，金額 ${totalAmount} 元` : ''}。`;
+      }
+
+      // 完整明細模式 (含品項名稱、數量與客製化備註)
+      const itemScripts = (order.items || []).map((item) => {
+        const itemName = (item.name || '餐點').trim();
+        const qty = item.quantity || 1;
+        const notes = (item.notes || '').trim();
+        if (notes) {
+          return `${itemName} ${qty} 份，${notes}`;
+        }
+        return `${itemName} ${qty} 份`;
+      });
+
+      const itemsText = itemScripts.length > 0 ? itemScripts.join('；') : '';
+      const totalItemCount = (order.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
+
+      if (itemsText) {
+        return `注意！來自 ${nickname} 的 ${storePrefix}訂單已取消。原訂餐點：${itemsText}。共 ${totalItemCount} 份${totalAmount > 0 ? `，金額 ${totalAmount} 元` : ''}。`;
+      }
+
+      return `注意！來自 ${nickname} 的 ${storePrefix}訂單已取消${totalAmount > 0 ? `，金額 ${totalAmount} 元` : ''}。`;
+    },
+    []
+  );
+
+  // 5. 朗讀新訂單明細主入口 (支援 immediate: true 代表接單音效沒開時 0ms 直接即時播報)
   const speakOrder = useCallback(
     (order: SpeechOrderPayload, immediate: boolean = false) => {
       if (!isSpeechEnabledRef.current) return;
@@ -199,7 +251,22 @@ export function useAdminSpeech() {
     [buildSpeechScript, processQueue]
   );
 
-  // 6. 🔊 一鍵立即試聽當前語音設定效果
+  // 5.1 朗讀訂單取消主入口 (顧客取消訂單或退回購物車時朗讀)
+  const speakCancelledOrder = useCallback(
+    (order: SpeechCancelledOrderPayload) => {
+      if (!isSpeechEnabledRef.current || !isCancelSpeechEnabledRef.current) return;
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+      const script = buildCancelledSpeechScript(order, speechModeRef.current);
+      if (!script) return;
+
+      speechQueueRef.current.push(script);
+      processQueue();
+    },
+    [buildCancelledSpeechScript, processQueue]
+  );
+
+  // 6. 🔊 一鍵立即試聽新訂單語音設定效果
   const playTestSpeech = useCallback(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
@@ -220,7 +287,29 @@ export function useAdminSpeech() {
     processQueue();
   }, [buildSpeechScript, processQueue]);
 
-  // 7. 切換語音開關
+  // 6.1 🔊 一鍵立即試聽「取消訂單」語音效果
+  const playTestCancelSpeech = useCallback(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    speechQueueRef.current = [];
+    isProcessingQueueRef.current = false;
+
+    const sampleCancelOrder: SpeechCancelledOrderPayload = {
+      nickname: '小明',
+      storeName: '五十嵐',
+      orderNumber: '003',
+      total_amount: 120,
+      items: [
+        { name: '珍珠奶茶', quantity: 2, notes: '半糖微冰' },
+      ],
+    };
+
+    const script = buildCancelledSpeechScript(sampleCancelOrder, speechModeRef.current);
+    speechQueueRef.current.push(script);
+    processQueue();
+  }, [buildCancelledSpeechScript, processQueue]);
+
+  // 7. 切換新訂單語音開關
   const toggleSpeech = useCallback((): boolean => {
     const next = !isSpeechEnabledRef.current;
     setIsSpeechEnabled(next);
@@ -235,6 +324,20 @@ export function useAdminSpeech() {
 
     try {
       localStorage.setItem(STORAGE_KEY_ENABLED, String(next));
+    } catch (e) {
+      console.error(e);
+    }
+    return next;
+  }, []);
+
+  // 7.1 切換訂單取消語音開關
+  const toggleCancelSpeech = useCallback((): boolean => {
+    const next = !isCancelSpeechEnabledRef.current;
+    setIsCancelSpeechEnabled(next);
+    isCancelSpeechEnabledRef.current = next;
+
+    try {
+      localStorage.setItem(STORAGE_KEY_CANCEL_ENABLED, String(next));
     } catch (e) {
       console.error(e);
     }
@@ -275,13 +378,17 @@ export function useAdminSpeech() {
 
   return {
     isSpeechEnabled,
+    isCancelSpeechEnabled,
     speechMode,
     speechRate,
     isSpeaking,
     speakOrder,
     speakNewOrder: speakOrder,
+    speakCancelledOrder,
     playTestSpeech,
+    playTestCancelSpeech,
     toggleSpeech,
+    toggleCancelSpeech,
     setSpeechMode,
     setSpeechRate,
     stopSpeech,

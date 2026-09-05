@@ -34,6 +34,7 @@ interface UseAdminOrderActionsProps {
   setActiveTab: (tab: AdminTabType) => void;
   signatureTarget?: OrderSubmissionAdmin | null;
   setSignatureTarget?: (target: OrderSubmissionAdmin | null) => void;
+  markOrderPurgedByAdmin?: (ids: string | string[]) => void;
 }
 
 export function useAdminOrderActions({
@@ -55,6 +56,7 @@ export function useAdminOrderActions({
   setActiveTab,
   signatureTarget: externalSignatureTarget,
   setSignatureTarget: externalSetSignatureTarget,
+  markOrderPurgedByAdmin,
 }: UseAdminOrderActionsProps) {
   // Modal 狀態
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
@@ -348,6 +350,10 @@ export function useAdminOrderActions({
     target: DeleteOrderChoiceTarget
   ) => {
     const targetIds = Array.isArray(target.id) ? target.id : [target.id];
+
+    if (markOrderPurgedByAdmin) {
+      markOrderPurgedByAdmin(targetIds);
+    }
 
     // 樂觀更新後台狀態
     setAllSubmissions((prev) => prev.filter((s) => !targetIds.includes(s.id)));

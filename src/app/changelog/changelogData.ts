@@ -17,10 +17,53 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v10.5.0',
+    releaseDate: '2026-09-05',
+    tag: 'Minor',
+    isLatest: true,
+    summary: '新增訂單取消與退回修改之即時語音播報、後台取消訂單全方位彈窗即時通知、後台通知偏好自訂開關，以及首頁版本號智慧動態同步校準。',
+    highlights: [
+      '🗣️ 訂單取消語音智慧提醒：顧客於前台退單或修改時，後台自動以臺灣國語播報',
+      '⚠️ 後台取消彈窗即時警示：即時彈出視窗展示取消顧客、單號、所屬店家、金額與品項明細',
+      '⚙️ 後台通知偏好獨立開關：支援自由切換新單/取消語音與彈窗通知，並持久化保存偏好',
+      '🏷️ 首頁版本號智慧動態校準：全面校準版本號格式化引擎，杜絕舊版號殘留與環境變數 fallback 顯示問題',
+    ],
+    items: [
+      {
+        type: 'feature',
+        title: '訂單取消與退回購物車即時語音提醒',
+        description:
+          '當顧客在前台點擊「取消訂單」或「修改訂單回到購物車」時，後台即時語音引擎會自動朗讀取消通知（支援完整明細與簡明摘要模式），確保團長第一時間掌握異動。',
+        badgeText: '新功能',
+      },
+      {
+        type: 'feature',
+        title: '後台訂單取消全方位彈窗即時警示',
+        description:
+          '顧客取消訂單時，後台畫面中央會自動跳出醒目警示彈窗，完整列出該顧客暱稱、單號、所屬店家、取消時間、總金額與原訂餐點品項明細。',
+        badgeText: '新功能',
+      },
+      {
+        type: 'enhancement',
+        title: '語音播報與通知設定面板全面升級',
+        description:
+          '後台設定視窗新增「新訂單語音自動報單」、「訂單取消語音提醒」與「訂單取消彈窗即時通知」三項獨立控制開關，並支援一鍵即時試聽取消播報效果。',
+        badgeText: '控制台升級',
+      },
+      {
+        type: 'fix',
+        title: '首頁版本號動態對齊與格式化引擎校準',
+        description:
+          '重構 formatVersionDisplay 格式化引擎，連結 Changelog 權威版本源，徹底修正首頁底部舊版號殘留與環境變數預設值異常之問題。',
+        badgeText: '核心修復',
+      },
+    ],
+  },
+  {
     version: 'v10.4.9',
     releaseDate: '2026-09-05',
     tag: 'Patch',
-    isLatest: true,
+    isLatest: false,
     summary: '全站雙核心法律條款（服務條款與隱私權政策）權威整併、更新日誌 (Changelog) 視覺化中心正式上線、全自動整合測試與 API 對齊達 100% 通過。',
     highlights: [
       '📜 服務條款與隱私權政策雙核心法規整併（包含 9 大契約條款與 8 大資安隱私章節）',

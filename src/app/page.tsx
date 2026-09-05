@@ -30,8 +30,8 @@ export default function HomePage() {
   const debouncedSearch = useDebounce(searchQuery, 200);
 
   // 取得環境變數中的 Git 資訊
-  const commitMsg = process.env.NEXT_PUBLIC_GIT_COMMIT_MSG || '咩nu 團購點餐平台';
-  const commitHash = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || 'v1.0.0';
+  const commitMsg = process.env.NEXT_PUBLIC_GIT_COMMIT_MSG || '咩nu 團購點餐平台 v10.5.0';
+  const commitHash = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || '';
 
   // 🌟 初始化全域 Realtime 快取監聽器
   useEffect(() => {

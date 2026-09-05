@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { GroupOrderAdmin, OrderSubmissionAdmin } from '../admin-types';
-import { SpeechOrderItem, SpeechOrderPayload } from './useAdminSpeech';
+import { SpeechOrderItem, SpeechOrderPayload, SpeechCancelledOrderPayload } from './useAdminSpeech';
+import { CancelledOrderNotification } from '../components/modals/AdminCancelledOrderModal';
 import { fetchAdminAllData } from './data/adminDataFetchers';
 
 interface RawOrderItemRow {
@@ -18,6 +19,8 @@ interface UseAdminDataProps {
   isUnlocked: boolean;
   playNewOrderSound: () => void;
   speakNewOrder: (order: SpeechOrderPayload, immediate?: boolean) => void;
+  speakCancelledOrder?: (order: SpeechCancelledOrderPayload) => void;
+  onOrderCancelled?: (cancelledOrder: CancelledOrderNotification) => void;
   showToast: (msg: string) => void;
 }
 
@@ -25,6 +28,8 @@ export function useAdminData({
   isUnlocked,
   playNewOrderSound,
   speakNewOrder,
+  speakCancelledOrder,
+  onOrderCancelled,
   showToast,
 }: UseAdminDataProps) {
   const [activeGroup, setActiveGroup] = useState<GroupOrderAdmin | null>(null);
@@ -44,6 +49,18 @@ export function useAdminData({
   const [allMenuItems, setAllMenuItems] = useState<MenuItem[]>([]);
   const [allSubmissions, setAllSubmissions] = useState<OrderSubmissionAdmin[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  const allSubmissionsRef = useRef<OrderSubmissionAdmin[]>([]);
+  useEffect(() => {
+    allSubmissionsRef.current = allSubmissions;
+  }, [allSubmissions]);
+
+  // 快取近期訂單主檔與品項明細，確保極速刪單時能完整提取明細
+  const recentOrdersCacheRef = useRef<Map<string, OrderSubmissionAdmin>>(new Map());
+  // 記錄管理員手動刪除/結單的 ID，防止誤觸顧客取消通知
+  const adminPurgedIdsRef = useRef<Set<string>>(new Set());
+  // 記錄已處理過取消通知的 ID，防止 Realtime 與輪詢重複通知
+  const processedCancelledIdsRef = useRef<Set<string>>(new Set());
 
   const [inputDeliveryFee, setInputDeliveryFee] = useState<number>(0);
   const [inputDiscount, setInputDiscount] = useState<number>(0);
@@ -116,6 +133,27 @@ export function useAdminData({
             }
           }
 
+          // 快取至近期訂單字典供極速取消時檢索
+          recentOrdersCacheRef.current.set(orderId, {
+            id: orderId,
+            user_nickname: nickname,
+            total_amount: totalAmount,
+            final_amount: totalAmount,
+            is_paid: false,
+            signature_data: null,
+            created_at: new Date(orderCreatedAt || Date.now()).toISOString(),
+            order_number: '',
+            payment_method_name: '',
+            sold_out_option: null,
+            order_items: items.map((item, idx) => ({
+              id: `item-${orderId}-${idx}`,
+              item_name: item.name,
+              quantity: item.quantity,
+              unit_price: 0,
+              custom_notes: item.notes || null,
+            })),
+          });
+
           speakNewOrder(
             {
               orderId,
@@ -141,6 +179,73 @@ export function useAdminData({
     },
     [playNewOrderSound, speakNewOrder, showToast]
   );
+
+  // 🚫 處理顧客於前台取消訂單 / 退回購物車修改
+  const handleOrderCancelled = useCallback(
+    (deletedId: string) => {
+      if (processedCancelledIdsRef.current.has(deletedId)) return;
+      if (adminPurgedIdsRef.current.has(deletedId)) return;
+
+      const targetSub =
+        allSubmissionsRef.current.find((s) => s.id === deletedId) ||
+        recentOrdersCacheRef.current.get(deletedId);
+
+      if (!targetSub) return;
+
+      processedCancelledIdsRef.current.add(deletedId);
+
+      const nickname = targetSub.user_nickname || '團員';
+      const storeName = targetSub.store_name || '';
+      const orderNumber = targetSub.order_number || '';
+      const totalAmount = targetSub.final_amount || targetSub.total_amount || 0;
+      const items = (targetSub.order_items || []).map((i) => ({
+        name: i.item_name,
+        quantity: i.quantity,
+        notes: i.custom_notes,
+        unitPrice: i.unit_price,
+      }));
+
+      // 1. 語音播報取消訂單
+      if (speakCancelledOrder) {
+        speakCancelledOrder({
+          orderId: deletedId,
+          nickname,
+          storeName,
+          orderNumber,
+          total_amount: totalAmount,
+          items: items.map((i) => ({ name: i.name, quantity: i.quantity, notes: i.notes })),
+        });
+      }
+
+      // 2. 彈窗通知
+      if (onOrderCancelled) {
+        const now = new Date();
+        const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now
+          .getMinutes()
+          .toString()
+          .padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        onOrderCancelled({
+          id: deletedId,
+          nickname,
+          orderNumber,
+          storeName,
+          totalAmount,
+          items,
+          cancelledAt: timeStr,
+        });
+      }
+
+      // 3. 浮動 Toast 提示
+      showToast(`⚠️ 注意：${nickname} 的 ${storeName ? storeName + ' ' : ''}訂單已取消`);
+    },
+    [speakCancelledOrder, onOrderCancelled, showToast]
+  );
+
+  // 標記管理員手動刪除/結單之 ID，防止誤觸顧客取消通知
+  const markOrderPurgedByAdmin = useCallback((ids: string | string[]) => {
+    const list = Array.isArray(ids) ? ids : [ids];
+    list.forEach((id) => adminPurgedIdsRef.current.add(id));
+  }, []);
 
   // ⚡ 根據選中的店家/活動在記憶體中即時過濾訂單
   const submissions = useMemo(() => {
@@ -190,10 +295,12 @@ export function useAdminData({
       setArchivedGroups(data.archivedGroups);
       setActiveGroups(data.activeGroups);
       setAllSubmissions(data.formattedSubs);
+      allSubmissionsRef.current = data.formattedSubs;
 
       data.formattedSubs.forEach((s) => {
         knownOrderIdsRef.current.add(s.id);
         processedNotificationIdsRef.current.add(s.id);
+        recentOrdersCacheRef.current.set(s.id, s);
       });
 
       if (isInitialLoadRef.current) {
@@ -271,6 +378,7 @@ export function useAdminData({
         (payload) => {
           const deletedId = (payload.old as any)?.id;
           if (deletedId) {
+            handleOrderCancelled(deletedId);
             setAllSubmissions((prev) => prev.filter((s) => s.id !== deletedId));
             knownOrderIdsRef.current.delete(deletedId);
           }
@@ -322,6 +430,7 @@ export function useAdminData({
             if (!currentIdSet.has(knownId)) {
               hasDeleted = true;
               knownOrderIdsRef.current.delete(knownId);
+              handleOrderCancelled(knownId);
             }
           }
 
@@ -338,7 +447,7 @@ export function useAdminData({
       supabase.removeChannel(channel);
       clearInterval(pollingTimer);
     };
-  }, [isUnlocked, fetchAdminData, notifyNewOrder]);
+  }, [isUnlocked, fetchAdminData, notifyNewOrder, handleOrderCancelled]);
 
   // 🌟 樂觀更新特定店家菜單品項順序
   const optimisticReorderMenuItems = useCallback((storeId: string, orderedItemIds: string[]) => {
@@ -394,5 +503,6 @@ export function useAdminData({
     setInputDiscount,
     roundingRule,
     setRoundingRule,
+    markOrderPurgedByAdmin,
   };
 }

@@ -275,11 +275,18 @@ export default function AdminPageContent() {
         setShowVoiceSettingsModal={c.setShowVoiceSettingsModal}
         isSpeechEnabled={c.isSpeechEnabled}
         toggleSpeech={c.toggleSpeech}
+        isCancelSpeechEnabled={c.isCancelSpeechEnabled}
+        toggleCancelSpeech={c.toggleCancelSpeech}
+        isCancelModalEnabled={c.isCancelModalEnabled}
+        toggleCancelModal={c.toggleCancelModal}
         speechMode={c.speechMode}
         setSpeechMode={c.setSpeechMode}
         speechRate={c.speechRate}
         setSpeechRate={c.setSpeechRate}
         playTestSpeech={c.playTestSpeech}
+        playTestCancelSpeech={c.playTestCancelSpeech}
+        cancelledOrderQueue={c.cancelledOrderQueue}
+        dismissCurrentCancelledOrder={c.dismissCurrentCancelledOrder}
       />
     </div>
   );
