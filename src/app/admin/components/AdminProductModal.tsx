@@ -4,6 +4,7 @@ import React from 'react';
 import { MenuItem, CustomGroup } from '@/types/database';
 import { Pencil, Plus } from 'lucide-react';
 import { ProductCustomGroupsManager } from './product-modal/ProductCustomGroupsManager';
+import { ProductSizePricingBuilder } from './product-modal/ProductSizePricingBuilder';
 
 interface ProductFormState {
   name: string;
@@ -127,6 +128,14 @@ export default function AdminProductModal({
               className="w-full bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 rounded-xl py-2 px-3 text-xs font-medium mt-1 focus:outline-none focus:ring-2 focus:ring-sky-400"
             />
           </div>
+
+          {/* 🥛 中杯 / 大杯與多尺寸個別定價構建器 */}
+          <ProductSizePricingBuilder
+            basePrice={parseInt(productForm.price, 10) || 0}
+            setBasePrice={(newBase) => setProductForm((prev) => ({ ...prev, price: newBase }))}
+            productCustomGroups={productCustomGroups}
+            setProductCustomGroups={setProductCustomGroups}
+          />
 
           {/* 客製化規格選項管理組件 */}
           <ProductCustomGroupsManager

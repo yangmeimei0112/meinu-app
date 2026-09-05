@@ -14,6 +14,88 @@ export interface CustomOptionPreset {
 
 export const BUILT_IN_CUSTOM_PRESETS: CustomOptionPreset[] = [
   {
+    id: 'preset-drink-sizes',
+    name: '飲料容量尺寸（中杯 / 大杯 / 特大杯 / 瓶裝）',
+    description: '標準手搖飲與咖啡杯型尺寸單選規格（中杯 +$0、大杯 +$10、特大杯 +$20）',
+    isBuiltIn: true,
+    category: 'beverage',
+    groups: [
+      {
+        id: 'builtin-grp-drink-size',
+        title: '容量尺寸',
+        type: 'single',
+        options: [
+          { id: 'opt-size-m', name: '中杯 (M)', price_adjustment: 0 },
+          { id: 'opt-size-l', name: '大杯 (L)', price_adjustment: 10 },
+          { id: 'opt-size-xl', name: '特大杯 (XL)', price_adjustment: 20 },
+          { id: 'opt-size-bottle', name: '分享瓶裝 (Bottle)', price_adjustment: 35 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'preset-drink-full-combo',
+    name: '經典茶飲全套（容量尺寸 + 甜度 + 冰塊）',
+    description: '中杯/大杯尺寸選擇結合台灣標準甜度與冰塊 3 組規格全套',
+    isBuiltIn: true,
+    category: 'beverage',
+    groups: [
+      {
+        id: 'builtin-grp-drink-size-combo',
+        title: '容量尺寸',
+        type: 'single',
+        options: [
+          { id: 'opt-combo-size-m', name: '中杯 (M)', price_adjustment: 0 },
+          { id: 'opt-combo-size-l', name: '大杯 (L)', price_adjustment: 10 },
+          { id: 'opt-combo-size-xl', name: '特大杯 (XL)', price_adjustment: 20 },
+        ],
+      },
+      {
+        id: 'builtin-grp-sweetness-combo',
+        title: '甜度',
+        type: 'single',
+        options: [
+          { id: 'opt-combo-sw-100', name: '正常糖 (100%)', price_adjustment: 0 },
+          { id: 'opt-combo-sw-70', name: '少糖 (70%)', price_adjustment: 0 },
+          { id: 'opt-combo-sw-50', name: '半糖 (50%)', price_adjustment: 0 },
+          { id: 'opt-combo-sw-30', name: '微糖 (30%)', price_adjustment: 0 },
+          { id: 'opt-combo-sw-0', name: '無糖 (0%)', price_adjustment: 0 },
+        ],
+      },
+      {
+        id: 'builtin-grp-ice-combo',
+        title: '冰塊',
+        type: 'single',
+        options: [
+          { id: 'opt-combo-ice-normal', name: '正常冰', price_adjustment: 0 },
+          { id: 'opt-combo-ice-less', name: '少冰', price_adjustment: 0 },
+          { id: 'opt-combo-ice-micro', name: '微冰', price_adjustment: 0 },
+          { id: 'opt-combo-ice-no', name: '去冰', price_adjustment: 0 },
+          { id: 'opt-combo-ice-hot', name: '溫熱', price_adjustment: 0 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'preset-food-portions',
+    name: '餐點份量大小（小份 / 中份 / 大份）',
+    description: '小份(+$0)、中份(+$15)、大份(+$30) 多尺寸單選份量規格',
+    isBuiltIn: true,
+    category: 'food',
+    groups: [
+      {
+        id: 'builtin-grp-food-portion',
+        title: '份量大小',
+        type: 'single',
+        options: [
+          { id: 'opt-portion-s', name: '小份 / 標準', price_adjustment: 0 },
+          { id: 'opt-portion-m', name: '中份', price_adjustment: 15 },
+          { id: 'opt-portion-l', name: '大份 (加大)', price_adjustment: 30 },
+        ],
+      },
+    ],
+  },
+  {
     id: 'preset-drink-sweet-ice',
     name: '經典茶飲（甜度 + 冰塊）',
     description: '台灣手搖飲最標準之甜度與冰塊 2 組規格組合',

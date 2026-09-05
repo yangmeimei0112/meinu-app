@@ -5,19 +5,24 @@ import { CustomGroup } from '@/types/database';
 
 interface CustomModalOptionGroupProps {
   group: CustomGroup;
+  basePrice?: number;
   selectedOptionIds: string[];
   onSelectOption: (group: CustomGroup, optionId: string) => void;
 }
 
 export function CustomModalOptionGroup({
   group,
+  basePrice = 0,
   selectedOptionIds,
   onSelectOption,
 }: CustomModalOptionGroupProps) {
+  const isSizeGroup = ['容量尺寸', '杯型尺寸', '尺寸', '份量大小', '份量'].includes(group.title.trim());
+
   return (
     <div className="pt-3 first:pt-0 space-y-2">
       <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-200">
         <span className="flex items-center gap-1">
+          {isSizeGroup && <span>🥛</span>}
           <span>{group.title}</span>
           {group.type === 'single' && <span className="text-sky-500">*</span>}
         </span>
@@ -28,9 +33,11 @@ export function CustomModalOptionGroup({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid gap-2 ${isSizeGroup ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
         {group.options.map((opt) => {
           const isChecked = selectedOptionIds.includes(opt.id);
+          const finalOptionPrice = basePrice + opt.price_adjustment;
+
           return (
             <button
               key={opt.id}
@@ -43,7 +50,15 @@ export function CustomModalOptionGroup({
               }`}
             >
               <span className="truncate mr-1">{opt.name}</span>
-              {opt.price_adjustment > 0 ? (
+              {isSizeGroup ? (
+                <span
+                  className={`text-[11px] font-black shrink-0 ${
+                    isChecked ? 'text-white' : 'text-sky-600 dark:text-sky-400'
+                  }`}
+                >
+                  ${finalOptionPrice}
+                </span>
+              ) : opt.price_adjustment > 0 ? (
                 <span
                   className={`text-[10px] font-extrabold shrink-0 ${
                     isChecked ? 'text-white' : 'text-sky-600 dark:text-sky-400'

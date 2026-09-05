@@ -245,6 +245,7 @@ export function useCustomModalState({
     errorMsg,
     detectedDraft,
     restoredToast,
+    singleUnitPrice,
     itemTotalPrice,
     handleRestoreDraft,
     handleDiscardDraft,

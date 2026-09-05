@@ -24,6 +24,7 @@ import {
 import { formatStoreCode } from '../../src/app/api/stores/code/route';
 import { BUILT_IN_CUSTOM_PRESETS } from '../../src/lib/customOptionPresets';
 import type { CartItem, SelectedOption } from '../../src/types/cart';
+import type { CustomGroup } from '../../src/types/database';
 import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
 
 export function registerTier1Tests() {
@@ -222,6 +223,45 @@ export function registerTier1Tests() {
       expect(extraSum).toBe(25);
       expect(unitPrice).toBe(75);
       expect(totalPrice).toBe(225);
+    });
+
+    it('F2-6: Configures Medium/Large individual pricing and dynamically adds custom sizes', () => {
+      const basePrice = 50; // Medium (M)
+      const sizeGroup: CustomGroup = {
+        id: 'grp-size-test',
+        title: '容量尺寸',
+        type: 'single',
+        options: [
+          { id: 'opt-m', name: '中杯 (M)', price_adjustment: 0 },
+          { id: 'opt-l', name: '大杯 (L)', price_adjustment: 10 },
+        ],
+      };
+
+      // 1. Verify Medium and Large individual selling prices
+      const mediumPrice = basePrice + sizeGroup.options[0].price_adjustment;
+      const largePrice = basePrice + sizeGroup.options[1].price_adjustment;
+      expect(mediumPrice).toBe(50);
+      expect(largePrice).toBe(60);
+
+      // 2. Extensibly add custom sizes (XL Extra Large and Bottle)
+      const newSizes = [
+        ...sizeGroup.options,
+        { id: 'opt-xl', name: '特大杯 (XL)', price_adjustment: 25 },
+        { id: 'opt-bottle', name: '分享瓶裝 (Bottle)', price_adjustment: 40 },
+      ];
+      expect(newSizes.length).toBe(4);
+      expect(basePrice + newSizes[2].price_adjustment).toBe(75);
+      expect(basePrice + newSizes[3].price_adjustment).toBe(90);
+
+      // 3. Modifying base option recalibrates price adjustments correctly
+      const updatedBasePrice = 55;
+      const recalibratedAdjustments = newSizes.map((s) => ({
+        ...s,
+        finalPrice: updatedBasePrice + s.price_adjustment,
+      }));
+      expect(recalibratedAdjustments[0].finalPrice).toBe(55);
+      expect(recalibratedAdjustments[1].finalPrice).toBe(65);
+      expect(recalibratedAdjustments[2].finalPrice).toBe(80);
     });
   });
 

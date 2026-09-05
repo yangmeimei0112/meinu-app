@@ -38,6 +38,7 @@ export default function CustomModal({
     errorMsg,
     detectedDraft,
     restoredToast,
+    singleUnitPrice,
     itemTotalPrice,
     handleRestoreDraft,
     handleDiscardDraft,
@@ -62,7 +63,7 @@ export default function CustomModal({
         {/* Modal 頂部標題 */}
         <CustomModalHeader
           name={item.name}
-          price={item.price}
+          price={singleUnitPrice}
           isEditMode={!!existingCartItem}
           onClose={onClose}
         />
@@ -83,6 +84,7 @@ export default function CustomModal({
               <CustomModalOptionGroup
                 key={group.id}
                 group={group}
+                basePrice={item.price}
                 selectedOptionIds={selectedOptions[group.id] || []}
                 onSelectOption={handleSelectOption}
               />

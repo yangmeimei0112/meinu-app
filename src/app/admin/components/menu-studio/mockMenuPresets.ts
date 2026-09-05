@@ -12,6 +12,16 @@ export const MOCK_BEVERAGE_ITEMS: RecognizedItem[] = [
     selected: true,
     custom_groups: [
       {
+        id: 'cg_size_1',
+        title: '容量尺寸',
+        type: 'single',
+        options: [
+          { id: 'opt_sz_m', name: '中杯 (M)', price: 0, is_default: true },
+          { id: 'opt_sz_l', name: '大杯 (L)', price: 10 },
+          { id: 'opt_sz_xl', name: '特大杯 (XL)', price: 20 },
+        ],
+      },
+      {
         id: 'cg_sweet_1',
         title: '甜度選擇',
         type: 'single',

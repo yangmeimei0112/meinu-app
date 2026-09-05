@@ -15,6 +15,17 @@ function StoreProductCardInner({ item, popularQty, onSelect }: StoreProductCardP
   // P2-C：短暫 ✓ 視覺反饋狀態
   const [justAdded, setJustAdded] = useState(false);
 
+  // 🥛 偵測是否含有「容量尺寸/份量」多價格規格
+  const sizeGroup = item.custom_groups?.find((g) =>
+    ['容量尺寸', '杯型尺寸', '尺寸', '份量大小', '份量'].includes(g.title.trim())
+  );
+  const hasMultipleSizes = !!(sizeGroup && sizeGroup.options && sizeGroup.options.length > 1);
+  const sizePriceAdjustments = sizeGroup?.options.map((o) => o.price_adjustment) || [0];
+  const minAdjust = Math.min(...sizePriceAdjustments);
+  const maxAdjust = Math.max(...sizePriceAdjustments);
+  const startingPrice = item.price + minAdjust;
+  const isVariablePrice = hasMultipleSizes && minAdjust !== maxAdjust;
+
   const handleSelect = useCallback(() => {
     if (isSoldOut) return;
     onSelect(item);
@@ -33,8 +44,13 @@ function StoreProductCardInner({ item, popularQty, onSelect }: StoreProductCardP
       }`}
     >
       <div className="space-y-1.5 flex-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base">{item.name}</h4>
+          {hasMultipleSizes && (
+            <span className="bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200/80 dark:border-sky-800/60 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-2xs">
+              <span>{sizeGroup.options.length >= 2 ? '中/大杯' : '多尺寸'}</span>
+            </span>
+          )}
           {isSoldOut && (
             <span className="bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300 dark:border-slate-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
               <Ban className="w-3 h-3 text-slate-400" />
@@ -51,7 +67,11 @@ function StoreProductCardInner({ item, popularQty, onSelect }: StoreProductCardP
         {item.description && (
           <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2">{item.description}</p>
         )}
-        <p className="text-sm font-extrabold text-sky-600 dark:text-sky-400">${item.price} 元</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-black text-sky-600 dark:text-sky-400">
+            ${startingPrice} {isVariablePrice ? '起' : '元'}
+          </p>
+        </div>
       </div>
 
       <button

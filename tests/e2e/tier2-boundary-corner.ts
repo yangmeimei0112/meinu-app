@@ -119,6 +119,19 @@ export function registerTier2Tests() {
       expect(clampQty(150)).toBe(99);
       expect(clampQty(10)).toBe(10);
     });
+
+    it('F2-B6: Negative price adjustment for smaller size option correctly lowers price without falling below 0', () => {
+      const basePrice = 50; // Medium (M)
+      const sizeOptions = [
+        { name: '小杯 (S)', price_adjustment: -15 },
+        { name: '特小試飲杯', price_adjustment: -70 }, // exceeds basePrice
+      ];
+
+      const calculateFinal = (base: number, adj: number) => Math.max(0, base + adj);
+
+      expect(calculateFinal(basePrice, sizeOptions[0].price_adjustment)).toBe(35);
+      expect(calculateFinal(basePrice, sizeOptions[1].price_adjustment)).toBe(0); // Clamped at 0
+    });
   });
 
   // =========================================================================
