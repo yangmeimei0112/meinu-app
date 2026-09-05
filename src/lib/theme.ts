@@ -36,7 +36,7 @@ export function useTheme() {
   }, []);
 
   const setTheme = useCallback(
-    (newTheme: ThemeMode, event?: React.MouseEvent | { clientX: number; clientY: number }) => {
+    (newTheme: ThemeMode) => {
       if (newTheme === theme) return;
 
       if (typeof document === 'undefined') {
@@ -44,85 +44,27 @@ export function useTheme() {
         return;
       }
 
-      // 1. 啟動階梯式模組過渡引擎 (Staggered Cascading Engine)
-      // 讓頁面各模組按空間視覺順序依序優雅接續過渡，徹底消除全站同時切換的閃爍生硬感
+      // 🌊 啟動純粹的模塊接續階梯過渡引擎 (Staggered Cascading Theme Engine)
+      // 頁面各個視覺區塊按空間由上至下、由焦點向外以微小順序延遲接續變換，呈現骨牌／水波漣漪般的流體節奏感
       if (transitionTimerRef.current) {
         clearTimeout(transitionTimerRef.current);
       }
       document.documentElement.classList.add('theme-transitioning');
+      applyTheme(newTheme);
+
       transitionTimerRef.current = setTimeout(() => {
         document.documentElement.classList.remove('theme-transitioning');
         transitionTimerRef.current = null;
       }, 750);
-
-      // 2. 檢查瀏覽器是否支援現代 View Transitions API 且未開啟「減少動態效果」
-      const isViewTransitionSupported =
-        'startViewTransition' in document &&
-        typeof window !== 'undefined' &&
-        !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      if (!isViewTransitionSupported) {
-        applyTheme(newTheme);
-        return;
-      }
-
-      // 取得觸發點座標（若未傳入則預設螢幕中心）
-      const x = event ? ('clientX' in event ? event.clientX : window.innerWidth / 2) : window.innerWidth / 2;
-      const y = event ? ('clientY' in event ? event.clientY : window.innerHeight / 2) : window.innerHeight / 2;
-      const endRadius = Math.hypot(
-        Math.max(x, window.innerWidth - x),
-        Math.max(y, window.innerHeight - y)
-      );
-
-      const transition = (document as any).startViewTransition(() => {
-        applyTheme(newTheme);
-      });
-
-      transition.ready.then(() => {
-        // 🌟 防刺眼柔光擴散波 (Anti-Glare Feathered Luminescence Wave)
-        // 新主題層由觸發點以極度柔順的羽化波紋擴散，伴隨微調透明度與色溫平滑過渡，徹底消除強光爆閃與生硬切割感
-        const isSwitchingToLight = newTheme === 'light';
-
-        document.documentElement.animate(
-          [
-            {
-              clipPath: `circle(0px at ${x}px ${y}px)`,
-              opacity: isSwitchingToLight ? 0.35 : 0.5,
-              filter: isSwitchingToLight ? 'brightness(0.96) saturate(0.95)' : 'brightness(1.05)',
-            },
-            {
-              clipPath: `circle(${endRadius}px at ${x}px ${y}px)`,
-              opacity: 1,
-              filter: 'brightness(1) saturate(1)',
-            },
-          ],
-          {
-            duration: 620,
-            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-            pseudoElement: '::view-transition-new(root)',
-          }
-        );
-
-        document.documentElement.animate(
-          [
-            { opacity: 1, transform: 'scale(1)' },
-            { opacity: 0.7, transform: 'scale(0.998)' },
-          ],
-          {
-            duration: 520,
-            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-            pseudoElement: '::view-transition-old(root)',
-          }
-        );
-      });
     },
     [theme, applyTheme]
   );
 
   const toggleTheme = useCallback(
-    (event?: React.MouseEvent | { clientX: number; clientY: number }) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    (_event?: any) => {
       const nextTheme: ThemeMode = theme === 'dark' ? 'light' : 'dark';
-      setTheme(nextTheme, event);
+      setTheme(nextTheme);
     },
     [theme, setTheme]
   );
