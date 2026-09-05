@@ -137,7 +137,6 @@ export function useAdminPageCoordinator() {
     categories,
     paymentMethods,
     soldOutOptions,
-    allMenuItems,
     optimisticReorderMenuItems,
     fetchAdminData,
     showToast,

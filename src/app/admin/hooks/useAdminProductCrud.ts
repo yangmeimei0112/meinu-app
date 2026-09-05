@@ -8,7 +8,6 @@ import { patchStoreMenuItem } from '@/lib/storeMenuCache';
 import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminProductCrudProps {
-  allMenuItems: MenuItem[];
   optimisticReorderMenuItems?: (storeId: string, orderedItemIds: string[]) => void;
   fetchAdminData: (targetGroupId?: string, isSilent?: boolean) => Promise<void>;
   showToast: (msg: string) => void;
@@ -17,7 +16,6 @@ interface UseAdminProductCrudProps {
 }
 
 export function useAdminProductCrud({
-  allMenuItems,
   optimisticReorderMenuItems,
   fetchAdminData,
   showToast,
@@ -136,12 +134,10 @@ export function useAdminProductCrud({
       showToast('餐點已更新！');
     } else {
       if (!selectedCrudStoreId) return;
-      const storeItems = allMenuItems.filter((i) => i.store_id === selectedCrudStoreId);
-      const nextSort = storeItems.length > 0 ? Math.max(...storeItems.map((i) => i.sort_order || 0)) + 1 : 1;
 
       const { error } = await supabase
         .from('menu_items')
-        .insert([{ ...payload, store_id: selectedCrudStoreId, sort_order: nextSort }]);
+        .insert([{ ...payload, store_id: selectedCrudStoreId }]);
 
       if (error) {
         console.error('新增餐點失敗:', error);

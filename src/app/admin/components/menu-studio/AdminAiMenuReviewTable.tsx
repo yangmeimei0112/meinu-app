@@ -112,28 +112,14 @@ export function AdminAiMenuReviewTable({
       setIsSaving(true);
       setErrorMessage(null);
 
-      // 查詢當前店家最大的 sort_order
-      let baseSortOrder = 0;
-      const { data: currentList } = await supabase
-        .from('menu_items')
-        .select('sort_order')
-        .eq('store_id', storeId)
-        .order('sort_order', { ascending: false })
-        .limit(1);
-
-      if (currentList && currentList.length > 0 && typeof currentList[0].sort_order === 'number') {
-        baseSortOrder = currentList[0].sort_order + 1;
-      }
-
       // 組裝寫入 payload
-      const rowsToInsert = targetItems.map((item, index) => ({
+      const rowsToInsert = targetItems.map((item) => ({
         store_id: storeId,
         name: item.name.trim(),
         price: Number(item.price) || 0,
         description: item.description?.trim() || null,
         is_sold_out: Boolean(item.is_sold_out),
         custom_groups: item.custom_groups || [],
-        sort_order: baseSortOrder + index,
       }));
 
       const { error } = await supabase.from('menu_items').insert(rowsToInsert).select();

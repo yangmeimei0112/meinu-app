@@ -247,30 +247,14 @@ export default function AdminBatchProductStudioModal({
     setIsSubmitting(true);
 
     try {
-      // 取得門市目前最大 sort_order
-      const { data: existingItems, error: queryError } = await supabase
-        .from('menu_items')
-        .select('sort_order')
-        .eq('store_id', store.id)
-        .order('sort_order', { ascending: false })
-        .limit(1);
-
-      if (queryError) throw queryError;
-
-      const baseSortOrder =
-        existingItems && existingItems.length > 0 && existingItems[0].sort_order
-          ? existingItems[0].sort_order + 1
-          : 1;
-
       // 組合 insert payloads
-      const payloads = validRows.map((row, index) => ({
+      const payloads = validRows.map((row) => ({
         store_id: store.id,
         name: row.name.trim(),
         price: Number(row.price),
         description: row.description.trim() || null,
         is_sold_out: row.is_sold_out,
         custom_groups: row.custom_groups.length > 0 ? row.custom_groups : null,
-        sort_order: baseSortOrder + index,
       }));
 
       const { error: insertError } = await supabase.from('menu_items').insert(payloads);

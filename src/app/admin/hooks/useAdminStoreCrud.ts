@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
+import { Store, Category, PaymentMethod, SoldOutOption } from '@/types/database';
 import { compressImageToWebP, dataUrlToFile } from '@/lib/image-compress';
 import { AdminConfirmModalState } from '../admin-types';
 import { useAdminCategoryCrud } from './useAdminCategoryCrud';
@@ -14,7 +14,6 @@ interface UseAdminStoreCrudProps {
   categories: Category[];
   paymentMethods: PaymentMethod[];
   soldOutOptions: SoldOutOption[];
-  allMenuItems: MenuItem[];
   optimisticReorderMenuItems?: (storeId: string, orderedItemIds: string[]) => void;
   fetchAdminData: (targetGroupId?: string, isSilent?: boolean) => Promise<void>;
   showToast: (msg: string) => void;
@@ -25,7 +24,6 @@ interface UseAdminStoreCrudProps {
 export function useAdminStoreCrud({
   stores,
   categories,
-  allMenuItems,
   optimisticReorderMenuItems,
   fetchAdminData,
   showToast,
@@ -84,7 +82,6 @@ export function useAdminStoreCrud({
     handleToggleProductSoldOut,
     handleReorderProducts,
   } = useAdminProductCrud({
-    allMenuItems,
     optimisticReorderMenuItems,
     fetchAdminData,
     showToast,
@@ -185,15 +182,16 @@ export function useAdminStoreCrud({
       console.warn('檢查代號略過:', err);
     }
 
-    const payload = {
+    const dbPayload = {
       name: storeForm.name.trim(),
       category_id: storeForm.category_id || null,
       image_url: imageUrl,
-      code: storeCode,
     };
 
+    let targetStoreId = editingStore ? editingStore.id : null;
+
     if (editingStore) {
-      const { error } = await supabase.from('stores').update(payload).eq('id', editingStore.id);
+      const { error } = await supabase.from('stores').update(dbPayload).eq('id', editingStore.id);
       if (error) {
         console.error('更新店家失敗:', error);
         showToast(formatErrorMessage(error, '更新店家失敗，請檢查資料欄位'));
@@ -202,14 +200,36 @@ export function useAdminStoreCrud({
       }
       showToast('店家資料已更新！');
     } else {
-      const { error } = await supabase.from('stores').insert([{ ...payload, is_active: true }]);
+      const { data, error } = await supabase
+        .from('stores')
+        .insert([{ ...dbPayload, is_active: true }])
+        .select('id')
+        .single();
+
       if (error) {
         console.error('新增店家失敗:', error);
-        showToast(formatErrorMessage(error, '新增店家失敗，請檢查代號是否重複'));
+        showToast(formatErrorMessage(error, '新增店家失敗，請檢查資料欄位'));
         setUploadingImage(false);
         return;
       }
+      targetStoreId = data?.id || null;
       showToast('店家新增成功！');
+    }
+
+    // 註冊店家代號至專屬編號服務
+    if (targetStoreId) {
+      try {
+        await fetch('/api/stores/code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storeId: targetStoreId,
+            code: storeCode,
+          }),
+        });
+      } catch (err) {
+        console.warn('儲存店家編號略過:', err);
+      }
     }
 
     setUploadingImage(false);
