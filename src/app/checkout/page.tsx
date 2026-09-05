@@ -9,6 +9,7 @@ import BudgetLimitNotice from '@/components/BudgetLimitNotice';
 import CheckoutSummary from './components/CheckoutSummary';
 import CheckoutCustomerForm from './components/CheckoutCustomerForm';
 import CheckoutOptions from './components/CheckoutOptions';
+import CheckoutSignatureSection from './components/CheckoutSignatureSection';
 import OrderSuccessModal from '@/components/OrderSuccessModal';
 import { ChevronLeft, ClipboardList, ArrowRight, Loader2 } from 'lucide-react';
 import { useCheckoutOrder } from './hooks/useCheckoutOrder';
@@ -28,6 +29,8 @@ function CheckoutContent() {
     setSelectedPayment,
     selectedSoldOut,
     setSelectedSoldOut,
+    signatureData,
+    setSignatureData,
     honeypotTrap,
     setHoneypotTrap,
     toastMessage,
@@ -119,6 +122,13 @@ function CheckoutContent() {
               selectedSoldOut={selectedSoldOut}
               onSelectSoldOut={setSelectedSoldOut}
               onCopyAccount={handleCopyAccount}
+            />
+
+            {/* 5. 對帳手繪簽名 */}
+            <CheckoutSignatureSection
+              nickname={nickname}
+              signatureData={signatureData}
+              onSignatureChange={setSignatureData}
             />
 
             <button

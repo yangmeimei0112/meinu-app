@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { verifyAdminToken } from '@/lib/auth-util';
 
 const configFilePath = path.join(process.cwd(), 'src', 'data', 'menu_order.json');
 const tmpFilePath = path.join('/tmp', 'meinu_menu_order.json');
@@ -88,8 +89,6 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-import { verifyAdminToken } from '@/lib/auth-util';
 
 // POST: 儲存指定店家的菜單品項排序清單（具備團長身分鑑權保護）
 export async function POST(request: NextRequest) {

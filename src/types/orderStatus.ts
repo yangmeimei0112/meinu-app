@@ -1,4 +1,4 @@
-export type OrderProgressStatus = 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+export type OrderProgressStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled';
 
 export interface OrderProgressStep {
   key: OrderProgressStatus;
@@ -9,9 +9,10 @@ export interface OrderProgressStep {
 
 export const ORDER_PROGRESS_STEPS: OrderProgressStep[] = [
   { key: 'pending', label: '已送單', stepNumber: 1, description: '訂單已送出，待確認' },
-  { key: 'preparing', label: '備餐中', stepNumber: 2, description: '店家已接單，製作中' },
-  { key: 'ready', label: '待取餐', stepNumber: 3, description: '餐點備妥，請取餐' },
-  { key: 'completed', label: '已完成', stepNumber: 4, description: '已取餐，用餐愉快' },
+  { key: 'confirmed', label: '已確認', stepNumber: 2, description: '店家已接單，安排中' },
+  { key: 'preparing', label: '備餐中', stepNumber: 3, description: '店家已接單，製作中' },
+  { key: 'ready', label: '待取餐', stepNumber: 4, description: '餐點備妥，請取餐' },
+  { key: 'completed', label: '已完成', stepNumber: 5, description: '已取餐，用餐愉快' },
 ];
 
 export interface OrderStatusConfig {
@@ -34,6 +35,15 @@ export const ORDER_STATUS_META: Record<OrderProgressStatus, OrderStatusConfig> =
     description: '系統已接收您的訂單，店家正準備排單處理中...',
     stepIndex: 0,
   },
+  confirmed: {
+    label: '已確認',
+    badgeBg: 'bg-blue-50 dark:bg-blue-950/60',
+    badgeText: 'text-blue-700 dark:text-blue-300',
+    badgeBorder: 'border-blue-200 dark:border-blue-800/60',
+    title: '店家已確認接單',
+    description: '店家已收到並確認您的訂單，即將開始製作餐點。',
+    stepIndex: 1,
+  },
   preparing: {
     label: '製作中',
     badgeBg: 'bg-sky-50 dark:bg-sky-950/60',
@@ -41,7 +51,7 @@ export const ORDER_STATUS_META: Record<OrderProgressStatus, OrderStatusConfig> =
     badgeBorder: 'border-sky-200 dark:border-sky-800/60',
     title: '店家接單中，美味精心製作',
     description: '您的餐點正在熱烈烹調製作中，請稍候片刻！',
-    stepIndex: 1,
+    stepIndex: 2,
   },
   ready: {
     label: '待取餐',
@@ -50,7 +60,7 @@ export const ORDER_STATUS_META: Record<OrderProgressStatus, OrderStatusConfig> =
     badgeBorder: 'border-indigo-200 dark:border-indigo-800/60',
     title: '餐點已備妥，請前往取餐！',
     description: '熱騰騰的餐點已準備完成，請儘速前往領取或等待外送員送達。',
-    stepIndex: 2,
+    stepIndex: 3,
   },
   completed: {
     label: '已完成',
@@ -59,7 +69,7 @@ export const ORDER_STATUS_META: Record<OrderProgressStatus, OrderStatusConfig> =
     badgeBorder: 'border-emerald-200 dark:border-emerald-800/60',
     title: '訂單已圓滿完成！',
     description: '感謝您的訂購，祝您用餐愉快！',
-    stepIndex: 3,
+    stepIndex: 4,
   },
   cancelled: {
     label: '已取消',
@@ -83,11 +93,11 @@ export function parseOrderProgressStatus(signatureUrl?: string | null): OrderPro
     const trimmed = signatureUrl.trim();
     if (trimmed.startsWith('{')) {
       const parsed = JSON.parse(trimmed);
-      if (parsed.status && ['pending', 'preparing', 'ready', 'completed', 'cancelled'].includes(parsed.status)) {
+      if (parsed.status && ['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'].includes(parsed.status)) {
         return parsed.status as OrderProgressStatus;
       }
     }
-    if (['pending', 'preparing', 'ready', 'completed', 'cancelled'].includes(trimmed)) {
+    if (['pending', 'confirmed', 'preparing', 'ready', 'completed', 'cancelled'].includes(trimmed)) {
       return trimmed as OrderProgressStatus;
     }
   } catch {}
@@ -119,7 +129,12 @@ export function isOrderHiddenFromAdmin(signatureUrl?: string | null): boolean {
     const trimmed = signatureUrl.trim();
     if (trimmed.startsWith('{')) {
       const parsed = JSON.parse(trimmed);
-      if (parsed.hidden_from_admin === true || parsed.status === 'purged') {
+      if (
+        parsed.hidden_from_admin === true ||
+        parsed.status === 'purged' ||
+        parsed.purged === true ||
+        parsed.tombstone === 'purge_everywhere'
+      ) {
         return true;
       }
       if (typeof parsed.note === 'string' && parsed.note.includes('後台結單刪除')) {

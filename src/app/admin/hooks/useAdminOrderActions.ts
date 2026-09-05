@@ -260,10 +260,10 @@ export function useAdminOrderActions({
     }
   };
 
-  // 🌟 8.5 更新訂單進度狀態 (待確認、備餐中、待取餐、已完成、已取消)
+  // 🌟 8.5 更新訂單進度狀態 (待確認、已確認、備餐中、待取餐、已完成、已取消)
   const handleUpdateProgressStatus = async (
     subId: string,
-    newStatus: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled',
+    newStatus: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled',
     note?: string
   ) => {
     const payloadSignatureUrl = JSON.stringify({
@@ -274,6 +274,7 @@ export function useAdminOrderActions({
 
     const labelMap: Record<string, string> = {
       pending: '待確認',
+      confirmed: '已確認',
       preparing: '製作中',
       ready: '待取餐',
       completed: '已完成',
@@ -282,7 +283,7 @@ export function useAdminOrderActions({
 
     setAllSubmissions((prev) =>
       prev.map((s) =>
-        s.id === subId ? { ...s, progress_status: newStatus, signature_url: payloadSignatureUrl } : s
+        s.id === subId ? { ...s, progress_status: newStatus as any, signature_url: payloadSignatureUrl } : s
       )
     );
 
@@ -302,7 +303,7 @@ export function useAdminOrderActions({
 
   // 🌟 8.6 批次變更訂單進度狀態
   const handleBatchUpdateProgressStatus = async (
-    newStatus: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled'
+    newStatus: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled'
   ) => {
     if (!selectedSubmissionIds.length) return;
     const idsToUpdate = [...selectedSubmissionIds];
@@ -316,6 +317,7 @@ export function useAdminOrderActions({
 
     const labelMap: Record<string, string> = {
       pending: '待確認',
+      confirmed: '已確認',
       preparing: '製作中',
       ready: '待取餐',
       completed: '已完成',
@@ -325,7 +327,7 @@ export function useAdminOrderActions({
     setAllSubmissions((prev) =>
       prev.map((s) =>
         idsToUpdate.includes(s.id)
-          ? { ...s, progress_status: newStatus, signature_url: payloadSignatureUrl }
+          ? { ...s, progress_status: newStatus as any, signature_url: payloadSignatureUrl }
           : s
       )
     );
@@ -341,6 +343,25 @@ export function useAdminOrderActions({
       console.error('批次更新訂單進度失敗:', error);
       fetchAdminData(selectedActiveGroupIdRef.current, true);
       showToast('批次更新進度失敗');
+    }
+  };
+
+  // 🌟 8.7 快捷單步推進訂單進度狀態 (pending -> confirmed -> preparing -> ready -> completed)
+  const handleAdvanceProgressStatus = async (
+    subId: string,
+    currentStatus?: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled'
+  ) => {
+    const targetSub = allSubmissions.find((s) => s.id === subId);
+    const curr = currentStatus || targetSub?.progress_status || 'pending';
+    const nextMap: Partial<Record<string, 'pending' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'cancelled'>> = {
+      pending: 'confirmed',
+      confirmed: 'preparing',
+      preparing: 'ready',
+      ready: 'completed',
+    };
+    const next = nextMap[curr];
+    if (next) {
+      await handleUpdateProgressStatus(subId, next);
     }
   };
 
@@ -382,10 +403,11 @@ export function useAdminOrderActions({
 
         if (updateErr) throw updateErr;
       } else {
-        // ⚠️ 徹底抹除（前後台全數刪除）：先廣播抹除標記，再從資料庫徹底刪除
+        // ⚠️ 徹底抹除（前後台全數刪除）：先廣播抹除 tombstone 標記，再從資料庫徹底刪除
         const payloadSignatureUrl = JSON.stringify({
           status: 'purged',
           tombstone: 'purge_everywhere',
+          purged: true,
           updated_at: new Date().toISOString(),
         });
         await supabase
@@ -395,7 +417,9 @@ export function useAdminOrderActions({
 
         await supabase.from('order_items').delete().in('submission_id', targetIds);
         const { error: delErr } = await supabase.from('order_submissions').delete().in('id', targetIds);
-        if (delErr) throw delErr;
+        if (delErr) {
+          console.warn('徹底抹除 order_submissions 記錄提示:', delErr);
+        }
       }
 
       fetchAdminData(selectedActiveGroupIdRef.current, true);
@@ -406,104 +430,32 @@ export function useAdminOrderActions({
     }
   };
 
-  // 9. 刪除單筆訂單（智慧狀態分流）
+  // 9. 刪除單筆訂單（全狀態支援智慧選擇與徹底抹除雙重警告）
   const handleDeleteOrder = (subId: string, nickname: string, orderNumber: string) => {
     const targetSub = allSubmissions.find((s) => s.id === subId);
     const progressStatus = targetSub?.progress_status || 'pending';
 
-    // 若訂單處於進行中狀態 (preparing 製作中 或 ready 待取餐)
-    if (progressStatus === 'preparing' || progressStatus === 'ready') {
-      setDeleteChoiceTarget({
-        id: subId,
-        orderNumber,
-        nickname,
-        currentStatus: progressStatus,
-      });
-      return;
-    }
-
-    // 若訂單已完成 (completed)
-    if (progressStatus === 'completed') {
-      openAdminConfirmModal({
-        isOpen: true,
-        title: '刪除已完成訂單',
-        message: `確定要從後台刪除「${nickname}」的已完成訂單 #${orderNumber} 嗎？前台顧客端將保留紀錄並顯示為【已完成】。`,
-        confirmText: '確定刪除',
-        cancelText: '取消',
-        isDanger: true,
-        onConfirm: async () => {
-          closeAdminConfirmModal();
-          handleConfirmDeleteChoice('mark_completed', {
-            id: subId,
-            orderNumber,
-            nickname,
-            currentStatus: 'completed',
-          });
-        },
-      });
-      return;
-    }
-
-    // 若訂單為等待中 (pending) 或已取消 (cancelled)
-    openAdminConfirmModal({
-      isOpen: true,
-      title: '刪除訂單',
-      message: `確定要從後台刪除「${nickname}」的訂單 #${orderNumber} 嗎？前台顧客端將保留紀錄並顯示為【已取消】。`,
-      confirmText: '確定刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        closeAdminConfirmModal();
-        handleConfirmDeleteChoice('mark_cancelled', {
-          id: subId,
-          orderNumber,
-          nickname,
-          currentStatus: progressStatus,
-        });
-      },
+    setDeleteChoiceTarget({
+      id: subId,
+      orderNumber,
+      nickname,
+      currentStatus: progressStatus,
     });
   };
 
-  // 10. 批次刪除訂單（智慧狀態分流）
+  // 10. 批次刪除訂單（全狀態支援智慧選擇與徹底抹除雙重警告）
   const handleBatchDeleteOrders = () => {
     if (!selectedSubmissionIds.length) return;
     const idsToDelete = [...selectedSubmissionIds];
     const count = idsToDelete.length;
 
     const selectedSubs = allSubmissions.filter((s) => idsToDelete.includes(s.id));
-    const hasInProgress = selectedSubs.some(
-      (s) => s.progress_status === 'preparing' || s.progress_status === 'ready'
-    );
+    const firstStatus = selectedSubs[0]?.progress_status || 'pending';
 
-    // 若選取的訂單中有進行中的項目
-    if (hasInProgress) {
-      setDeleteChoiceTarget({
-        id: idsToDelete,
-        count,
-        currentStatus: 'preparing',
-      });
-      return;
-    }
-
-    const allCompleted = selectedSubs.every((s) => s.progress_status === 'completed');
-    const targetStatus = allCompleted ? 'mark_completed' : 'mark_cancelled';
-    const statusLabel = allCompleted ? '已完成' : '已取消';
-
-    openAdminConfirmModal({
-      isOpen: true,
-      title: '批次刪除訂單',
-      message: `確定要批次刪除選取的 ${count} 筆訂單嗎？前台顧客端將保留紀錄並顯示為【${statusLabel}】。`,
-      confirmText: '確定批次刪除',
-      cancelText: '取消',
-      isDanger: true,
-      onConfirm: async () => {
-        closeAdminConfirmModal();
-        handleConfirmDeleteChoice(targetStatus, {
-          id: idsToDelete,
-          count,
-          currentStatus: allCompleted ? 'completed' : 'pending',
-        });
-      },
+    setDeleteChoiceTarget({
+      id: idsToDelete,
+      count,
+      currentStatus: firstStatus,
     });
   };
 
@@ -542,6 +494,7 @@ export function useAdminOrderActions({
     handleBatchMarkPaid,
     handleUpdateProgressStatus,
     handleBatchUpdateProgressStatus,
+    handleAdvanceProgressStatus,
     handleDeleteOrder,
     handleBatchDeleteOrders,
     handleCopyPersonalReceipt: (sub: OrderSubmissionAdmin) => copyPersonalReceipt(sub, showToast),

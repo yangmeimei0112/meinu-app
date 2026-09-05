@@ -61,9 +61,9 @@ export function AdminDeleteOrderChoiceModal({
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-                {isBatch ? `批次刪除 ${target.count} 筆訂單狀態設定` : '進行中訂單刪除確認'}
+                {isBatch ? `批次刪除 ${target.count} 筆訂單` : '訂單刪除確認'}
               </h3>
-              <p className="text-xs text-slate-400">請指定刪除後為前台顧客顯示的訂單狀態</p>
+              <p className="text-xs text-slate-400">請指定刪除模式：自後台隱藏（前台留存歷史）或徹底抹除</p>
             </div>
           </div>
           <button
@@ -90,7 +90,7 @@ export function AdminDeleteOrderChoiceModal({
               </span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-              此訂單目前處於進行中階段，直接從後台刪除時，請選擇欲為前台點餐成員顯示之狀態：
+              直接從後台刪除此訂單時，請選擇欲為前台點餐成員顯示之狀態，或執行徹底抹除：
             </p>
           </div>
 

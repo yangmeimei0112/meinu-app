@@ -13,6 +13,9 @@ export interface OrderItemDetail {
   quantity: number;
   unit_price: number;
   custom_notes: string | null;
+  menuItemId?: string;
+  selectedOptions?: any[];
+  rawCustomSelections?: Record<string, string[]>;
 }
 
 export interface OrderSubmissionDetail {
@@ -190,7 +193,17 @@ export function useOrderStatus(submissionId: string) {
         .eq('submission_id', submissionId);
 
       if (itemsData) {
-        setOrderItems(itemsData);
+        setOrderItems((prevItems) => {
+          return itemsData.map((item, idx) => {
+            const prev = prevItems.find((p) => p.id === item.id || p.item_name === item.item_name) || prevItems[idx];
+            return {
+              ...item,
+              menuItemId: prev?.menuItemId,
+              selectedOptions: prev?.selectedOptions,
+              rawCustomSelections: prev?.rawCustomSelections,
+            };
+          });
+        });
       }
 
       // 計算剩餘秒數
@@ -358,18 +371,130 @@ export function useOrderStatus(submissionId: string) {
         const storeId = groupOrder?.store_id || 'unknown_store';
         const storeName = groupOrder?.stores?.name || '店家';
 
-        const restoredItems: CartItem[] = orderItems.map((item, idx) => ({
-          cartItemId: `restore-${item.id}-${idx}`,
-          menuItemId: item.id,
-          storeId,
-          storeName,
-          name: item.item_name,
-          unitPrice: item.unit_price,
-          quantity: item.quantity,
-          selectedOptions: [],
-          customNotes: item.custom_notes || '',
-          totalPrice: item.unit_price * item.quantity,
-        }));
+        // 先拉取該店家目前的菜單品項，以便將 item_name 反查為真實 menuItemId 與規格範本
+        let storeMenuItems: any[] = [];
+        if (storeId && storeId !== 'unknown_store') {
+          try {
+            const { data: mData } = await supabase
+              .from('menu_items')
+              .select('id, name, price, custom_groups')
+              .eq('store_id', storeId);
+            if (mData) {
+              storeMenuItems = mData;
+            }
+          } catch (mErr) {
+            console.warn('拉取店家菜單對齊規格略過:', mErr);
+          }
+        }
+
+        const restoredItems: CartItem[] = orderItems.map((item, idx) => {
+          // 1. 解析真實 menuItemId
+          const matchedMenu = storeMenuItems.find(
+            (m) => (item.menuItemId && m.id === item.menuItemId) || m.name === item.item_name
+          );
+          const validMenuItemId =
+            matchedMenu?.id ||
+            (item.menuItemId && item.menuItemId !== item.id ? item.menuItemId : item.id);
+
+          // 2. 還原結構化客製規格 selectedOptions 與 rawCustomSelections
+          let restoredOptions: any[] = [];
+          const restoredRawSelections: Record<string, string[]> = item.rawCustomSelections
+            ? { ...item.rawCustomSelections }
+            : {};
+          let restoredCustomNotes = item.custom_notes || '';
+
+          if (Array.isArray(item.selectedOptions) && item.selectedOptions.length > 0) {
+            restoredOptions = [...item.selectedOptions];
+          } else if (item.custom_notes) {
+            // 從 custom_notes 中解析 (格式: "微糖, 去冰 | 備註: 少冰一點" 或 "微糖, 去冰")
+            const parts = item.custom_notes.split(' | ');
+            const optionParts: string[] = [];
+            let notePart = '';
+
+            parts.forEach((p) => {
+              if (p.startsWith('備註: ')) {
+                notePart = p.replace(/^備註:\s*/, '').trim();
+              } else {
+                optionParts.push(p);
+              }
+            });
+
+            restoredCustomNotes = notePart;
+
+            const parsedNames = optionParts
+              .join(', ')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
+
+            if (parsedNames.length > 0) {
+              parsedNames.forEach((optName) => {
+                let foundGroup: any = null;
+                let foundOpt: any = null;
+
+                if (matchedMenu?.custom_groups && Array.isArray(matchedMenu.custom_groups)) {
+                  for (const g of matchedMenu.custom_groups) {
+                    const opt = g.options?.find((o: any) => o.name === optName);
+                    if (opt) {
+                      foundGroup = g;
+                      foundOpt = opt;
+                      break;
+                    }
+                  }
+                }
+
+                if (foundGroup && foundOpt) {
+                  restoredOptions.push({
+                    groupTitle: foundGroup.title,
+                    itemName: foundOpt.name,
+                    extraPrice: foundOpt.price_adjustment || 0,
+                  });
+                  if (!restoredRawSelections[foundGroup.id]) {
+                    restoredRawSelections[foundGroup.id] = [];
+                  }
+                  if (!restoredRawSelections[foundGroup.id].includes(foundOpt.id)) {
+                    restoredRawSelections[foundGroup.id].push(foundOpt.id);
+                  }
+                } else {
+                  restoredOptions.push({
+                    groupTitle: '客製規格',
+                    itemName: optName,
+                    extraPrice: 0,
+                  });
+                }
+              });
+            }
+          }
+
+          // 若已有 restoredOptions 但缺少 rawCustomSelections，嘗試基於 custom_groups 補足
+          if (matchedMenu?.custom_groups && Array.isArray(matchedMenu.custom_groups)) {
+            restoredOptions.forEach((opt) => {
+              const g = matchedMenu.custom_groups.find((group: any) => group.title === opt.groupTitle);
+              if (g) {
+                const o = g.options?.find((option: any) => option.name === opt.itemName);
+                if (o) {
+                  if (!restoredRawSelections[g.id]) restoredRawSelections[g.id] = [];
+                  if (!restoredRawSelections[g.id].includes(o.id)) restoredRawSelections[g.id].push(o.id);
+                }
+              }
+            });
+          }
+
+          return {
+            cartItemId: `restore-${item.id}-${idx}`,
+            menuItemId: validMenuItemId,
+            storeId,
+            storeName,
+            name: item.item_name,
+            unitPrice: item.unit_price,
+            quantity: item.quantity,
+            selectedOptions: restoredOptions,
+            customNotes: restoredCustomNotes,
+            totalPrice: item.unit_price * item.quantity,
+            rawCustomSelections:
+              Object.keys(restoredRawSelections).length > 0 ? restoredRawSelections : undefined,
+          };
+        });
 
         const savedMulti = localStorage.getItem('menu_app_multi_cart');
         const parsed: MultiStoreCart = savedMulti ? JSON.parse(savedMulti) : {};

@@ -96,8 +96,9 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
 
         // 讀取自訂排序：優先從 API，其次從 localStorage 快取雙重容災備援
         let customOrder: string[] | null = null;
-        if (sortRes && Array.isArray(sortRes.orderedItemIds) && sortRes.orderedItemIds.length > 0) {
-          customOrder = sortRes.orderedItemIds;
+        const apiItemIds = sortRes?.itemIds || sortRes?.orderedItemIds;
+        if (sortRes && Array.isArray(apiItemIds) && apiItemIds.length > 0) {
+          customOrder = apiItemIds;
         } else if (typeof window !== 'undefined') {
           try {
             const localRaw = localStorage.getItem('menu_app_store_sort_orders');
@@ -131,7 +132,7 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
         setStoreCache(storeId, {
           store: resolvedStore,
           menuItems: resolvedItems,
-          customOrder: sortRes?.orderedItemIds || null,
+          customOrder: (sortRes?.itemIds || sortRes?.orderedItemIds) || null,
           timestamp: Date.now(),
         });
       }

@@ -16,7 +16,7 @@ const STORAGE_KEY_PURGED_IDS = 'menu_app_purged_order_ids';
 /**
  * 取得本機已被「徹底抹除」的訂單 ID 清單
  */
-function getPurgedOrderIds(): Set<string> {
+export function getPurgedOrderIds(): Set<string> {
   if (typeof window === 'undefined') return new Set();
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PURGED_IDS);
@@ -59,8 +59,8 @@ export function recordPurgedOrderId(orderId: string | string[]): void {
 /**
  * 取得當前本機歷史訂單快照
  */
-export function getOrderHistoryCache(): OrderHistoryRecord[] | null {
-  if (globalOrderHistoryCache) return globalOrderHistoryCache;
+export function getOrderHistoryCache(forceReload: boolean = false): OrderHistoryRecord[] | null {
+  if (!forceReload && globalOrderHistoryCache !== null) return globalOrderHistoryCache;
   if (typeof window !== 'undefined') {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_CACHED_DETAIL);
@@ -73,8 +73,12 @@ export function getOrderHistoryCache(): OrderHistoryRecord[] | null {
           return validList;
         }
       }
-    } catch {}
+    } catch {
+      globalOrderHistoryCache = null;
+      return null;
+    }
   }
+  globalOrderHistoryCache = null;
   return null;
 }
 
@@ -226,7 +230,13 @@ export async function prefetchOrderHistory(): Promise<OrderHistoryRecord[] | nul
         dbRecords.forEach((r) => {
           if (!purgedSet.has(r.id)) {
             // 檢查是否包含徹底抹除標記
-            if (r.signature_url && r.signature_url.includes('"status":"purged"')) {
+            const isPurged =
+              typeof r.signature_url === 'string' &&
+              (r.signature_url.includes('"status":"purged"') ||
+                r.signature_url.includes('"tombstone":"purge_everywhere"') ||
+                r.signature_url.includes('"purged":true'));
+
+            if (isPurged) {
               recordPurgedOrderId(r.id);
             } else {
               mergedList.push(r);
@@ -240,18 +250,25 @@ export async function prefetchOrderHistory(): Promise<OrderHistoryRecord[] | nul
 
           if (!dbMap.has(cached.id)) {
             // 該訂單已從後台資料庫移除
+            const isCachedPurged =
+              typeof cached.signature_url === 'string' &&
+              (cached.signature_url.includes('"status":"purged"') ||
+                cached.signature_url.includes('"tombstone":"purge_everywhere"') ||
+                cached.signature_url.includes('"purged":true'));
+
             const currentStatus = parseOrderProgressStatus(cached.signature_url);
 
-            let mappedStatus: 'completed' | 'cancelled';
-            if (currentStatus === 'completed') {
-              mappedStatus = 'completed'; // 規則 A: 已完成狀態下刪除 -> 維持已完成
-            } else {
-              mappedStatus = 'cancelled'; // 規則 B: 等待中/已取消/其他狀態下刪除 -> 映射為已取消
+            // ⚠️ 關鍵防護：若該訂單已被徹底抹除 (purge_everywhere)，或處於非已完成狀態自資料庫移除，
+            // 絕不可將其復活為「已取消 (cancelled)」！直接記錄至 purgedSet 徹底同步抹除！
+            if (isCachedPurged || currentStatus !== 'completed') {
+              recordPurgedOrderId(cached.id);
+              return;
             }
 
+            // 僅歷史已完成訂單（如活動結案被移入封存歷史庫）保留已完成收據憑證供查閱
             const retainedRecord: OrderHistoryRecord = {
               ...cached,
-              signature_url: serializeOrderProgressStatus(mappedStatus, '後台已結單移除'),
+              signature_url: serializeOrderProgressStatus('completed', '後台已結單完成'),
             };
 
             mergedList.push(retainedRecord);

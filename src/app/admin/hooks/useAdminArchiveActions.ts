@@ -41,20 +41,32 @@ export function useAdminArchiveActions({
       onConfirm: async () => {
         closeAdminConfirmModal();
         try {
+          const trueGroupId = activeGroup.id;
+
           // 1. 將該團購活動設為 completed (結案歸檔)
-          const { error: updateErr } = await supabase
+          const { data: updatedGroup, error: updateErr } = await supabase
             .from('group_orders')
             .update({ status: 'completed' })
-            .eq('id', activeGroup.id);
+            .eq('id', trueGroupId)
+            .select();
 
           if (updateErr) throw updateErr;
+
+          // 若以 id 更新未命中（例如之前 activeGroup.id 曾為 store.id），則以 store_id 更新未結案者
+          if (!updatedGroup || updatedGroup.length === 0) {
+            await supabase
+              .from('group_orders')
+              .update({ status: 'completed' })
+              .eq('store_id', storeId)
+              .neq('status', 'completed');
+          }
 
           // 2. 嘗試非阻塞式寫入結案批次審計紀錄 (若資料庫有建立該選用表)
           try {
             const { data: subList } = await supabase
               .from('order_submissions')
               .select('id, final_amount, total_amount')
-              .eq('group_order_id', activeGroup.id);
+              .or(`group_order_id.eq.${trueGroupId},group_order_id.eq.${storeId}`);
 
             const subIds = subList ? subList.map((s) => s.id) : [];
             if (subIds.length > 0) {
@@ -79,7 +91,7 @@ export function useAdminArchiveActions({
           } catch {}
 
           showToast(`「${storeName}」訂單已成功批次歸檔！`);
-          fetchAdminData('all');
+          await fetchAdminData('all');
           setActiveTab('archive');
         } catch (err: any) {
           console.error('結案歸檔失敗:', err);
@@ -101,23 +113,26 @@ export function useAdminArchiveActions({
       onConfirm: async () => {
         closeAdminConfirmModal();
         try {
+          const targetStoreId = group.store_id || group.id;
+          const newTitle = group.title.includes('(新開)') ? group.title : `${group.title} (新開)`;
+
           const { data, error } = await supabase
             .from('group_orders')
             .insert([
               {
-                store_id: group.store_id,
-                title: `${group.title} (新開)`,
+                store_id: targetStoreId,
+                title: newTitle,
                 status: 'open',
-                announcement: group.announcement,
-                delivery_fee: group.delivery_fee,
-                discount_amount: group.discount_amount,
-                rounding_rule: group.rounding_rule,
-                enable_min_threshold: group.enable_min_threshold,
-                min_threshold_amount: group.min_threshold_amount,
-                enable_countdown: group.enable_countdown,
-                cutoff_time: group.cutoff_time,
-                enable_budget_limit: group.enable_budget_limit,
-                budget_limit_amount: group.budget_limit_amount,
+                announcement: group.announcement || null,
+                delivery_fee: group.delivery_fee || 0,
+                discount_amount: group.discount_amount || 0,
+                rounding_rule: group.rounding_rule || 'floor',
+                enable_min_threshold: group.enable_min_threshold ?? false,
+                min_threshold_amount: group.min_threshold_amount || 0,
+                enable_countdown: group.enable_countdown ?? false,
+                cutoff_time: group.cutoff_time || null,
+                enable_budget_limit: group.enable_budget_limit ?? false,
+                budget_limit_amount: group.budget_limit_amount || 0,
               },
             ])
             .select()
@@ -125,8 +140,16 @@ export function useAdminArchiveActions({
 
           if (error) throw error;
 
+          // 同步確保店家處於開放接單狀態
+          if (targetStoreId) {
+            await supabase
+              .from('stores')
+              .update({ is_accepting_orders: true })
+              .eq('id', targetStoreId);
+          }
+
           showToast(`已成功重新發起團購活動！`);
-          fetchAdminData(data.id);
+          await fetchAdminData(data.id);
           setActiveTab('active');
         } catch (err: any) {
           console.error('重開團購活動失敗:', err);

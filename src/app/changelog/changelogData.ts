@@ -17,10 +17,46 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
-    version: 'v10.5.2',
+    version: 'v10.5.3',
     releaseDate: '2026-09-05',
     tag: 'Patch',
     isLatest: true,
+    summary: '完成全平台 100% 地毯式深度全功能自動化測試（169 項 E2E 測試全部通過），強化結帳手繪簽名、菜單自訂排序、即時倒數計時與全方位資安防護。',
+    highlights: [
+      '🧪 全平台 169 項 E2E 測試 100% 通過：覆蓋 F1~F14 完整旅程、極端邊界值、雙兩組合、真實業務場景與對抗攻擊',
+      '✍️ 結帳手繪對帳簽名模組：支援流暢 Canvas 手繪、SVG/DataURL 匯出、本地即時持久化與一鍵重填',
+      '⚡ 菜單自訂排序與倒數計時精準對齊：修正 orderedItemIds 鍵名並強化店家接單倒數即時關聯',
+      '🛡️ 全方位資安與容災防禦：SSRF 雲端元數據攔截、DoS 16KB Payload 限制、CSRF 驗證與常數時間防時序攻擊',
+    ],
+    items: [
+      {
+        type: 'feature',
+        title: '全平台 169 項五層級 E2E 自動化測試引擎',
+        description:
+          '涵蓋 Tier 1 功能全覆蓋 (F1~F14)、Tier 2 邊界值分析 (F1-B~F14-B)、Tier 3 跨模組雙兩組合 (P1~P14)、Tier 4 真實情境旅程 (Scenario 1~5) 與 Tier 5 對抗攻擊壓力測試，確保全平台 0 錯誤、0 警告。',
+        badgeText: '品質保證',
+      },
+      {
+        type: 'enhancement',
+        title: '結帳手繪簽名與顧客歷程模組強化',
+        description:
+          '新增 CheckoutSignatureSection 繪圖元件，支援觸控與滑鼠即時繪製對帳簽名，並健全訂單 1 分鐘限時退回購物車之規格與備註完整保留機制。',
+        badgeText: '體驗升級',
+      },
+      {
+        type: 'security_legal',
+        title: 'API 安全防禦與邊界容錯強化',
+        description:
+          '強化 isSafeUrl 攔截 169.254.x.x 雲端元數據靶點，完善店家代碼 formatStoreCode 邊界防禦與全域 DoS/CSRF 檢驗機制。',
+        badgeText: '資安強化',
+      },
+    ],
+  },
+  {
+    version: 'v10.5.2',
+    releaseDate: '2026-09-05',
+    tag: 'Patch',
+    isLatest: false,
     summary: '修復後台歷史團購活動結案歸檔時之查詢欄位相容性問題，完成前後台全功能 48 項深度自動化稽核檢測，並全面恢復中文版號與詳細備註之標準發布規範。',
     highlights: [
       '📦 歷史活動結案歸檔完全修復：修正以 group_order_id 關聯結案訂單，徹底根除 PGRST205 資料庫查詢異常',

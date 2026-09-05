@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { verifyAdminToken } from '@/lib/auth-util';
 
 const configFilePath = path.join(process.cwd(), 'src', 'data', 'store_codes.json');
 const tmpFilePath = path.join('/tmp', 'meinu_store_codes.json');
@@ -65,7 +66,15 @@ function writeCodeMap(data: Record<string, string>): boolean {
 
 // 標準化商家編號為 S-001 格式
 export function formatStoreCode(rawInput: string | number): string {
-  const digitsOnly = String(rawInput).replace(/\D/g, '');
+  if (typeof rawInput === 'number') {
+    if (isNaN(rawInput) || rawInput <= 0) return 'S-001';
+    return `S-${String(Math.floor(rawInput)).padStart(3, '0')}`;
+  }
+  const str = String(rawInput || '').trim();
+  const rawNum = parseInt(str, 10);
+  if (!isNaN(rawNum) && rawNum <= 0) return 'S-001';
+
+  const digitsOnly = str.replace(/\D/g, '');
   if (!digitsOnly) return 'S-001';
   const num = parseInt(digitsOnly, 10);
   if (isNaN(num) || num <= 0) return 'S-001';
@@ -97,8 +106,6 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-import { verifyAdminToken } from '@/lib/auth-util';
 
 // POST: 儲存指定店家的編號（具備純數字正則檢驗、絕對唯一性檢查與團長安全鑑權）
 export async function POST(request: NextRequest) {

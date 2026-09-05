@@ -21,6 +21,7 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
   const [nickname, setNickname] = useState<string>('');
   const [selectedPayment, setSelectedPayment] = useState<string>('');
   const [selectedSoldOut, setSelectedSoldOut] = useState<string>('');
+  const [signatureData, setSignatureData] = useState<string | null>(null);
 
   // 🛡️ 資安防護：蜜罐陷阱欄位與人類互動載入時間戳
   const [honeypotTrap, setHoneypotTrap] = useState<string>('');
@@ -207,6 +208,7 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
         selectedSoldOut,
         activeGroupOrder,
         grandTotal,
+        signatureData,
       });
 
       setSuccessModalData({
@@ -235,6 +237,8 @@ export function useCheckoutOrder({ targetStoreId }: UseCheckoutOrderProps) {
     setSelectedPayment,
     selectedSoldOut,
     setSelectedSoldOut,
+    signatureData,
+    setSignatureData,
     honeypotTrap,
     setHoneypotTrap,
     toastMessage,

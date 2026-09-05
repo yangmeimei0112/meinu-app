@@ -27,18 +27,31 @@ export function sanitizeInput(input: string, maxLength: number = 100): string {
 }
 
 /**
- * 🛡️ 驗證外部圖片或轉址 URL 是否安全（防止 javascript: 或 SSRF 偽協定）
+ * 🛡️ 驗證外部圖片或轉址 URL 是否安全（防止 javascript:, SSRF 偽協定或雲端元數據攻擊）
  * @param url 待檢查網址
  */
 export function isSafeUrl(url: string | undefined | null): boolean {
   if (!url || typeof url !== 'string') return false;
   const trimmed = url.trim();
   if (!trimmed) return false;
-  // 僅允許標準 http, https 或 data:image/ 安全協議
-  return (
-    /^https?:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=]+$/i.test(trimmed) ||
-    /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,[a-zA-Z0-9+/=]+$/i.test(trimmed)
-  );
+
+  // 封鎖危險協議與偽協議
+  if (/^(javascript|vbscript|file|ftp|data(?!:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,)):/i.test(trimmed)) {
+    return false;
+  }
+
+  // 封鎖雲端內部元數據與危險 Link-Local SSRF 靶點 (如 169.254.169.254, 0.0.0.0 等)
+  if (/^https?:\/\/(169\.254\.\d+\.\d+|0\.0\.0\.0|metadata\.google\.internal)/i.test(trimmed)) {
+    return false;
+  }
+
+  // 允許合法的 data:image base64
+  if (/^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,[a-zA-Z0-9+/=]+$/i.test(trimmed)) {
+    return true;
+  }
+
+  // 允許標準 HTTP(S) 安全協議
+  return /^https?:\/\/[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=]+$/i.test(trimmed);
 }
 
 /**

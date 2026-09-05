@@ -113,31 +113,39 @@ export async function fetchAdminAllData(): Promise<AdminRawDataResult> {
       store_id: resolvedStoreId,
       store_name: resolvedStoreName,
       order_items: s.order_items || [],
-      progress_status: parseOrderProgressStatus(s.signature_url),
+      progress_status: parseOrderProgressStatus(s.signature_url) as any,
     };
   });
 
-  // 以店家為單位產生分流視圖，包含即時訂單數與營業額統計
+  // 以店家為單位產生分流視圖，包含即時訂單數與營業額統計，並載入最新團購活動持久化設定
+  const activeGroupOrders = allG.filter((g: any) => g.status !== 'completed');
   const storeGroupsWithStats: GroupOrderAdmin[] = formattedStores.map((store) => {
-    const sSubs = formattedSubs.filter((s) => s.store_id === store.id || s.group_order_id === store.id);
+    const matchingActiveGroup = activeGroupOrders.find((g: any) => g.store_id === store.id);
+    const sSubs = formattedSubs.filter(
+      (s) =>
+        s.store_id === store.id ||
+        s.group_order_id === store.id ||
+        (matchingActiveGroup && s.group_order_id === matchingActiveGroup.id)
+    );
+
     return {
-      id: store.id,
+      id: matchingActiveGroup?.id || store.id,
       store_id: store.id,
-      title: store.name,
-      status: store.is_accepting_orders === false ? 'closed' : 'open',
-      announcement: store.announcement || null,
-      delivery_fee: 0,
-      discount_amount: 0,
-      rounding_rule: 'floor',
-      enable_min_threshold: store.enable_min_threshold,
-      min_threshold_amount: store.min_threshold_amount,
-      enable_countdown: store.enable_countdown,
-      cutoff_time: store.cutoff_time,
-      enable_budget_limit: store.enable_budget_limit,
-      budget_limit_amount: store.budget_limit_amount,
+      title: matchingActiveGroup?.title || store.name,
+      status: store.is_accepting_orders === false ? 'closed' : (matchingActiveGroup?.status || 'open'),
+      announcement: matchingActiveGroup?.announcement ?? store.announcement ?? null,
+      delivery_fee: matchingActiveGroup?.delivery_fee ?? 0,
+      discount_amount: matchingActiveGroup?.discount_amount ?? 0,
+      rounding_rule: (matchingActiveGroup?.rounding_rule as 'floor' | 'ceil' | 'round') || 'floor',
+      enable_min_threshold: matchingActiveGroup?.enable_min_threshold ?? store.enable_min_threshold,
+      min_threshold_amount: matchingActiveGroup?.min_threshold_amount ?? store.min_threshold_amount,
+      enable_countdown: matchingActiveGroup?.enable_countdown ?? store.enable_countdown,
+      cutoff_time: matchingActiveGroup?.cutoff_time ?? store.cutoff_time,
+      enable_budget_limit: matchingActiveGroup?.enable_budget_limit ?? store.enable_budget_limit,
+      budget_limit_amount: matchingActiveGroup?.budget_limit_amount ?? store.budget_limit_amount,
       stores: store,
       order_count: sSubs.length,
-      total_sales: sSubs.reduce((sum, s) => sum + s.final_amount, 0),
+      total_sales: sSubs.reduce((sum, s) => sum + (s.final_amount ?? s.total_amount ?? 0), 0),
     };
   });
 

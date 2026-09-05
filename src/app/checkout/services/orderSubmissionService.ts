@@ -13,6 +13,7 @@ export interface OrderSubmissionParams {
   selectedSoldOut: string;
   activeGroupOrder: GroupOrder | null;
   grandTotal: number;
+  signatureData?: string | null;
 }
 
 export interface OrderSubmissionResult {
@@ -34,6 +35,7 @@ export async function executeOrderSubmissionPipeline({
   selectedSoldOut,
   activeGroupOrder,
   grandTotal,
+  signatureData,
 }: OrderSubmissionParams): Promise<OrderSubmissionResult> {
   const storeId = targetStoreId || cartItems[0]?.storeId;
   if (!storeId) throw new Error('缺少店家資訊');
@@ -127,6 +129,7 @@ export async function executeOrderSubmissionPipeline({
     order_number: orderNumber,
     is_paid: false,
     signature_url: initialProgressPayload,
+    signature_data: signatureData || null,
   };
 
   const { data: submission, error: subErr } = await supabase
@@ -225,7 +228,7 @@ export async function executeOrderSubmissionPipeline({
         final_amount: safeGrandTotal,
         is_paid: false,
         signature_url: initialProgressPayload,
-        signature_data: null,
+        signature_data: signatureData || null,
         created_at: new Date().toISOString(),
         order_items: itemsPayload.map((item, idx) => ({
           id: insertedItems?.[idx]?.id || `item-${idx}`,
@@ -233,6 +236,9 @@ export async function executeOrderSubmissionPipeline({
           quantity: item.quantity,
           unit_price: item.unit_price,
           custom_notes: item.custom_notes || null,
+          menuItemId: cartItems[idx]?.menuItemId,
+          selectedOptions: cartItems[idx]?.selectedOptions || [],
+          rawCustomSelections: cartItems[idx]?.rawCustomSelections,
         })),
         group_orders: {
           id: activeGroupId || '',
@@ -276,6 +282,7 @@ export async function executeOrderSubmissionPipeline({
           final_amount: safeGrandTotal,
           is_paid: false,
           signature_url: initialProgressPayload,
+          signature_data: signatureData || null,
           created_at: new Date().toISOString(),
         },
         orderItems: itemsPayload.map((item, idx) => ({
@@ -284,6 +291,9 @@ export async function executeOrderSubmissionPipeline({
           quantity: item.quantity,
           unit_price: item.unit_price,
           custom_notes: item.custom_notes || null,
+          menuItemId: cartItems[idx]?.menuItemId,
+          selectedOptions: cartItems[idx]?.selectedOptions || [],
+          rawCustomSelections: cartItems[idx]?.rawCustomSelections,
         })),
         groupOrder: activeGroupOrder
           ? {

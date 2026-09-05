@@ -13,6 +13,8 @@ import {
   ShoppingBag,
   XCircle,
   ChevronDown,
+  ClipboardCheck,
+  ArrowRight,
 } from 'lucide-react';
 import { PaymentMethodIcon, SoldOutOptionIcon, stripEmojis } from '@/lib/icon-utils';
 import { OrderProgressStatus, ORDER_STATUS_META } from '@/types/orderStatus';
@@ -45,8 +47,17 @@ export default function AdminOrderCard({
   const progressMeta = ORDER_STATUS_META[currentProgress] || ORDER_STATUS_META.pending;
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
 
+  const NEXT_STEP_MAP: Partial<Record<OrderProgressStatus, { next: OrderProgressStatus; label: string }>> = {
+    pending: { next: 'confirmed', label: '接單確認' },
+    confirmed: { next: 'preparing', label: '開始製作' },
+    preparing: { next: 'ready', label: '通知取餐' },
+    ready: { next: 'completed', label: '完成訂單' },
+  };
+  const nextStep = NEXT_STEP_MAP[currentProgress];
+
   const statusOptions: Array<{ key: OrderProgressStatus; label: string; icon: any; color: string }> = [
     { key: 'pending', label: '待確認', icon: Clock, color: 'text-amber-500' },
+    { key: 'confirmed', label: '已確認', icon: ClipboardCheck, color: 'text-blue-500' },
     { key: 'preparing', label: '製作中', icon: ChefHat, color: 'text-sky-500' },
     { key: 'ready', label: '待取餐', icon: ShoppingBag, color: 'text-indigo-500' },
     { key: 'completed', label: '已完成', icon: CheckCircle2, color: 'text-emerald-500' },
@@ -147,6 +158,19 @@ export default function AdminOrderCard({
                 </>
               )}
             </div>
+          )}
+
+          {/* 🌟 快捷進度推進按鈕 (pending -> confirmed -> preparing -> ready -> completed) */}
+          {nextStep && onUpdateProgressStatus && (
+            <button
+              type="button"
+              onClick={() => onUpdateProgressStatus(sub.id, nextStep.next)}
+              className="px-2.5 py-1.5 rounded-full text-xs font-black transition active:scale-95 flex items-center gap-1 bg-sky-50 dark:bg-sky-950/70 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/60 cursor-pointer shadow-2xs"
+              title={`推進至「${ORDER_STATUS_META[nextStep.next]?.label || nextStep.next}」`}
+            >
+              <span>{nextStep.label}</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
           )}
 
           {/* 付款狀態切換按鈕 */}

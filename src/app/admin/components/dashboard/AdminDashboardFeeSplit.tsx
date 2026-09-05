@@ -33,7 +33,18 @@ export function AdminDashboardFeeSplit({
   calculateAdjustedAmount,
   handleApplyFeeSplit,
 }: AdminDashboardFeeSplitProps) {
-  const adjustmentPerPerson = calculateAdjustedAmount(0);
+  const perPersonAdjustment = React.useMemo(() => {
+    if (!submissions.length) return 0;
+    const netAdjustment = inputDeliveryFee - inputDiscount;
+    const perPersonShare = netAdjustment / submissions.length;
+
+    let roundedShare = 0;
+    if (roundingRule === 'floor') roundedShare = Math.floor(perPersonShare);
+    else if (roundingRule === 'ceil') roundedShare = Math.ceil(perPersonShare);
+    else roundedShare = Math.round(perPersonShare);
+
+    return roundedShare;
+  }, [submissions.length, inputDeliveryFee, inputDiscount, roundingRule]);
 
   return (
     <div className="space-y-5">
@@ -99,7 +110,11 @@ export function AdminDashboardFeeSplit({
             </p>
           </div>
           <span className="text-[11px] font-black bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800/60">
-            {submissions.length > 0 ? `每人分攤 ${adjustmentPerPerson >= 0 ? '+' : ''}${adjustmentPerPerson} 元` : '尚無送單'}
+            {submissions.length > 0
+              ? perPersonAdjustment < 0
+                ? `每人折抵 $${Math.abs(perPersonAdjustment)} 元`
+                : `每人分攤 +${perPersonAdjustment} 元`
+              : '尚無送單'}
           </span>
         </div>
 
@@ -153,7 +168,7 @@ export function AdminDashboardFeeSplit({
         {submissions.length > 0 && (
           <div className="bg-white/80 dark:bg-[#110E24]/80 p-3.5 rounded-2xl border border-indigo-100 dark:border-indigo-900/60 space-y-2">
             <p className="text-[10px] text-indigo-700 dark:text-indigo-400 font-black uppercase tracking-wider">
-              即時試算預覽 (全團 {submissions.length} 人，每人差額: ${adjustmentPerPerson} 元)
+              即時試算預覽 (全團 {submissions.length} 人，每人差額: {perPersonAdjustment < 0 ? `-$${Math.abs(perPersonAdjustment)}` : `+$${perPersonAdjustment}`} 元)
             </p>
             <div className="divide-y divide-indigo-50 dark:divide-indigo-950/80 text-xs">
               {submissions.slice(0, 3).map((sub) => (
