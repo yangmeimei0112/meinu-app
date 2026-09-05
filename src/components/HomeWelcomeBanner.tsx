@@ -8,7 +8,7 @@ import { RandomFoodIllustration } from './food-illustrations/FoodIllustrations';
 // ----------------------------------------------------
 export default function HomeWelcomeBanner() {
   return (
-    <div className="relative overflow-hidden bg-white/90 dark:bg-[#131B2B]/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/90 rounded-3xl p-5 shadow-2xs hover:shadow-md transition-all duration-300 group">
+    <div data-theme-module="banner" className="relative overflow-hidden bg-white/90 dark:bg-[#131B2B]/90 backdrop-blur-md border border-slate-200/80 dark:border-slate-800/90 rounded-3xl p-5 shadow-2xs hover:shadow-md transition-all duration-300 group">
       {/* 頂部細緻漸層掃描光條 */}
       <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-sky-400/0 via-sky-400/60 to-blue-600/0 dark:via-sky-400/80" />
 

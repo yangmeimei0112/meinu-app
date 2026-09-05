@@ -52,7 +52,7 @@ export function HomeStoreList({
   }
 
   return (
-    <div className="space-y-3 pt-1">
+    <div data-theme-module="card" className="space-y-3 pt-1">
       {stores.map((store: Store) => {
         const isAccepting = checkIsStoreAccepting(store);
 

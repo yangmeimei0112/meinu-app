@@ -33,7 +33,7 @@ export default function OfflineBanner() {
   if (!isOffline) return null;
 
   return (
-    <div className="bg-amber-500 text-slate-900 text-xs font-bold px-4 py-2 text-center sticky top-0 z-50 shadow-sm flex items-center justify-center gap-1.5 animate-in slide-in-from-top duration-200">
+    <div data-theme-module="banner" className="bg-amber-500 text-slate-900 text-xs font-bold px-4 py-2 text-center sticky top-0 z-50 shadow-sm flex items-center justify-center gap-1.5 animate-in slide-in-from-top duration-200">
       <WifiOff className="w-4 h-4 shrink-0" />
       <span>目前網路連線不穩定，請放心！您的購物車與選擇已自動儲存在手機中。</span>
     </div>

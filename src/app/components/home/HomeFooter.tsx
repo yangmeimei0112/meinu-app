@@ -15,7 +15,7 @@ export function HomeFooter({ commitMsg, commitHash }: HomeFooterProps) {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <footer className="w-full py-6 flex flex-col items-center justify-center gap-3 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800/80 mt-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
+    <footer data-theme-module="footer" className="w-full py-6 flex flex-col items-center justify-center gap-3 text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/80 dark:border-slate-800/80 mt-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
       {/* 1. 版本號與後台登入 */}
       <div className="flex items-center justify-center gap-2">
         <Link

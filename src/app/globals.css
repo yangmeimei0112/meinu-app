@@ -38,30 +38,101 @@ body {
   min-height: 100dvh;
   /* 防止 iOS / Android 彈性滾動過度跳動 */
   overscroll-behavior-y: none;
-  transition: background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background-color 0.4s cubic-bezier(0.22, 1, 0.36, 1), color 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ========================================================
-   🌟 現代視圖過渡 (View Transitions API) 主題切換圓形流體擴散
+   🌟 現代視圖過渡 (View Transitions API) 防刺眼柔光流體擴散
    ======================================================== */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
   mix-blend-mode: normal;
+  will-change: clip-path, opacity, filter, transform;
 }
 
 ::view-transition-old(root) {
   z-index: 1;
 }
+
 ::view-transition-new(root) {
   z-index: 9999;
 }
 
-.dark::view-transition-old(root) {
-  z-index: 9999;
+/* ========================================================
+   🌊 模塊接續階梯過渡引擎 (Staggered Cascading Theme Engine)
+   當切換深淺模式時，各個視覺模組如波浪般依序接續過渡，
+   徹底杜絕全站突兀閃爍，帶來絲滑溫潤的頂級質感。
+   ======================================================== */
+html.theme-transitioning,
+html.theme-transitioning * {
+  transition-duration: 0.45s !important;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow, opacity !important;
 }
-.dark::view-transition-new(root) {
-  z-index: 1;
+
+/* 階梯 1：頂部導航與狀態條 (Header / TopBar / Status) - 0ms 立即響應 */
+html.theme-transitioning header,
+html.theme-transitioning [data-theme-module="header"],
+html.theme-transitioning .theme-header {
+  transition-delay: 0ms !important;
+}
+
+/* 階梯 2：焦點橫幅、通知提示與歡迎區 (Banners / Hero / Alerts) - 50ms */
+html.theme-transitioning [data-theme-module="banner"],
+html.theme-transitioning .theme-banner,
+html.theme-transitioning [role="alert"],
+html.theme-transitioning .hero-banner {
+  transition-delay: 50ms !important;
+}
+
+/* 階梯 3：搜尋輸入、分類標籤與次級導航 (Search / Tabs / Category) - 100ms */
+html.theme-transitioning [data-theme-module="nav"],
+html.theme-transitioning form,
+html.theme-transitioning .theme-nav,
+html.theme-transitioning .theme-search,
+html.theme-transitioning .category-tabs {
+  transition-delay: 100ms !important;
+}
+
+/* 階梯 4：核心內容、店家卡片、商品列表與文章 (Main / Cards / Articles) - 150ms */
+html.theme-transitioning main,
+html.theme-transitioning article,
+html.theme-transitioning [data-theme-module="card"],
+html.theme-transitioning .theme-card,
+html.theme-transitioning .store-card,
+html.theme-transitioning .product-card,
+html.theme-transitioning .order-card {
+  transition-delay: 150ms !important;
+}
+
+/* 階梯 5：浮動工具列、購物車預覽條與操作膠囊 (Floating / Cart / Capsule) - 200ms */
+html.theme-transitioning [data-theme-module="floating"],
+html.theme-transitioning .cart-bar,
+html.theme-transitioning .floating-capsule,
+html.theme-transitioning .theme-floating {
+  transition-delay: 200ms !important;
+}
+
+/* 階梯 6：頁尾與底部導覽列 (Footer / Bottom Nav) - 250ms */
+html.theme-transitioning footer,
+html.theme-transitioning [data-theme-module="footer"],
+html.theme-transitioning nav,
+html.theme-transitioning [data-theme-module="bottom-nav"],
+html.theme-transitioning .theme-footer {
+  transition-delay: 250ms !important;
+}
+
+/* 當使用者系統開啟「減少動態效果」時，關閉過渡延遲以符合無障礙規範 */
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transitioning,
+  html.theme-transitioning * {
+    transition: none !important;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
 }
 
 /* ========================================================

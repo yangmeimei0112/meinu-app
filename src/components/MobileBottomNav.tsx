@@ -164,6 +164,7 @@ export default function MobileBottomNav() {
 
   return (
     <nav
+      data-theme-module="bottom-nav"
       aria-label="APP 底部主要導覽列"
       className="fixed bottom-0 inset-x-0 z-50 bg-white/95 dark:bg-[#090D16]/95 backdrop-blur-xl border-t border-slate-200/90 dark:border-slate-800/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_25px_rgba(0,0,0,0.4)] transition-colors duration-200 safe-area-pb"
     >

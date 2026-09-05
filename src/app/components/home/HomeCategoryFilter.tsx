@@ -16,7 +16,7 @@ export function HomeCategoryFilter({
   onSelectCategory,
 }: HomeCategoryFilterProps) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none scroll-touch">
+    <div data-theme-module="nav" className="flex gap-2 overflow-x-auto pb-1 scrollbar-none scroll-touch">
       <button
         type="button"
         onClick={() => onSelectCategory('all')}
