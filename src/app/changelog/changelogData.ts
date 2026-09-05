@@ -17,10 +17,39 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v10.5.1',
+    releaseDate: '2026-09-05',
+    tag: 'Patch',
+    isLatest: true,
+    summary: '修復後台非徹底抹除刪除訂單時誤刪前台歷史紀錄之問題，落實後台結單隱藏與前台顧客端訂單資料永續保留機制。',
+    highlights: [
+      '🛡️ 後台刪除訂單前台資料永續留存：非徹底抹除時，僅從管理員工作台隱藏，顧客端歷史訂單 100% 完整保留',
+      '🎯 狀態精準映射對齊：已完成訂單刪除前台顯示【已完成】；未完成/已取消刪除前台顯示【已取消】',
+      '🔒 徹底抹除雙重確認防護：唯有明確選擇「徹底抹除」並確認後，才執行前後台資料庫實體抹除',
+      '⚡ 前台歷史快取與 SWR 雙保險：送單與狀態頁即時寫入本機快取與 SWR 非破壞性對齊，確保零遺失',
+    ],
+    items: [
+      {
+        type: 'fix',
+        title: '後台刪除訂單與前台歷史資料分離架構',
+        description:
+          '修正後台刪除訂單時直接執行資料庫實體 DELETE 的問題。新架構下，後台刪除操作採用軟性標記（hidden_from_admin），資料庫保留記錄供顧客端查詢，徹底避免前台歷史訂單被清空。',
+        badgeText: '關鍵架構修復',
+      },
+      {
+        type: 'enhancement',
+        title: '前台訂單狀態頁與歷史紀錄容災同步',
+        description:
+          '強化 useOrderStatus 與 prefetchOrderHistory 之非破壞性同步機制，即便離線或網路波動亦能藉由本地快照即時呈現正確明細與結算資訊。',
+        badgeText: '穩定性提升',
+      },
+    ],
+  },
+  {
     version: 'v10.5.0',
     releaseDate: '2026-09-05',
     tag: 'Minor',
-    isLatest: true,
+    isLatest: false,
     summary: '新增訂單取消與退回修改之即時語音播報、後台取消訂單全方位彈窗即時通知、後台通知偏好自訂開關，以及首頁版本號智慧動態同步校準。',
     highlights: [
       '🗣️ 訂單取消語音智慧提醒：顧客於前台退單或修改時，後台自動以臺灣國語播報',

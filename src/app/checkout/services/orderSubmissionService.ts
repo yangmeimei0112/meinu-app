@@ -211,6 +211,52 @@ export async function executeOrderSubmissionPipeline({
     } catch (e) {
       console.error(e);
     }
+
+    // 🌟 同步寫入全域與本機歷史訂單快取 (確保任何情況下前台歷史訂單永不遺失)
+    try {
+      const historyRecord = {
+        id: submission.id,
+        group_order_id: activeGroupId,
+        order_number: orderNumber,
+        user_nickname: cleanNickname,
+        payment_method_name: sanitizeInput(selectedPayment, 40),
+        sold_out_option: sanitizeInput(selectedSoldOut, 40),
+        total_amount: safeGrandTotal,
+        final_amount: safeGrandTotal,
+        is_paid: false,
+        signature_url: initialProgressPayload,
+        signature_data: null,
+        created_at: new Date().toISOString(),
+        order_items: itemsPayload.map((item, idx) => ({
+          id: insertedItems?.[idx]?.id || `item-${idx}`,
+          item_name: item.item_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          custom_notes: item.custom_notes || null,
+        })),
+        group_orders: {
+          id: activeGroupId || '',
+          store_id: storeId,
+          status: 'open',
+          stores: {
+            id: storeId,
+            name: cartItems[0]?.storeName || '店家',
+            image_url: null,
+          },
+        },
+      };
+
+      const rawDetail = localStorage.getItem('menu_app_cached_orders_detail');
+      const existingList = rawDetail ? JSON.parse(rawDetail) : [];
+      const updatedList = [
+        historyRecord,
+        ...(Array.isArray(existingList) ? existingList.filter((o: any) => o.id !== submission.id) : []),
+      ].slice(0, 50);
+      localStorage.setItem('menu_app_cached_orders_detail', JSON.stringify(updatedList));
+    } catch (e) {
+      console.error('寫入歷史訂單快取失敗:', e);
+    }
+
     try {
       window.dispatchEvent(new Event('menu_app_orders_updated'));
       window.dispatchEvent(new Event('storage'));

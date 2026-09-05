@@ -97,10 +97,35 @@ export function parseOrderProgressStatus(signatureUrl?: string | null): OrderPro
 /**
  * 📦 序列化訂單進度狀態為 JSON 儲存於 signature_url
  */
-export function serializeOrderProgressStatus(status: OrderProgressStatus, note?: string): string {
+export function serializeOrderProgressStatus(
+  status: OrderProgressStatus,
+  note?: string,
+  hiddenFromAdmin?: boolean
+): string {
   return JSON.stringify({
     status,
     note: note || '',
+    hidden_from_admin: hiddenFromAdmin ?? false,
     updated_at: new Date().toISOString(),
   });
+}
+
+/**
+ * 🔍 檢查訂單是否已被後台結單刪除（僅自管理員端隱藏，前台繼續保留）
+ */
+export function isOrderHiddenFromAdmin(signatureUrl?: string | null): boolean {
+  if (!signatureUrl) return false;
+  try {
+    const trimmed = signatureUrl.trim();
+    if (trimmed.startsWith('{')) {
+      const parsed = JSON.parse(trimmed);
+      if (parsed.hidden_from_admin === true || parsed.status === 'purged') {
+        return true;
+      }
+      if (typeof parsed.note === 'string' && parsed.note.includes('後台結單刪除')) {
+        return true;
+      }
+    }
+  } catch {}
+  return false;
 }

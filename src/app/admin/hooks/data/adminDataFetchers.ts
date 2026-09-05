@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { GroupOrderAdmin, OrderSubmissionAdmin } from '../../admin-types';
-import { parseOrderProgressStatus } from '@/types/orderStatus';
+import { parseOrderProgressStatus, isOrderHiddenFromAdmin } from '@/types/orderStatus';
 
 export interface AdminRawDataResult {
   stores: Store[];
@@ -90,6 +90,7 @@ export async function fetchAdminAllData(): Promise<AdminRawDataResult> {
   const rawSubRows = (allSubList as unknown as any[]) || [];
   const completedGroupIds = new Set(completedList.map((g) => g.id));
   const activeSubList = rawSubRows.filter((s) => {
+    if (isOrderHiddenFromAdmin(s.signature_url)) return false;
     if (s.group_order_id && completedGroupIds.has(s.group_order_id)) return false;
     return true;
   });

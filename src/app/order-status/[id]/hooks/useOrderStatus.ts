@@ -43,12 +43,23 @@ export interface GroupOrderMeta {
 export function useOrderStatus(submissionId: string) {
   const router = useRouter();
 
-  // ⚡ 優先自 SessionStorage 讀取背景預載入快取，達成 0ms 瞬開
+  // ⚡ 優先自 SessionStorage 或 LocalStorage 歷史快照讀取，達成 0ms 瞬開
   const [order, setOrder] = useState<OrderSubmissionDetail | null>(() => {
     if (typeof window !== 'undefined' && submissionId) {
       try {
         const raw = sessionStorage.getItem(`meinu_order_cache_${submissionId}`);
-        if (raw) return JSON.parse(raw).order || null;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.order) return parsed.order;
+        }
+        const detailRaw = localStorage.getItem('menu_app_cached_orders_detail');
+        if (detailRaw) {
+          const list = JSON.parse(detailRaw);
+          if (Array.isArray(list)) {
+            const found = list.find((o: any) => o.id === submissionId);
+            if (found) return found;
+          }
+        }
       } catch {}
     }
     return null;
@@ -58,7 +69,18 @@ export function useOrderStatus(submissionId: string) {
     if (typeof window !== 'undefined' && submissionId) {
       try {
         const raw = sessionStorage.getItem(`meinu_order_cache_${submissionId}`);
-        if (raw) return JSON.parse(raw).orderItems || [];
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.orderItems) return parsed.orderItems;
+        }
+        const detailRaw = localStorage.getItem('menu_app_cached_orders_detail');
+        if (detailRaw) {
+          const list = JSON.parse(detailRaw);
+          if (Array.isArray(list)) {
+            const found = list.find((o: any) => o.id === submissionId);
+            if (found && Array.isArray(found.order_items)) return found.order_items;
+          }
+        }
       } catch {}
     }
     return [];
@@ -68,7 +90,18 @@ export function useOrderStatus(submissionId: string) {
     if (typeof window !== 'undefined' && submissionId) {
       try {
         const raw = sessionStorage.getItem(`meinu_order_cache_${submissionId}`);
-        if (raw) return JSON.parse(raw).groupOrder || null;
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.groupOrder) return parsed.groupOrder;
+        }
+        const detailRaw = localStorage.getItem('menu_app_cached_orders_detail');
+        if (detailRaw) {
+          const list = JSON.parse(detailRaw);
+          if (Array.isArray(list)) {
+            const found = list.find((o: any) => o.id === submissionId);
+            if (found && found.group_orders) return found.group_orders;
+          }
+        }
       } catch {}
     }
     return null;
@@ -169,6 +202,27 @@ export function useOrderStatus(submissionId: string) {
         setTimeLeft(remaining);
       }
 
+      // 同步更新本地快取最新進度
+      try {
+        const detailRaw = localStorage.getItem('menu_app_cached_orders_detail');
+        if (detailRaw) {
+          const list = JSON.parse(detailRaw);
+          if (Array.isArray(list)) {
+            const updated = list.map((o: any) =>
+              o.id === submissionId
+                ? {
+                    ...o,
+                    ...subData,
+                    order_items: itemsData || o.order_items,
+                    group_orders: grpData || o.group_orders,
+                  }
+                : o
+            );
+            localStorage.setItem('menu_app_cached_orders_detail', JSON.stringify(updated));
+          }
+        }
+      } catch {}
+
       setLoading(false);
     }
 
@@ -188,6 +242,18 @@ export function useOrderStatus(submissionId: string) {
         (payload) => {
           if (payload.new) {
             setOrder((prev) => (prev ? { ...prev, ...(payload.new as OrderSubmissionDetail) } : null));
+            try {
+              const detailRaw = localStorage.getItem('menu_app_cached_orders_detail');
+              if (detailRaw) {
+                const list = JSON.parse(detailRaw);
+                if (Array.isArray(list)) {
+                  const updated = list.map((o: any) =>
+                    o.id === submissionId ? { ...o, ...(payload.new as any) } : o
+                  );
+                  localStorage.setItem('menu_app_cached_orders_detail', JSON.stringify(updated));
+                }
+              }
+            } catch {}
           }
         }
       )
@@ -203,6 +269,16 @@ export function useOrderStatus(submissionId: string) {
 
         if (latestSub) {
           setOrder((prev) => (prev ? { ...prev, ...latestSub } : null));
+          try {
+            const detailRaw = localStorage.getItem('menu_app_cached_orders_detail');
+            if (detailRaw) {
+              const list = JSON.parse(detailRaw);
+              if (Array.isArray(list)) {
+                const updated = list.map((o: any) => (o.id === submissionId ? { ...o, ...latestSub } : o));
+                localStorage.setItem('menu_app_cached_orders_detail', JSON.stringify(updated));
+              }
+            }
+          } catch {}
         }
       } catch {}
     }, 3000);

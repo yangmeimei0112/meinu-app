@@ -369,26 +369,35 @@ export function useAdminOrderActions({
     }
 
     try {
-      // 1. 若非徹底抹除，先更新 signature_url 為指定狀態，確保前台顧客端能即時感知並持久化保存
       if (action !== 'purge_everywhere') {
+        // 🌟 非徹底抹除：將訂單進度更新為指定狀態（已完成/已取消）並標記自後台隱藏，資料庫完整保留供前台顧客永久查詢！
         const finalStatus = action === 'mark_completed' ? 'completed' : 'cancelled';
-        const payloadSignatureUrl = serializeOrderProgressStatus(finalStatus, '後台結單刪除');
-        await supabase
+        const noteText = action === 'mark_completed' ? '後台結單完成' : '後台結單刪除';
+        const payloadSignatureUrl = serializeOrderProgressStatus(finalStatus, noteText, true);
+
+        const { error: updateErr } = await supabase
           .from('order_submissions')
           .update({ signature_url: payloadSignatureUrl })
           .in('id', targetIds);
+
+        if (updateErr) throw updateErr;
       } else {
-        const payloadSignatureUrl = JSON.stringify({ status: 'purged', tombstone: 'purge_everywhere' });
+        // ⚠️ 徹底抹除（前後台全數刪除）：先廣播抹除標記，再從資料庫徹底刪除
+        const payloadSignatureUrl = JSON.stringify({
+          status: 'purged',
+          tombstone: 'purge_everywhere',
+          updated_at: new Date().toISOString(),
+        });
         await supabase
           .from('order_submissions')
           .update({ signature_url: payloadSignatureUrl })
           .in('id', targetIds);
+
+        await supabase.from('order_items').delete().in('submission_id', targetIds);
+        const { error: delErr } = await supabase.from('order_submissions').delete().in('id', targetIds);
+        if (delErr) throw delErr;
       }
 
-      // 2. 從資料庫刪除
-      await supabase.from('order_items').delete().in('submission_id', targetIds);
-      const { error } = await supabase.from('order_submissions').delete().in('id', targetIds);
-      if (error) throw error;
       fetchAdminData(selectedActiveGroupIdRef.current, true);
     } catch (err: any) {
       console.error('刪除訂單失敗:', err);
