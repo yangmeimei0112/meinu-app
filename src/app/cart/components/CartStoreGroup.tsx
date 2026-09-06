@@ -61,7 +61,7 @@ export function CartStoreGroup({
               <div>
                 <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.name}</h4>
                 <p className="text-xs text-slate-400 dark:text-slate-500 font-semibold mt-0.5">
-                  單價 ${item.unitPrice} 元
+                  單價 ${Math.round(item.totalPrice / (item.quantity || 1))} 元
                 </p>
               </div>
               <span className="font-extrabold text-sm text-slate-800 dark:text-slate-100">

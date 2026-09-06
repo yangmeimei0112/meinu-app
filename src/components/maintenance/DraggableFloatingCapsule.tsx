@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
+import type { MaintenanceScope } from '@/lib/maintenanceConfig';
 
 function IconAlertTriangle({ className = 'w-4 h-4' }: { className?: string }) {
   return (

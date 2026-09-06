@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Store, Category, PaymentMethod, SoldOutOption } from '@/types/database';
-import { compressImageToWebP, dataUrlToFile } from '@/lib/image-compress';
+import { compressImageToWebP, dataUrlToFile } from '@/lib/imageCompressor';
 import { AdminConfirmModalState } from '../admin-types';
 import { useAdminCategoryCrud } from './useAdminCategoryCrud';
 import { useAdminProductCrud } from './useAdminProductCrud';

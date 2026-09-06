@@ -5,6 +5,7 @@ import { CustomGroup } from '@/types/database';
 import { Plus, Trash2, X, BookOpen, BookmarkPlus } from 'lucide-react';
 import { PresetCustomOptionsDrawer } from './PresetCustomOptionsDrawer';
 import { SaveCustomPresetModal } from './SaveCustomPresetModal';
+import { isSizeCustomGroup } from './ProductSizePricingBuilder';
 
 interface ProductCustomGroupsManagerProps {
   productCustomGroups: CustomGroup[];
@@ -26,19 +27,74 @@ export function ProductCustomGroupsManager({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
 
+  // 僅顯示除「容量尺寸」外的其他規格群組（避免與專屬尺寸定價構建器重複）
+  const otherGroups = productCustomGroups.filter((g) => !isSizeCustomGroup(g));
+
   const handleApplyPreset = (groups: CustomGroup[], mode: 'append' | 'replace') => {
     if (mode === 'replace') {
-      setProductCustomGroups(groups);
+      // 若已有尺寸群組，保留它
+      const existingSizeGroup = productCustomGroups.find((g) => isSizeCustomGroup(g));
+      if (existingSizeGroup) {
+        setProductCustomGroups([existingSizeGroup, ...groups.filter((g) => !isSizeCustomGroup(g))]);
+      } else {
+        setProductCustomGroups(groups);
+      }
     } else {
       setProductCustomGroups((prev) => [...prev, ...groups]);
     }
+  };
+
+  const updateGroupTitle = (groupId: string, newTitle: string) => {
+    setProductCustomGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, title: newTitle } : g))
+    );
+  };
+
+  const updateGroupType = (groupId: string, newType: 'single' | 'any' | 'limit') => {
+    setProductCustomGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, type: newType } : g))
+    );
+  };
+
+  const updateGroupLimit = (groupId: string, limitNum: number) => {
+    setProductCustomGroups((prev) =>
+      prev.map((g) => (g.id === groupId ? { ...g, limit_number: limitNum } : g))
+    );
+  };
+
+  const updateOptionName = (groupId: string, optionId: string, name: string) => {
+    setProductCustomGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              options: g.options.map((opt) => (opt.id === optionId ? { ...opt, name } : opt)),
+            }
+          : g
+      )
+    );
+  };
+
+  const updateOptionPrice = (groupId: string, optionId: string, priceAdj: number) => {
+    setProductCustomGroups((prev) =>
+      prev.map((g) =>
+        g.id === groupId
+          ? {
+              ...g,
+              options: g.options.map((opt) =>
+                opt.id === optionId ? { ...opt, price_adjustment: priceAdj } : opt
+              ),
+            }
+          : g
+      )
+    );
   };
 
   return (
     <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-          客製化規格選項 (如：甜度、冰塊、加料、熟度)
+          其他客製化規格 (如：甜度、冰塊、加料、熟度)
         </span>
         <div className="flex items-center gap-1.5 flex-wrap">
           {/* 常用範本庫抽屜 */}
@@ -53,7 +109,7 @@ export function ProductCustomGroupsManager({
           </button>
 
           {/* 存為常用範本 (只有在已有規格時可按) */}
-          {productCustomGroups.length > 0 && (
+          {otherGroups.length > 0 && (
             <button
               type="button"
               onClick={() => setIsSaveModalOpen(true)}
@@ -77,10 +133,10 @@ export function ProductCustomGroupsManager({
         </div>
       </div>
 
-      {productCustomGroups.length === 0 ? (
+      {otherGroups.length === 0 ? (
         <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#182234] border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-2">
           <p className="text-xs text-slate-400 dark:text-slate-500 italic">
-            尚無客製化規格設定。您可以手動新增群組，或直接從常用範本庫一鍵套用！
+            尚無其他客製化規格（甜度/冰塊等）。您可以點擊右上角新增群組，或直接從常用範本庫套用！
           </p>
           <button
             type="button"
@@ -93,7 +149,7 @@ export function ProductCustomGroupsManager({
         </div>
       ) : (
         <div className="space-y-3">
-          {productCustomGroups.map((group, groupIdx) => (
+          {otherGroups.map((group, groupIdx) => (
             <div
               key={group.id || groupIdx}
               className="bg-slate-50 dark:bg-[#182234] p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2.5"
@@ -103,20 +159,12 @@ export function ProductCustomGroupsManager({
                   type="text"
                   placeholder="群組名稱 (如：甜度)"
                   value={group.title}
-                  onChange={(e) => {
-                    const newGroups = [...productCustomGroups];
-                    newGroups[groupIdx].title = e.target.value;
-                    setProductCustomGroups(newGroups);
-                  }}
+                  onChange={(e) => updateGroupTitle(group.id, e.target.value)}
                   className="flex-1 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 rounded-lg px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-400"
                 />
                 <select
                   value={group.type}
-                  onChange={(e) => {
-                    const newGroups = [...productCustomGroups];
-                    newGroups[groupIdx].type = e.target.value as 'single' | 'any' | 'limit';
-                    setProductCustomGroups(newGroups);
-                  }}
+                  onChange={(e) => updateGroupType(group.id, e.target.value as 'single' | 'any' | 'limit')}
                   className="bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg px-2 py-1 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-400"
                 >
                   <option value="single" className="bg-white dark:bg-[#131B2B] text-slate-900 dark:text-slate-100">
@@ -136,11 +184,7 @@ export function ProductCustomGroupsManager({
                     min="1"
                     placeholder="數量"
                     value={group.limit_number || 1}
-                    onChange={(e) => {
-                      const newGroups = [...productCustomGroups];
-                      newGroups[groupIdx].limit_number = parseInt(e.target.value, 10) || 1;
-                      setProductCustomGroups(newGroups);
-                    }}
+                    onChange={(e) => updateGroupLimit(group.id, parseInt(e.target.value, 10) || 1)}
                     className="w-14 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-lg px-2 py-1 text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-sky-400"
                   />
                 )}
@@ -163,11 +207,7 @@ export function ProductCustomGroupsManager({
                       type="text"
                       placeholder="選項名稱 (如：微糖)"
                       value={opt.name}
-                      onChange={(e) => {
-                        const newGroups = [...productCustomGroups];
-                        newGroups[groupIdx].options[optIdx].name = e.target.value;
-                        setProductCustomGroups(newGroups);
-                      }}
+                      onChange={(e) => updateOptionName(group.id, opt.id, e.target.value)}
                       className="flex-1 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 placeholder:text-slate-400 rounded-md px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
                     />
                     <div className="flex items-center gap-1">
@@ -176,12 +216,7 @@ export function ProductCustomGroupsManager({
                         type="number"
                         placeholder="加價"
                         value={opt.price_adjustment}
-                        onChange={(e) => {
-                          const newGroups = [...productCustomGroups];
-                          newGroups[groupIdx].options[optIdx].price_adjustment =
-                            parseInt(e.target.value, 10) || 0;
-                          setProductCustomGroups(newGroups);
-                        }}
+                        onChange={(e) => updateOptionPrice(group.id, opt.id, parseInt(e.target.value, 10) || 0)}
                         className="w-14 bg-white dark:bg-[#131B2B] border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 rounded-md px-1.5 py-0.5 text-xs text-center focus:outline-none focus:ring-1 focus:ring-sky-400"
                       />
                     </div>
@@ -220,7 +255,7 @@ export function ProductCustomGroupsManager({
       <SaveCustomPresetModal
         isOpen={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
-        groups={productCustomGroups}
+        groups={otherGroups}
       />
     </div>
   );

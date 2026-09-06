@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useTheme } from '@/lib/theme';
 import { TriangleWarningCore } from './TriangleWarningCore';
 import { Clock, RefreshCw, Sun, Moon, AlertTriangle, ShieldCheck, Sparkles, Server } from 'lucide-react';
-import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
+import type { MaintenanceScope } from '@/lib/maintenanceConfig';
 
 export interface MaintenanceData {
   is_maintenance: boolean;

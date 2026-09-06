@@ -17,10 +17,48 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
-    version: 'v10.7.0',
+    version: 'v10.8.0',
     releaseDate: '2026-09-06',
     tag: 'Minor',
     isLatest: true,
+    summary:
+      '全系統檔案架構與底層效能深度優化、專案檔案標準化分類整理、圖片壓縮中樞整合、運費平攤並行演算法升級，以及全站規格同步與使用者體驗全方位強化。',
+    highlights: [
+      '🗂️ 全專案檔案結構分類整理：清理冗餘暫存檔案與無用資產，技術指南與 SQL 安全文件統一收納至 docs/，全面優化 AI 編輯與工程協作效率',
+      '🖼️ 原生圖片壓縮中樞整合：將圖片轉 WebP 與 AI 掃描 JPEG 壓縮邏輯整合收斂至 imageCompressor.ts，消除重複代碼並提供向下相容匯出',
+      '⚡ 運費平攤並行演算法：後台外送費與折扣平攤更新由序列單筆寫入升級為 Promise.all 並行執行，大幅縮減資料庫更新延遲',
+      '🔄 歷史再點一次規格完美同步：前台歷史訂單「一鍵再點一次」完整繼承多尺寸規格與加價項目，購物車直覺呈現含規格之實際單價',
+      '🏷️ 後台菜單品項多尺寸徽章：菜單編輯器即時標註「中/大杯」與「起價」標籤，提升後台管理者操作辨識度',
+    ],
+    items: [
+      {
+        type: 'enhancement',
+        title: '專案檔案分類整理與冗餘資源清理',
+        description:
+          '清理無用暫存測試腳本與模板資源，將 SEO 與資安指引收納至 docs/，優化專案結構便利 AI 與開發者編輯。',
+        badgeText: '架構整理',
+      },
+      {
+        type: 'enhancement',
+        title: '圖片壓縮模組整併與效能提升',
+        description:
+          '將分散之圖片壓縮工具統一整併至 imageCompressor.ts，維持無感相容並減少 Bundle 體積。',
+        badgeText: '效能優化',
+      },
+      {
+        type: 'fix',
+        title: '購物車單價呈現與歷史再點餐邏輯同步修正',
+        description:
+          '修復購物車品項在多尺寸加價時顯示原始基準價之問題，一鍵再點餐同步正確計算加價金額。',
+        badgeText: '邏輯修復',
+      },
+    ],
+  },
+  {
+    version: 'v10.7.0',
+    releaseDate: '2026-09-06',
+    tag: 'Minor',
+    isLatest: false,
     summary:
       '店家商品全新支援「中杯 / 大杯」個別定價與多尺寸自訂擴充功能，管理後台提供直覺尺寸定價構建器，前台菜單動態顯示起價與尺寸徽章，客製化彈窗即時計算並同步單價。',
     highlights: [

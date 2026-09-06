@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import type { MaintenanceData } from './MaintenanceScreen';
-import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
+import type { MaintenanceScope } from '@/lib/maintenanceConfig';
 
 const STORAGE_KEY_LOCKED = 'meinu_maintenance_locked';
 const STORAGE_KEY_DATA = 'meinu_maintenance_data';

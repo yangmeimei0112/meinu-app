@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { MaintenanceData } from '@/components/MaintenanceGuard';
-import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
+import type { MaintenanceScope } from '@/lib/maintenanceConfig';
 import {
   X,
   Lightbulb,

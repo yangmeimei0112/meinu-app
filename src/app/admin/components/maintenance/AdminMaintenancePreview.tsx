@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { MaintenanceData, MaintenanceScreen } from '@/components/MaintenanceGuard';
-import type { MaintenanceScope } from '@/app/api/system/maintenance/route';
+import type { MaintenanceScope } from '@/lib/maintenanceConfig';
 import { Smartphone, Monitor, Maximize2, X, AlertTriangle, Home, Search, ShoppingCart, ClipboardList, User } from 'lucide-react';
 
 interface AdminMaintenancePreviewProps {

@@ -146,11 +146,14 @@ export async function executeOrderSubmissionPipeline({
     const notesText = item.customNotes ? `備註: ${item.customNotes}` : '';
     const combinedNotes = [optionsText, notesText].filter(Boolean).join(' | ');
 
+    const itemExtra = (item.selectedOptions || []).reduce((sum, o) => sum + (o.extraPrice || 0), 0);
+    const effectiveUnitPrice = Math.max(0, Math.round(item.unitPrice + itemExtra));
+
     return {
       submission_id: submission.id,
       item_name: sanitizeInput(item.name, 60),
       quantity: Math.max(1, Math.min(99, item.quantity)),
-      unit_price: Math.max(0, Math.round(item.unitPrice)),
+      unit_price: effectiveUnitPrice,
       custom_notes: combinedNotes ? sanitizeInput(combinedNotes, 150) : null,
     };
   });

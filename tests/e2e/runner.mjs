@@ -12,7 +12,13 @@ import { resolve } from 'node:path';
 import { createJiti } from 'jiti';
 
 const rootDir = process.cwd();
-const jiti = createJiti(rootDir);
+const srcDir = resolve(rootDir, 'src');
+const jiti = createJiti(rootDir, {
+  alias: {
+    '@': srcDir,
+    '@/*': `${srcDir}/*`
+  }
+});
 
 const targetRunner = resolve(rootDir, 'tests/e2e/runner.ts');
 

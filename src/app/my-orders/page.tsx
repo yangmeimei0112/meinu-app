@@ -96,18 +96,24 @@ export default function MyOrdersPage() {
     const storeId = order.group_orders?.store_id || 'store';
     const storeName = order.group_orders?.stores?.name || '店家';
 
-    const newCartItems: CartItem[] = order.order_items.map((item, index) => ({
-      cartItemId: `reorder-${item.id}-${Date.now()}-${index}`,
-      menuItemId: item.id,
-      storeId,
-      storeName,
-      name: item.item_name,
-      unitPrice: item.unit_price,
-      quantity: item.quantity,
-      selectedOptions: [],
-      customNotes: item.custom_notes || '',
-      totalPrice: item.unit_price * item.quantity,
-    }));
+    const newCartItems: CartItem[] = order.order_items.map((item: any, index) => {
+      const selectedOptions = item.selectedOptions || [];
+      const extraPriceTotal = selectedOptions.reduce((sum: number, o: any) => sum + (o.extraPrice || 0), 0);
+      const effectiveUnitPrice = item.unit_price + extraPriceTotal;
+      return {
+        cartItemId: `reorder-${item.id}-${Date.now()}-${index}`,
+        menuItemId: item.menuItemId || item.id,
+        storeId,
+        storeName,
+        name: item.item_name,
+        unitPrice: item.unit_price,
+        quantity: item.quantity,
+        selectedOptions,
+        customNotes: item.custom_notes || '',
+        totalPrice: effectiveUnitPrice * item.quantity,
+        rawCustomSelections: item.rawCustomSelections,
+      };
+    });
 
     const savedMulti = localStorage.getItem('menu_app_multi_cart');
     const multiCart: MultiStoreCart = savedMulti ? JSON.parse(savedMulti) : {};

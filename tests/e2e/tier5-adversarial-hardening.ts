@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach } from './test-framework';
 import { sanitizeInput, isSafeUrl, checkRateLimit, generateMathChallenge } from '../../src/lib/security';
 import { mergeCartItems } from '../../src/lib/useMultiCart';
-import { formatStoreCode } from '../../src/app/api/stores/code/route';
+import { formatStoreCode } from '../../src/lib/formatStoreCode';
 import type { CartItem } from '../../src/types/cart';
 import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
 

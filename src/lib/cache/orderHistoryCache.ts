@@ -1,8 +1,8 @@
 'use client';
 
-import { supabase } from '@/lib/supabase';
-import type { OrderHistoryRecord } from '@/app/my-orders/components/MyOrderHistoryCard';
-import { parseOrderProgressStatus, serializeOrderProgressStatus } from '@/types/orderStatus';
+import { supabase } from '../supabase';
+import type { OrderHistoryRecord } from '../../app/my-orders/components/MyOrderHistoryCard';
+import { parseOrderProgressStatus, serializeOrderProgressStatus } from '../../types/orderStatus';
 
 let globalOrderHistoryCache: OrderHistoryRecord[] | null = null;
 const orderHistoryListeners = new Set<(orders: OrderHistoryRecord[]) => void>();

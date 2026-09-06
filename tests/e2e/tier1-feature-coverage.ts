@@ -21,7 +21,7 @@ import {
   setOrderHistoryCache,
   clearAllOrderHistory,
 } from '../../src/lib/cache/orderHistoryCache';
-import { formatStoreCode } from '../../src/app/api/stores/code/route';
+import { formatStoreCode } from '../../src/lib/formatStoreCode';
 import { BUILT_IN_CUSTOM_PRESETS } from '../../src/lib/customOptionPresets';
 import type { CartItem, SelectedOption } from '../../src/types/cart';
 import type { CustomGroup } from '../../src/types/database';

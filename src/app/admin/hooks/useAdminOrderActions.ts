@@ -109,10 +109,13 @@ export function useAdminOrderActions({
   const handleApplyFeeSplit = async () => {
     if (!activeGroup || submissions.length === 0) return;
 
-    for (const sub of submissions) {
-      const adjustedFinal = calculateAdjustedAmount(sub.total_amount);
-      await supabase.from('order_submissions').update({ final_amount: adjustedFinal }).eq('id', sub.id);
-    }
+    // 🚀 並行更新所有訂單之平攤金額，消除網路延遲
+    await Promise.all(
+      submissions.map((sub) => {
+        const adjustedFinal = calculateAdjustedAmount(sub.total_amount);
+        return supabase.from('order_submissions').update({ final_amount: adjustedFinal }).eq('id', sub.id);
+      })
+    );
 
     await supabase
       .from('group_orders')

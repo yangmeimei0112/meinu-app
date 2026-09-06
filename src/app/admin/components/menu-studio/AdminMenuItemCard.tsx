@@ -199,10 +199,31 @@ export function AdminMenuItemCard({
 
         {/* 餐點名稱與價格 */}
         <div>
-          <h4 className="font-black text-slate-900 dark:text-slate-100 text-base truncate">{item.name}</h4>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h4 className="font-black text-slate-900 dark:text-slate-100 text-base truncate">{item.name}</h4>
+            {(() => {
+              const sizeGroup = item.custom_groups?.find((g) =>
+                ['容量尺寸', '杯型尺寸', '尺寸', '份量大小', '份量'].includes(g.title.trim())
+              );
+              if (sizeGroup && sizeGroup.options && sizeGroup.options.length > 1) {
+                return (
+                  <span className="bg-sky-50 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 text-[10px] font-black px-2 py-0.5 rounded-full">
+                    {sizeGroup.options.length >= 2 ? '中/大杯' : '多尺寸'}
+                  </span>
+                );
+              }
+              return null;
+            })()}
+          </div>
           <p className="text-sky-600 dark:text-sky-400 font-black text-base mt-0.5 font-mono">
             ${item.price}{' '}
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">元</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
+              {item.custom_groups?.some((g) =>
+                ['容量尺寸', '杯型尺寸', '尺寸', '份量大小', '份量'].includes(g.title.trim()) && g.options.length > 1
+              )
+                ? '元起'
+                : '元'}
+            </span>
           </p>
         </div>
 
