@@ -86,12 +86,22 @@ export function AdminMaintenancePreview({
   // 監聽 ESC 鍵自動關閉全螢幕預覽
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && showFullScreen) {
+      if (e?.key === 'Escape' && showFullScreen) {
         setShowFullScreen(false);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    try {
+      if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
+        window.addEventListener('keydown', handleKeyDown);
+      }
+    } catch {}
+    return () => {
+      try {
+        if (typeof window !== 'undefined' && window && typeof window.removeEventListener === 'function') {
+          window.removeEventListener('keydown', handleKeyDown);
+        }
+      } catch {}
+    };
   }, [showFullScreen]);
 
   return (

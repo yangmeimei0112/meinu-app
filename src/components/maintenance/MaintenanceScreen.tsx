@@ -56,6 +56,7 @@ export function MaintenanceScreen({
   isSinglePage = false,
 }: MaintenanceScreenProps) {
   const { theme, toggleTheme } = useTheme();
+  const [imageError, setImageError] = React.useState<boolean>(false);
   const activeScopes = data.scopes && data.scopes.length > 0 ? data.scopes : [data.scope || 'all'];
   const currentScope = activeScopes[0] || 'all';
 
@@ -121,7 +122,7 @@ export function MaintenanceScreen({
       {/* 🎯 核心主體 Bento 玻璃卡片 */}
       <main className="relative z-10 max-w-md mx-auto w-full my-auto py-3 space-y-4 text-center">
         {/* 1. 中心視覺區域：支援自訂圖片/GIF 或新版三角形驚嘆號動力核心 */}
-        {data.custom_image_url ? (
+        {data.custom_image_url && !imageError ? (
           <div className="relative w-44 h-44 mx-auto flex items-center justify-center animate-float-slow">
             {/* 全息光暈背景 */}
             <div className="absolute inset-0 bg-gradient-to-tr from-amber-500/25 to-sky-500/25 rounded-3xl blur-xl" />
@@ -136,6 +137,7 @@ export function MaintenanceScreen({
               src={data.custom_image_url}
               alt="維護公告自訂圖片"
               className="relative w-40 h-40 object-contain rounded-2xl shadow-xl border border-amber-300/80 dark:border-amber-400/50 bg-white/80 dark:bg-slate-900/90 backdrop-blur-md p-2"
+              onError={() => setImageError(true)}
             />
           </div>
         ) : (

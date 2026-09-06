@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { Category, Store } from '@/types/database';
 import { Pencil, Store as StoreIcon, AlertTriangle, Lightbulb } from 'lucide-react';
+import StoreImage from '@/components/StoreImage';
 
 interface AdminStoreModalProps {
   isOpen: boolean;
@@ -213,13 +214,15 @@ export default function AdminStoreModal({
 
             <div className="flex items-center gap-3 bg-slate-50 dark:bg-[#182234] border border-slate-200 dark:border-slate-700 rounded-xl p-3">
               {storeImagePreview ? (
-                <img
-                  src={storeImagePreview}
-                  alt="預覽"
-                  className="w-14 h-14 rounded-lg object-cover border border-slate-300 dark:border-slate-600"
-                />
+                <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 shrink-0">
+                  <StoreImage
+                    src={storeImagePreview}
+                    alt="預覽"
+                    fallbackIcon={<StoreIcon className="w-7 h-7 text-slate-400" />}
+                  />
+                </div>
               ) : (
-                <div className="w-14 h-14 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs text-slate-400 dark:text-slate-300 font-bold">
+                <div className="w-14 h-14 rounded-lg bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs text-slate-400 dark:text-slate-300 font-bold shrink-0">
                   無照片
                 </div>
               )}

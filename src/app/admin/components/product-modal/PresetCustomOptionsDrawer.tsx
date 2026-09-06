@@ -240,8 +240,8 @@ export function PresetCustomOptionsDrawer({
                             className="bg-white dark:bg-[#0E1726] border border-sky-400 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none flex-1"
                             autoFocus
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleSaveRename(preset.id);
-                              if (e.key === 'Escape') setEditingPresetId(null);
+                              if (e?.key === 'Enter') handleSaveRename(preset.id);
+                              if (e?.key === 'Escape') setEditingPresetId(null);
                             }}
                           />
                           <button

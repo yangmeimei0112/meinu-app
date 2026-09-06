@@ -86,17 +86,20 @@ export function useAdminSpeech() {
     if (!voices || voices.length === 0) return;
 
     // 優先順序：zh-TW 臺灣繁體 -> zh-HK 香港 -> 包含 zh 的通用中文發音人
-    const twVoice = voices.find(
-      (v) =>
-        v.lang.toLowerCase() === 'zh-tw' ||
-        v.lang.toLowerCase() === 'zh_tw' ||
-        v.name.includes('Taiwan') ||
-        v.name.includes('國語') ||
-        v.name.includes('Hanhan') ||
-        v.name.includes('Yating') ||
-        v.name.includes('Mei-Jia')
-    );
-    const zhVoice = voices.find((v) => v.lang.toLowerCase().startsWith('zh'));
+    const twVoice = voices.find((v) => {
+      const lang = (v?.lang || '').toLowerCase();
+      const name = v?.name || '';
+      return (
+        lang === 'zh-tw' ||
+        lang === 'zh_tw' ||
+        name.includes('Taiwan') ||
+        name.includes('國語') ||
+        name.includes('Hanhan') ||
+        name.includes('Yating') ||
+        name.includes('Mei-Jia')
+      );
+    });
+    const zhVoice = voices.find((v) => (v?.lang || '').toLowerCase().startsWith('zh'));
     preferredVoiceRef.current = twVoice || zhVoice || null;
   }, []);
 

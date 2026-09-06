@@ -65,6 +65,7 @@ export function AccountProfileCard({
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [newPhone, setNewPhone] = useState(profile.phone || '');
   const [isSavingPhone, setIsSavingPhone] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   // Passkey 註冊與刪除狀態
   const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
@@ -194,11 +195,12 @@ export function AccountProfileCard({
         {/* 會員頭像與名稱展示 */}
         <div className="flex items-center gap-3.5 text-left pt-1">
           <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-400 to-blue-600 p-0.5 shadow-lg shadow-sky-500/20 shrink-0 overflow-hidden">
-            {profile.avatar_url ? (
+            {profile.avatar_url && !avatarError ? (
               <img
                 src={profile.avatar_url}
                 alt={profile.nickname}
                 className="w-full h-full rounded-2xl object-cover"
+                onError={() => setAvatarError(true)}
               />
             ) : (
               <div className="w-full h-full rounded-2xl bg-white dark:bg-[#0E1524] flex items-center justify-center text-sky-600 dark:text-sky-400 font-black text-xl">

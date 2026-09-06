@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { Store } from '@/types/database';
 import { Sparkles, Store as StoreIcon } from 'lucide-react';
 import { prefetchStoreData } from '@/lib/storeMenuCache';
+import StoreImage from '@/components/StoreImage';
 
 interface SearchFeaturedStoresProps {
   stores: Store[];
@@ -53,17 +54,11 @@ export function SearchFeaturedStores({
                 </span>
               )}
               <div className="w-14 h-14 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/60 overflow-hidden flex items-center justify-center text-2xl group-hover:scale-105 transition-transform">
-                {store.image_url ? (
-                  <img
-                    src={store.image_url}
-                    alt={store.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <StoreIcon className="w-6 h-6 text-sky-500" />
-                )}
+                <StoreImage
+                  src={store.image_url}
+                  alt={store.name}
+                  fallbackIcon={<StoreIcon className="w-6 h-6 text-sky-500" />}
+                />
               </div>
               <div className="w-full">
                 <p className="font-black text-xs text-slate-800 dark:text-slate-100 truncate">

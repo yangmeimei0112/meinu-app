@@ -170,8 +170,8 @@ export function useUserAuth() {
   const register = useCallback(
     async (email: string, password: string, nickname: string, phone?: string) => {
       setAuthError(null);
-      const cleanEmail = email.trim().toLowerCase();
-      const cleanNick = nickname.trim();
+      const cleanEmail = (email || '').trim().toLowerCase();
+      const cleanNick = (nickname || '').trim();
       const cleanPhone = phone?.trim() || null;
 
       if (!cleanEmail || !cleanEmail.includes('@')) {
@@ -229,7 +229,7 @@ export function useUserAuth() {
   // 2. 會員密碼登入
   const login = useCallback(async (email: string, password: string) => {
     setAuthError(null);
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
 
     if (!cleanEmail || !cleanEmail.includes('@')) {
       const msg = '請輸入正確的電子信箱格式！';
@@ -379,7 +379,7 @@ export function useUserAuth() {
   // 7. 發送忘記密碼重設信件
   const sendPasswordResetEmail = useCallback(async (email: string) => {
     setAuthError(null);
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanEmail = (email || '').trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
       const msg = '請輸入正確的電子信箱！';
       setAuthError(msg);

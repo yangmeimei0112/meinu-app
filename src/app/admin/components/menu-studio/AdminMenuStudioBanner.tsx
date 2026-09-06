@@ -11,6 +11,7 @@ import {
   Camera,
   Zap,
 } from 'lucide-react';
+import StoreImage from '@/components/StoreImage';
 
 interface AdminMenuStudioBannerProps {
   activeStudioStore: Store;
@@ -50,15 +51,11 @@ export function AdminMenuStudioBanner({
         </button>
         <div className="flex items-center gap-3">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/60 dark:to-indigo-950/60 border border-sky-100 dark:border-sky-900/60 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
-            {activeStudioStore.image_url ? (
-              <img
-                src={activeStudioStore.image_url}
-                alt={activeStudioStore.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <StoreIcon className="w-7 h-7 text-sky-400 stroke-[1.8]" />
-            )}
+            <StoreImage
+              src={activeStudioStore.image_url}
+              alt={activeStudioStore.name}
+              fallbackIcon={<StoreIcon className="w-7 h-7 text-sky-400 stroke-[1.8]" />}
+            />
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2 flex-wrap">

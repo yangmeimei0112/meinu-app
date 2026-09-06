@@ -37,12 +37,12 @@ function ChangelogPageContent() {
       if (!matchFilter) return false;
 
       if (!searchQuery.trim()) return true;
-      const query = searchQuery.toLowerCase();
-      const matchVersion = rel.version.toLowerCase().includes(query);
-      const matchSummary = rel.summary.toLowerCase().includes(query);
-      const matchHighlights = rel.highlights.some((h) => h.toLowerCase().includes(query));
-      const matchItems = rel.items.some(
-        (i) => i.title.toLowerCase().includes(query) || i.description.toLowerCase().includes(query)
+      const query = (searchQuery || '').toLowerCase();
+      const matchVersion = (rel.version || '').toLowerCase().includes(query);
+      const matchSummary = (rel.summary || '').toLowerCase().includes(query);
+      const matchHighlights = rel.highlights?.some((h) => (h || '').toLowerCase().includes(query));
+      const matchItems = rel.items?.some(
+        (i) => (i.title || '').toLowerCase().includes(query) || (i.description || '').toLowerCase().includes(query)
       );
 
       return matchVersion || matchSummary || matchHighlights || matchItems;

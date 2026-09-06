@@ -98,11 +98,12 @@ export default function AdminBatchImportModal({
         const parts = line.split(',');
         if (parts.length < 2) continue;
 
-        const name = parts[0]?.trim();
-        const price = Number(parts[1]?.trim()) || 0;
-        const description = parts[2]?.trim() || null;
-        const isSoldOut = parts[3]?.trim().toLowerCase() === 'true';
-        const customRulesStr = parts[4]?.trim() || '';
+        const name = (parts[0] || '').trim();
+        if (!name) continue;
+        const price = Number((parts[1] || '').trim()) || 0;
+        const description = (parts[2] || '').trim() || null;
+        const isSoldOut = (parts[3] || '').trim().toLowerCase() === 'true';
+        const customRulesStr = (parts[4] || '').trim();
 
         // 解析客製化規則: 甜度[正常甜:0|半糖:0];加料[波霸:10]
         const customGroups: CustomGroup[] = [];
@@ -111,14 +112,14 @@ export default function AdminBatchImportModal({
           groupBlocks.forEach((block, idx) => {
             const match = block.match(/(.+?)\[(.+?)\]/);
             if (match) {
-              const title = match[1].trim();
-              const optionsRaw = match[2].trim().split('|');
+              const title = (match[1] || '').trim();
+              const optionsRaw = (match[2] || '').trim().split('|');
               const options = optionsRaw.map((optStr, optIdx) => {
-                const [optName, optPrice] = optStr.split(':');
+                const [optName, optPrice] = (optStr || '').split(':');
                 return {
                   id: `opt-${idx}-${optIdx}-${Date.now()}`,
-                  name: optName.trim(),
-                  price_adjustment: Number(optPrice?.trim()) || 0,
+                  name: (optName || '').trim(),
+                  price_adjustment: Number((optPrice || '').trim()) || 0,
                 };
               });
 

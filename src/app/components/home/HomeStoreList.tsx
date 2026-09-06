@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Store } from '@/types/database';
 import { Store as StoreIcon, ChevronRight } from 'lucide-react';
 import { prefetchStoreData } from '@/lib/storeMenuCache';
+import StoreImage from '@/components/StoreImage';
 
 function StoreCardSkeleton() {
   return (
@@ -135,17 +136,11 @@ export function HomeStoreList({
             </div>
 
             <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-[#182234] flex items-center justify-center shrink-0 overflow-hidden border border-slate-100 dark:border-slate-800/80">
-              {store.image_url ? (
-                <img
-                  src={store.image_url}
-                  alt={store.name}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <StoreIcon className="w-7 h-7 text-sky-500" />
-              )}
+              <StoreImage
+                src={store.image_url}
+                alt={store.name}
+                fallbackIcon={<StoreIcon className="w-7 h-7 text-sky-500" />}
+              />
             </div>
             <div className="flex-1 min-w-0">
               <h4 className="font-bold text-slate-800 dark:text-slate-100 text-base truncate group-hover:text-sky-500 transition-colors">

@@ -137,9 +137,14 @@ export function AdminAiMenuReviewTable({
     }
   };
 
-  const filteredItems = items.filter((item) =>
-    filterText ? item.name.toLowerCase().includes(filterText.toLowerCase()) || item.category?.toLowerCase().includes(filterText.toLowerCase()) : true
-  );
+  const filteredItems = items.filter((item) => {
+    if (!filterText) return true;
+    const f = filterText.trim().toLowerCase();
+    if (!f) return true;
+    const nameMatch = (item?.name || '').toLowerCase().includes(f);
+    const catMatch = (item?.category || '').toLowerCase().includes(f);
+    return nameMatch || catMatch;
+  });
 
   return (
     <div className="space-y-4">

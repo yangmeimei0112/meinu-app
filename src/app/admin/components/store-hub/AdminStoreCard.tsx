@@ -3,6 +3,7 @@
 import React from 'react';
 import type { Store } from '@/types/database';
 import { Store as StoreIcon, Wrench, ArrowRight, Pencil, Trash2 } from 'lucide-react';
+import StoreImage from '@/components/StoreImage';
 
 interface AdminStoreCardProps {
   store: Store;
@@ -29,11 +30,11 @@ export function AdminStoreCard({
         {/* 店家封面與分類標籤 */}
         <div className="flex items-start justify-between gap-3.5">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/60 dark:to-indigo-950/60 border border-sky-100 dark:border-sky-900/60 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
-            {store.image_url ? (
-              <img src={store.image_url} alt={store.name} className="w-full h-full object-cover" />
-            ) : (
-              <StoreIcon className="w-8 h-8 text-sky-400 stroke-[1.8]" />
-            )}
+            <StoreImage
+              src={store.image_url}
+              alt={store.name}
+              fallbackIcon={<StoreIcon className="w-8 h-8 text-sky-400 stroke-[1.8]" />}
+            />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">

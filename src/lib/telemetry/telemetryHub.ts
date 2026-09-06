@@ -64,12 +64,32 @@ class TelemetryHub {
 
     // 攔截未處理之 JavaScript 執行期異常
     window.addEventListener('error', (event) => {
+      const filename = event.filename || '';
+      const message = event.message || '';
+      const stack = event.error?.stack || '';
+
+      // 🛡️ 過濾瀏覽器擴充套件 (Chrome/Edge/Firefox Extensions & content_main.js / isTriggerKey) 引發之非本站核心腳本異常
+      const errStr = `${filename} ${message} ${stack}`.toLowerCase();
+      const isExtensionError =
+        errStr.includes('chrome-extension://') ||
+        errStr.includes('moz-extension://') ||
+        errStr.includes('safari-extension://') ||
+        errStr.includes('content_main.js') ||
+        errStr.includes('content-script') ||
+        errStr.includes('istriggerkey') ||
+        errStr.includes('handlekeyup');
+
+      if (isExtensionError) {
+        // 擴充套件異常不記錄至主程式業務錯誤隊列，避免干擾即時監控
+        return;
+      }
+
       this.recordError({
         node: 'customer',
         category: 'Runtime Exception',
         action: '瀏覽器全域執行期異常',
-        message: event.message || '未知錯誤',
-        stack: event.error?.stack,
+        message: message || '未知錯誤',
+        stack: stack || undefined,
         aiSuggestion: '建議檢查該元件之生命週期與非空防護 (Nullish Coalescing)，防止未定義屬性存取。',
       });
     });
@@ -78,12 +98,28 @@ class TelemetryHub {
     window.addEventListener('unhandledrejection', (event) => {
       const reason = event.reason;
       const msg = typeof reason === 'string' ? reason : reason?.message || '非同步操作未捕捉之拒絕';
+      const stack = reason?.stack || '';
+
+      const rejStr = `${msg} ${stack}`.toLowerCase();
+      const isExtensionRejection =
+        rejStr.includes('chrome-extension://') ||
+        rejStr.includes('moz-extension://') ||
+        rejStr.includes('safari-extension://') ||
+        rejStr.includes('content_main.js') ||
+        rejStr.includes('istriggerkey') ||
+        rejStr.includes('handlekeyup') ||
+        rejStr.includes('extension context invalidated');
+
+      if (isExtensionRejection) {
+        return;
+      }
+
       this.recordError({
         node: 'gateway',
         category: 'Unhandled Promise',
         action: '非同步請求未捕捉拒絕',
         message: msg,
-        stack: reason?.stack,
+        stack: stack || undefined,
         aiSuggestion: '建議在該非同步 API 或 Promise 呼叫鏈加上 try...catch 或 .catch() 區塊。',
       });
     });

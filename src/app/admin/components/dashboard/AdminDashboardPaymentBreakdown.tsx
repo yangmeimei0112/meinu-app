@@ -104,7 +104,7 @@ export function AdminDashboardPaymentBreakdown({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         {items.map((item, idx) => {
-          const lowerName = item.name.toLowerCase();
+          const lowerName = (item?.name || '').toLowerCase();
           const preset =
             PAYMENT_COLOR_PRESETS.find((p) => p.match.some((m) => lowerName.includes(m))) ||
             DEFAULT_COLOR_PRESET;

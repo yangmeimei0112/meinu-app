@@ -118,12 +118,12 @@ export default function AdminMenuStudio({
 
   // 🔍 搜尋與篩選邏輯
   const filteredStudioMenuItems = useMemo(() => {
-    const query = debouncedProductSearch.trim().toLowerCase();
+    const query = (debouncedProductSearch || '').trim().toLowerCase();
     return orderedItems.filter((item) => {
       const matchText =
         !query ||
-        item.name.toLowerCase().includes(query) ||
-        (item.description && item.description.toLowerCase().includes(query));
+        (item.name || '').toLowerCase().includes(query) ||
+        (item.description && (item.description || '').toLowerCase().includes(query));
       if (!matchText) return false;
 
       if (itemStatusFilter === 'active') return !item.is_sold_out;

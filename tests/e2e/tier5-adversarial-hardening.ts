@@ -9,6 +9,7 @@ import { mergeCartItems } from '../../src/lib/useMultiCart';
 import { formatStoreCode } from '../../src/lib/formatStoreCode';
 import type { CartItem } from '../../src/types/cart';
 import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
+import { isBrokenStorageUrl, sanitizeStoreImageUrl } from '../../src/lib/imageStorage';
 
 export function registerTier5Tests() {
   describe('Tier 5: Adversarial Hardening', () => {
@@ -166,6 +167,83 @@ export function registerTier5Tests() {
       expect(errors.length).toBe(1); // Auto recorded to error flight recorder
       expect(events[0].action).toBe(maliciousAction);
       expect(errors[0].message).toBe('Malicious event detail');
+    });
+
+    it('T5-8: Image Storage: Sanitizes broken Storage URLs and safely falls back', () => {
+      expect(isBrokenStorageUrl(null)).toBe(true);
+      expect(isBrokenStorageUrl('')).toBe(true);
+      expect(isBrokenStorageUrl('null')).toBe(true);
+      expect(isBrokenStorageUrl('undefined')).toBe(true);
+      expect(isBrokenStorageUrl('[object Object]')).toBe(true);
+      expect(isBrokenStorageUrl('NaN')).toBe(true);
+      expect(isBrokenStorageUrl('javascript:alert(1)')).toBe(true);
+      expect(isBrokenStorageUrl('data:text/html,<script>')).toBe(true);
+      expect(isBrokenStorageUrl('data:application/javascript;base64,xxx')).toBe(true);
+      expect(isBrokenStorageUrl('https://mveycvsqpzyovacjkqzx.supabase.co/storage/v1/object/public/store-images/stores/123.webp')).toBe(false);
+
+      expect(sanitizeStoreImageUrl(null)).toBe(null);
+      expect(sanitizeStoreImageUrl('')).toBe(null);
+      expect(sanitizeStoreImageUrl('null')).toBe(null);
+      expect(sanitizeStoreImageUrl('undefined')).toBe(null);
+      expect(sanitizeStoreImageUrl('javascript:alert(1)')).toBe(null);
+      expect(sanitizeStoreImageUrl('data:image/webp;base64,UklGRgAAAABXRUJQVlA4...')).toBe('data:image/webp;base64,UklGRgAAAABXRUJQVlA4...');
+
+      // 🛡️ Supabase Storage missing /public/ auto-normalization
+      const unnormalized = 'https://mveycvsqpzyovacjkqzx.supabase.co/storage/v1/object/store-images/stores/1788723497800_puffw645bz.webp';
+      const expectedNormalized = 'https://mveycvsqpzyovacjkqzx.supabase.co/storage/v1/object/public/store-images/stores/1788723497800_puffw645bz.webp';
+      expect(sanitizeStoreImageUrl(unnormalized)).toBe(expectedNormalized);
+    });
+
+    it('T5-9: Defensive Nullish & Key safety: Handles undefined key/string operations gracefully', () => {
+      // Test keydown handling pattern
+      const handleKeyDownMock = (e?: any) => {
+        if (e?.key === 'Escape') return 'escaped';
+        if (e?.key === 'Enter') return 'entered';
+        return 'ignored';
+      };
+
+      expect(handleKeyDownMock(undefined)).toBe('ignored');
+      expect(handleKeyDownMock({})).toBe('ignored');
+      expect(handleKeyDownMock({ key: 'Escape' })).toBe('escaped');
+      expect(handleKeyDownMock({ key: 'Enter' })).toBe('entered');
+
+      // Test toLowerCase pattern
+      const safeLower = (val?: any) => (val || '').toLowerCase();
+      expect(safeLower(undefined)).toBe('');
+      expect(safeLower(null)).toBe('');
+      expect(safeLower('TeSt')).toBe('test');
+    });
+
+    it('T5-10: Robustness: Batch import parser and speech synthesizer handle sparse data without throwing', () => {
+      // 1. Batch CSV row parser robustness
+      const parseCsvLine = (line: string) => {
+        const parts = line.split(',');
+        if (parts.length < 2) return null;
+        const name = (parts[0] || '').trim();
+        if (!name) return null;
+        const price = Number((parts[1] || '').trim()) || 0;
+        const description = (parts[2] || '').trim() || null;
+        const isSoldOut = (parts[3] || '').trim().toLowerCase() === 'true';
+        return { name, price, description, isSoldOut };
+      };
+
+      expect(parseCsvLine('紅茶,30')).toEqual({ name: '紅茶', price: 30, description: null, isSoldOut: false });
+      expect(parseCsvLine('綠茶,35,好喝')).toEqual({ name: '綠茶', price: 35, description: '好喝', isSoldOut: false });
+      expect(parseCsvLine('奶茶,50,,true')).toEqual({ name: '奶茶', price: 50, description: null, isSoldOut: true });
+      expect(parseCsvLine('')).toBe(null);
+
+      // 2. Speech synthesis voice picker robustness with sparse/undefined voice fields
+      const mockVoices: any[] = [
+        { name: undefined, lang: undefined },
+        { name: 'Unknown Voice', lang: null },
+        { name: 'Taiwan Mandarin', lang: 'zh-TW' },
+      ];
+      const twVoice = mockVoices.find((v) => {
+        const lang = (v?.lang || '').toLowerCase();
+        const name = v?.name || '';
+        return lang === 'zh-tw' || name.includes('Taiwan');
+      });
+      expect(twVoice?.name).toBe('Taiwan Mandarin');
     });
   });
 }

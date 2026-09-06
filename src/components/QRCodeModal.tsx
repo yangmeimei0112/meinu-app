@@ -32,7 +32,7 @@ export default function QRCodeModal({
   // 按 ESC 鍵關閉與鎖定背景滾動
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e?.key === 'Escape') onClose();
     };
     if (isOpen) {
       document.body.style.overflow = 'hidden';

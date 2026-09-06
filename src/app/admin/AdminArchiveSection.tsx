@@ -33,12 +33,12 @@ export function AdminArchiveSection({
 
   // 篩選歷史活動
   const filteredGroups = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = (searchQuery || '').trim().toLowerCase();
     if (!q) return archivedGroups;
     return archivedGroups.filter((g) => {
-      const titleMatch = g.title.toLowerCase().includes(q);
-      const storeMatch = g.stores?.name?.toLowerCase().includes(q);
-      const announcementMatch = g.announcement?.toLowerCase().includes(q);
+      const titleMatch = (g.title || '').toLowerCase().includes(q);
+      const storeMatch = (g.stores?.name || '').toLowerCase().includes(q);
+      const announcementMatch = (g.announcement || '').toLowerCase().includes(q);
       return titleMatch || storeMatch || announcementMatch;
     });
   }, [archivedGroups, searchQuery]);

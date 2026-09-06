@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Share2, UtensilsCrossed } from 'lucide-react';
 import type { Store } from '@/types/database';
+import StoreImage from '@/components/StoreImage';
 
 interface StoreHeaderProps {
   store: Store | null;
@@ -30,17 +31,11 @@ export function StoreHeader({ store, onShare }: StoreHeaderProps) {
         <div className="bg-white dark:bg-[#131B2B] rounded-3xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs flex items-center justify-between gap-3">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-16 h-16 rounded-2xl bg-sky-50 dark:bg-sky-950/40 flex items-center justify-center text-3xl shrink-0 border border-sky-100 dark:border-sky-900/60 overflow-hidden">
-              {store.image_url ? (
-                <img
-                  src={store.image_url}
-                  alt={store.name}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <UtensilsCrossed className="w-8 h-8 text-slate-300 dark:text-slate-600 stroke-[1.5]" />
-              )}
+              <StoreImage
+                src={store.image_url}
+                alt={store.name}
+                fallbackIcon={<UtensilsCrossed className="w-8 h-8 text-slate-300 dark:text-slate-600 stroke-[1.5]" />}
+              />
             </div>
             <div className="min-w-0">
               <h2 className="text-xl font-extrabold text-slate-800 dark:text-slate-100 truncate">

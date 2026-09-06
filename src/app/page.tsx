@@ -130,15 +130,15 @@ export default function HomePage() {
 
   // 記憶化店家篩選與智慧沉底排序（營業中置頂，暫停接單自動排到底部）
   const filteredStores = useMemo(() => {
-    const query = debouncedSearch.trim().toLowerCase();
+    const query = (debouncedSearch || '').trim().toLowerCase();
     const matched = stores.filter((store: Store) => {
       const matchesCategory =
         selectedCategory === 'all' || store.category_id === selectedCategory;
       const matchesSearch =
         !query ||
-        store.name.toLowerCase().includes(query) ||
-        (store.code && store.code.toLowerCase().includes(query)) ||
-        (store.code && store.code.replace(/\D/g, '').includes(query));
+        (store.name || '').toLowerCase().includes(query) ||
+        (store.code && (store.code || '').toLowerCase().includes(query)) ||
+        (store.code && (store.code || '').replace(/\D/g, '').includes(query));
       return matchesCategory && matchesSearch;
     });
 

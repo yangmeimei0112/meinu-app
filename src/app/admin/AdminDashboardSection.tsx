@@ -117,12 +117,12 @@ export function AdminDashboardSection({
 
   // 記憶化過濾團員清單
   const filteredSubmissions = useMemo(() => {
-    const query = debouncedSearch.trim().toLowerCase();
+    const query = (debouncedSearch || '').trim().toLowerCase();
     return submissions.filter((sub) => {
       const matchesSearch =
         !query ||
-        sub.user_nickname.toLowerCase().includes(query) ||
-        sub.order_number.toLowerCase().includes(query);
+        (sub.user_nickname || '').toLowerCase().includes(query) ||
+        (sub.order_number || '').toLowerCase().includes(query);
 
       if (!matchesSearch) return false;
 

@@ -74,10 +74,10 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
 
   // 記憶化餐點搜尋過濾結果
   const filteredMenuItems = useMemo(() => {
-    const keyword = debouncedMenuSearch.trim().toLowerCase();
+    const keyword = (debouncedMenuSearch || '').trim().toLowerCase();
     if (!keyword) return menuItems;
     return menuItems.filter((item) => {
-      const nameMatch = item.name.toLowerCase().includes(keyword);
+      const nameMatch = (item.name || '').toLowerCase().includes(keyword);
       const descMatch = (item.description || '').toLowerCase().includes(keyword);
       return nameMatch || descMatch;
     });

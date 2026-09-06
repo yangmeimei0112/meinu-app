@@ -93,14 +93,18 @@ export default function SearchPage() {
 
   // 即時搜尋過濾邏輯 (支援店名、代號 S-001 與數字模糊搜尋)
   const searchResults = useMemo(() => {
-    const q = debouncedQuery.trim().toLowerCase();
+    const q = (debouncedQuery || '').trim().toLowerCase();
     if (!q) return [];
 
     return stores.filter((s) => {
-      const matchName = s.name.toLowerCase().includes(q);
-      const matchCode = s.code && s.code.toLowerCase().includes(q);
-      const matchCodeNum = s.code && s.code.replace(/\D/g, '').includes(q);
-      const matchCategory = s.category_id && categoryMap[s.category_id]?.toLowerCase().includes(q);
+      const matchName = (s.name || '').toLowerCase().includes(q);
+      const matchCode = Boolean(s.code && (s.code || '').toLowerCase().includes(q));
+      const matchCodeNum = Boolean(s.code && (s.code || '').replace(/\D/g, '').includes(q));
+      const matchCategory = Boolean(
+        s.category_id &&
+          categoryMap[s.category_id] &&
+          (categoryMap[s.category_id] || '').toLowerCase().includes(q)
+      );
       return matchName || matchCode || matchCodeNum || matchCategory;
     });
   }, [debouncedQuery, stores, categoryMap]);

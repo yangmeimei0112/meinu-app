@@ -5,6 +5,7 @@ import Link from 'next/link';
 import type { Store } from '@/types/database';
 import { Search, Store as StoreIcon, ChevronRight } from 'lucide-react';
 import { prefetchStoreData } from '@/lib/storeMenuCache';
+import StoreImage from '@/components/StoreImage';
 
 interface SearchResultsListProps {
   searchQuery: string;
@@ -83,17 +84,11 @@ export function SearchResultsList({
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-12 h-12 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/60 flex items-center justify-center text-xl shrink-0 overflow-hidden">
-                    {store.image_url ? (
-                      <img
-                        src={store.image_url}
-                        alt={store.name}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <StoreIcon className="w-5 h-5 text-sky-500" />
-                    )}
+                    <StoreImage
+                      src={store.image_url}
+                      alt={store.name}
+                      fallbackIcon={<StoreIcon className="w-5 h-5 text-sky-500" />}
+                    />
                   </div>
 
                   <div className="min-w-0">

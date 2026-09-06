@@ -482,7 +482,7 @@ export default function AdminBatchProductStudioModal({
                                   );
                                 }}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
+                                  if (e?.key === 'Enter') {
                                     e.preventDefault();
                                     // 若在最後一行按 Enter，自動新增一行並聚焦
                                     if (idx === rows.length - 1) {
@@ -511,7 +511,7 @@ export default function AdminBatchProductStudioModal({
                                   );
                                 }}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') {
+                                  if (e?.key === 'Enter') {
                                     e.preventDefault();
                                     if (idx === rows.length - 1) {
                                       handleAddRow(true);

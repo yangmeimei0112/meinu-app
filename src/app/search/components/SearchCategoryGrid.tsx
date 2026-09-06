@@ -15,8 +15,8 @@ import {
   UtensilsCrossed,
 } from 'lucide-react';
 
-function getCategoryIcon(name: string) {
-  const lower = name.toLowerCase();
+export function getCategoryIcon(name?: string | null) {
+  const lower = (name || '').toLowerCase();
   if (lower.includes('飲') || lower.includes('茶') || lower.includes('咖啡') || lower.includes('水') || lower.includes('手搖')) {
     return <Coffee className="w-6 h-6 text-amber-500" />;
   }

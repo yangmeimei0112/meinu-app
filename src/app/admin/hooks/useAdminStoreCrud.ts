@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Store, Category, PaymentMethod, SoldOutOption } from '@/types/database';
 import { compressImageToWebP, dataUrlToFile } from '@/lib/imageCompressor';
+import { uploadStoreImage } from '@/lib/imageStorage';
 import { AdminConfirmModalState } from '../admin-types';
 import { useAdminCategoryCrud } from './useAdminCategoryCrud';
 import { useAdminProductCrud } from './useAdminProductCrud';
@@ -133,30 +134,21 @@ export function useAdminStoreCrud({
     let imageUrl = editingStore?.image_url || null;
 
     if (storeImageFile) {
-      const fileExt = storeImageFile.name.split('.').pop() || 'webp';
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `stores/${fileName}`;
-
       try {
-        const { error: uploadError } = await supabase.storage
-          .from('store-images')
-          .upload(filePath, storeImageFile);
-
-        if (uploadError) {
-          console.warn('Storage Bucket 未建立或上傳失敗，自動降級使用 WebP 輕量 Base64 儲存:', uploadError.message);
-          // 🛡️ 彈性備援：若 Storage 儲存庫未建立，直接將已壓縮的 WebP DataURL 存入資料庫
-          if (storeImagePreview) {
-            imageUrl = storeImagePreview;
-          }
-        } else {
-          const { data } = supabase.storage.from('store-images').getPublicUrl(filePath);
-          imageUrl = data.publicUrl;
+        const uploadResult = await uploadStoreImage(storeImageFile, storeImagePreview);
+        if (uploadResult.url) {
+          imageUrl = uploadResult.url;
+        } else if (storeImagePreview) {
+          imageUrl = storeImagePreview;
         }
-      } catch {
+      } catch (err) {
+        console.warn('圖片上傳處理異常，降級使用 Base64 預覽:', err);
         if (storeImagePreview) {
           imageUrl = storeImagePreview;
         }
       }
+    } else if (storeImagePreview) {
+      imageUrl = storeImagePreview;
     }
 
     const paddedNum = storeForm.code_number.padStart(3, '0');

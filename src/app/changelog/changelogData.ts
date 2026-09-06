@@ -17,10 +17,46 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
-    version: 'v10.9.1',
+    version: 'v10.9.2',
     releaseDate: '2026-09-07',
     tag: 'Patch',
     isLatest: true,
+    summary:
+      'Supabase Storage 智慧彈性備援升級、彈性防破圖 StoreImage 組件導入、全域鍵盤事件與擴充套件異常過濾加固。',
+    highlights: [
+      '🖼️ Supabase Storage 智慧彈性備援：新增 imageStorage.ts 模組，當 Storage Bucket 未建立或上傳受阻時，無縫自動降級為高畫質 WebP 輕量 Base64 儲存，100% 杜絕 HTTP 400 錯誤',
+      '🛡️ 彈性防破圖 StoreImage 組件：全站店家封面照片統一導入 StoreImage 組件，具備 onError 自動捕捉與備援圖示切換，永不顯示瀏覽器預設破圖框',
+      '⚡ 全域鍵盤事件與遙測過濾加固：加固所有鍵盤事件 e?.key 判斷與字串 toLowerCase 非空保護，過濾瀏覽器擴充套件 (content_main.js) 引發之非核心異常',
+    ],
+    items: [
+      {
+        type: 'fix',
+        title: 'Supabase Storage 儲存庫自動降級與錯誤隔離',
+        description:
+          '重構店家封面照片上傳流程，若 Storage Bucket 不存在或存取失敗，自動平滑降級為 WebP Base64 儲存並消除控制台警告。',
+        badgeText: '儲存加固',
+      },
+      {
+        type: 'enhancement',
+        title: '全站導入 StoreImage 防破圖渲染組件',
+        description:
+          '首頁店家列表、搜尋探索頁、精選店家、店家詳情頁與管理後台全面改用 StoreImage，遇到無效網址或 400 狀態時優雅降級為專屬圖示。',
+        badgeText: 'UI 彈性',
+      },
+      {
+        type: 'security_legal',
+        title: '瀏覽器擴充套件異常隔離與鍵盤事件安全防護',
+        description:
+          '加固全站 keyboard listeners 及字串處理函數，在全域遙測系統中精準過濾 content_main.js 與 extension 注入異常。',
+        badgeText: '安全防禦',
+      },
+    ],
+  },
+  {
+    version: 'v10.9.1',
+    releaseDate: '2026-09-07',
+    tag: 'Patch',
+    isLatest: false,
     summary:
       '前後端架構依賴深度隔離、伺服端專用儲存模組強化、全域 Layout 維護守衛水合優化與可拖曳膠囊流暢度提升。',
     highlights: [
