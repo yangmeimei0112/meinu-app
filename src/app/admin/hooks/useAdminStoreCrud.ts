@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Store, Category, PaymentMethod, SoldOutOption } from '@/types/database';
+import { Store, Category, MenuItem, PaymentMethod, SoldOutOption } from '@/types/database';
 import { compressImageToWebP, dataUrlToFile } from '@/lib/imageCompressor';
 import { uploadStoreImage } from '@/lib/imageStorage';
 import { AdminConfirmModalState } from '../admin-types';
@@ -16,6 +16,9 @@ interface UseAdminStoreCrudProps {
   paymentMethods: PaymentMethod[];
   soldOutOptions: SoldOutOption[];
   optimisticReorderMenuItems?: (storeId: string, orderedItemIds: string[]) => void;
+  optimisticUpdateMenuItem?: (item: Partial<MenuItem> & { id: string }) => void;
+  optimisticDeleteMenuItem?: (itemId: string) => void;
+  optimisticAddMenuItem?: (item: MenuItem) => void;
   fetchAdminData: (targetGroupId?: string, isSilent?: boolean) => Promise<void>;
   showToast: (msg: string) => void;
   openAdminConfirmModal: (modal: AdminConfirmModalState) => void;
@@ -26,6 +29,9 @@ export function useAdminStoreCrud({
   stores,
   categories,
   optimisticReorderMenuItems,
+  optimisticUpdateMenuItem,
+  optimisticDeleteMenuItem,
+  optimisticAddMenuItem,
   fetchAdminData,
   showToast,
   openAdminConfirmModal,
@@ -84,6 +90,9 @@ export function useAdminStoreCrud({
     handleReorderProducts,
   } = useAdminProductCrud({
     optimisticReorderMenuItems,
+    optimisticUpdateMenuItem,
+    optimisticDeleteMenuItem,
+    optimisticAddMenuItem,
     fetchAdminData,
     showToast,
     openAdminConfirmModal,

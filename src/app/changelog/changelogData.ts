@@ -17,10 +17,46 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
-    version: 'v10.9.3',
+    version: 'v10.9.4',
     releaseDate: '2026-09-07',
     tag: 'Patch',
     isLatest: true,
+    summary:
+      '修復後台菜單設計工作室（Admin Menu Studio）編輯餐點與客製化規格選項後畫面無法即時更新之狀態同步缺陷，全面強化前端 SWR 快取更新與樂觀狀態同步機制。',
+    highlights: [
+      '⚡ 後台菜單工作室即時狀態同步修復：修正 AdminMenuStudio orderedItems 狀態同步機制，當餐點規格、價格或名稱更新時立即合併最新屬性，徹底根除需手動重整或切換分頁才顯示變更的陳舊狀態問題',
+      '🔄 樂觀狀態更新與 SWR 快取同步：優化 useAdminProductCrud 與 useAdminData，商品新增、修改、刪除與售完切換時立即樂觀套用至介面並同步前台 SWR 快取 (storeMenuCache / appIndexCache)',
+      '🛡️ 拖曳排序完整性保障：在品項資料屬性更新時完整保留管理員當前自訂之拖曳排序位置，兼顧排版即時持久化與資料一致性',
+    ],
+    items: [
+      {
+        type: 'fix',
+        title: '修復後台菜單工作室編輯餐點客製化規格不即時更新問題',
+        description:
+          '重構 AdminMenuStudio 中的 rawStudioMenuItems 防禦性狀態同步邏輯，確保在 ID 不變的情況下亦能即時融合最新的 custom_groups 與屬性變更。',
+        badgeText: '工作室修復',
+      },
+      {
+        type: 'enhancement',
+        title: '強化餐點 CRUD 樂觀狀態與前台快取連鎖更新',
+        description:
+          '於 useAdminProductCrud 與 storeMenuCache 加入 deleteStoreMenuItemFromCache 與樂觀快取連動，餐點更新即時廣播至前端顧客頁面與後台列表。',
+        badgeText: '快取同步',
+      },
+      {
+        type: 'enhancement',
+        title: '加固批量上架工作台與工作室快取預載機制',
+        description:
+          '於批量上架工作台新增完成後自動預先載入最新店家資料與首頁快取，大幅縮短顧客端點餐頁載入時間。',
+        badgeText: '效能優化',
+      },
+    ],
+  },
+  {
+    version: 'v10.9.3',
+    releaseDate: '2026-09-07',
+    tag: 'Patch',
+    isLatest: false,
     summary:
       '修復 stores 資料表查詢因倒數與接單狀態欄位缺失引發之 400 錯誤，優化店家列表與團購活動動態狀態整合，完善全站容錯與降級備援機制。',
     highlights: [

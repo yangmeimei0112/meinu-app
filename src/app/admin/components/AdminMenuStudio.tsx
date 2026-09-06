@@ -61,15 +61,28 @@ export default function AdminMenuStudio({
   // 本地排序狀態
   const [orderedItems, setOrderedItems] = useState<MenuItem[]>(rawStudioMenuItems);
 
-  // 🛡️ 防禦性狀態同步：只有在品項增刪或換店家時才重置，避免背景重抓將剛排好的順序覆蓋回彈
+  // 🛡️ 防禦性狀態同步：保持已排好的順序，同時合併最新的餐點屬性（如客製選項、價格、名稱、售完狀態等）
   useEffect(() => {
     setOrderedItems((prev) => {
-      const prevIds = prev.map((i) => i.id).sort().join(',');
-      const nextIds = rawStudioMenuItems.map((i) => i.id).sort().join(',');
-      if (prevIds !== nextIds) {
+      const rawMap = new Map(rawStudioMenuItems.map((item) => [item.id, item]));
+      const prevIds = prev.map((i) => i.id);
+
+      // 若是全新店家或無重疊 ID，直接使用最新抓取清單
+      const hasOverlap = prevIds.some((id) => rawMap.has(id));
+      if (!hasOverlap && rawStudioMenuItems.length > 0) {
         return rawStudioMenuItems;
       }
-      return prev;
+
+      // 保留當前拖曳排序，更新每個 item 的最新屬性，並過濾掉已被刪除的品項
+      const updatedPrev = prev
+        .filter((item) => rawMap.has(item.id))
+        .map((item) => rawMap.get(item.id)!);
+
+      // 追加在外部或背景新建立的品項（尚未在 orderedItems 中的品項）
+      const existingIdSet = new Set(updatedPrev.map((item) => item.id));
+      const newlyAdded = rawStudioMenuItems.filter((item) => !existingIdSet.has(item.id));
+
+      return [...updatedPrev, ...newlyAdded];
     });
   }, [rawStudioMenuItems]);
 

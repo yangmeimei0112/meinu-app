@@ -106,6 +106,41 @@ export function patchStoreMenuItem(
   });
 }
 
+export function deleteStoreMenuItemFromCache(
+  storeId: string,
+  itemId: string
+): void {
+  const current = getStoreCache(storeId);
+  if (!current) return;
+
+  const updatedItems = current.menuItems.filter((item) => item.id !== itemId);
+
+  setStoreCache(storeId, {
+    ...current,
+    menuItems: updatedItems,
+    timestamp: Date.now(),
+  });
+}
+
+export function addStoreMenuItemToCache(
+  storeId: string,
+  newItem: MenuItem
+): void {
+  const current = getStoreCache(storeId);
+  if (!current) return;
+
+  const exists = current.menuItems.some((item) => item.id === newItem.id);
+  const updatedItems = exists
+    ? current.menuItems.map((item) => (item.id === newItem.id ? newItem : item))
+    : [...current.menuItems, newItem];
+
+  setStoreCache(storeId, {
+    ...current,
+    menuItems: updatedItems,
+    timestamp: Date.now(),
+  });
+}
+
 export async function prefetchStoreData(storeId: string): Promise<StoreCacheEntry | null> {
   if (!storeId || typeof window === 'undefined') return null;
 

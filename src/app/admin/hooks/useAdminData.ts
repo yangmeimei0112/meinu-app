@@ -468,6 +468,28 @@ export function useAdminData({
     });
   }, []);
 
+  // 🌟 樂觀更新單項商品屬性（名稱、價格、客製規格、上下架等）
+  const optimisticUpdateMenuItem = useCallback((updatedItem: Partial<MenuItem> & { id: string }) => {
+    setAllMenuItems((prev) =>
+      prev.map((item) => (item.id === updatedItem.id ? { ...item, ...updatedItem } : item))
+    );
+  }, []);
+
+  // 🌟 樂觀刪除商品
+  const optimisticDeleteMenuItem = useCallback((itemId: string) => {
+    setAllMenuItems((prev) => prev.filter((item) => item.id !== itemId));
+  }, []);
+
+  // 🌟 樂觀新增商品
+  const optimisticAddMenuItem = useCallback((newItem: MenuItem) => {
+    setAllMenuItems((prev) => {
+      if (prev.some((item) => item.id === newItem.id)) {
+        return prev.map((item) => (item.id === newItem.id ? newItem : item));
+      }
+      return [...prev, newItem];
+    });
+  }, []);
+
   return {
     activeGroup,
     setActiveGroup,
@@ -489,6 +511,9 @@ export function useAdminData({
     allMenuItems,
     setAllMenuItems,
     optimisticReorderMenuItems,
+    optimisticUpdateMenuItem,
+    optimisticDeleteMenuItem,
+    optimisticAddMenuItem,
     allSubmissions,
     setAllSubmissions,
     submissions,

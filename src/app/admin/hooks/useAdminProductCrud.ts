@@ -4,11 +4,20 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MenuItem, CustomGroup } from '@/types/database';
 import { AdminConfirmModalState } from '../admin-types';
-import { patchStoreMenuItem } from '@/lib/storeMenuCache';
+import {
+  patchStoreMenuItem,
+  deleteStoreMenuItemFromCache,
+  addStoreMenuItemToCache,
+  prefetchStoreData,
+} from '@/lib/storeMenuCache';
+import { prefetchAppIndex } from '@/lib/cache/appIndexCache';
 import { formatErrorMessage } from '@/lib/errorUtils';
 
 interface UseAdminProductCrudProps {
   optimisticReorderMenuItems?: (storeId: string, orderedItemIds: string[]) => void;
+  optimisticUpdateMenuItem?: (item: Partial<MenuItem> & { id: string }) => void;
+  optimisticDeleteMenuItem?: (itemId: string) => void;
+  optimisticAddMenuItem?: (item: MenuItem) => void;
   fetchAdminData: (targetGroupId?: string, isSilent?: boolean) => Promise<void>;
   showToast: (msg: string) => void;
   openAdminConfirmModal: (modal: AdminConfirmModalState) => void;
@@ -17,6 +26,9 @@ interface UseAdminProductCrudProps {
 
 export function useAdminProductCrud({
   optimisticReorderMenuItems,
+  optimisticUpdateMenuItem,
+  optimisticDeleteMenuItem,
+  optimisticAddMenuItem,
   fetchAdminData,
   showToast,
   openAdminConfirmModal,
@@ -121,6 +133,20 @@ export function useAdminProductCrud({
     };
 
     if (editingProduct) {
+      const updatedProduct: MenuItem = {
+        ...editingProduct,
+        ...payload,
+      };
+
+      // 1. 樂觀立即更新後台本地狀態
+      optimisticUpdateMenuItem?.(updatedProduct);
+
+      // 2. 立即更新並同步前台快取
+      patchStoreMenuItem(editingProduct.store_id, editingProduct.id, payload);
+      prefetchStoreData(editingProduct.store_id);
+
+      setIsProductModalOpen(false);
+
       const { error } = await supabase
         .from('menu_items')
         .update(payload)
@@ -129,30 +155,42 @@ export function useAdminProductCrud({
       if (error) {
         console.error('更新餐點失敗:', error);
         showToast(formatErrorMessage(error, '更新餐點失敗，請檢查網路連線'));
+        fetchAdminData();
         return;
       }
       showToast('餐點已更新！');
     } else {
       if (!selectedCrudStoreId) return;
 
-      const { error } = await supabase
+      setIsProductModalOpen(false);
+
+      const { data, error } = await supabase
         .from('menu_items')
-        .insert([{ ...payload, store_id: selectedCrudStoreId }]);
+        .insert([{ ...payload, store_id: selectedCrudStoreId }])
+        .select()
+        .single();
 
       if (error) {
         console.error('新增餐點失敗:', error);
         showToast(formatErrorMessage(error, '新增餐點失敗，請檢查輸入資料'));
+        fetchAdminData();
         return;
       }
+
+      if (data) {
+        optimisticAddMenuItem?.(data as MenuItem);
+        addStoreMenuItemToCache(selectedCrudStoreId, data as MenuItem);
+      }
+      prefetchStoreData(selectedCrudStoreId);
+      prefetchAppIndex();
       showToast('餐點新增成功！');
     }
 
-    setIsProductModalOpen(false);
     fetchAdminData();
   };
 
   // 刪除餐點
-  const handleDeleteProduct = (productId: string, name: string) => {
+  const handleDeleteProduct = (productId: string, name: string, storeId?: string) => {
     openAdminConfirmModal({
       isOpen: true,
       title: '刪除餐點',
@@ -163,6 +201,12 @@ export function useAdminProductCrud({
       onConfirm: async () => {
         closeAdminConfirmModal();
         try {
+          const targetStoreId = storeId || selectedCrudStoreId;
+          if (targetStoreId) {
+            deleteStoreMenuItemFromCache(targetStoreId, productId);
+            prefetchStoreData(targetStoreId);
+          }
+          optimisticDeleteMenuItem?.(productId);
           const { error } = await supabase.from('menu_items').delete().eq('id', productId);
           if (error) throw error;
           showToast(`已刪除餐點「${name}」`);
@@ -170,17 +214,23 @@ export function useAdminProductCrud({
         } catch (err: any) {
           console.error('刪除餐點失敗:', err);
           showToast(`刪除餐點失敗：${formatErrorMessage(err, '資料庫關聯衝突，無法刪除')}`);
+          fetchAdminData();
         }
       },
     });
   };
 
   // 切換餐點售罄狀態
-  const handleToggleProductSoldOut = async (productId: string, currentStatus: boolean) => {
+  const handleToggleProductSoldOut = async (productId: string, currentStatus: boolean, storeId?: string) => {
     const newStatus = !currentStatus;
-    if (selectedCrudStoreId) {
-      patchStoreMenuItem(selectedCrudStoreId, productId, { is_sold_out: newStatus });
+    const targetStoreId = storeId || selectedCrudStoreId;
+    if (targetStoreId) {
+      patchStoreMenuItem(targetStoreId, productId, { is_sold_out: newStatus });
+      prefetchStoreData(targetStoreId);
     }
+
+    // 立即樂觀更新全站後台狀態
+    optimisticUpdateMenuItem?.({ id: productId, is_sold_out: newStatus });
 
     const { error } = await supabase
       .from('menu_items')
@@ -190,6 +240,7 @@ export function useAdminProductCrud({
     if (error) {
       console.error('更新售完狀態失敗:', error);
       showToast('更新售完狀態失敗');
+      fetchAdminData();
       return;
     }
 

@@ -145,11 +145,11 @@ export default function AdminPageContent() {
                 }}
                 onDeleteMenuItem={(id: string) => {
                   const product = c.allMenuItems.find((p) => p.id === id);
-                  if (product) c.handleDeleteProduct(id, product.name);
+                  if (product) c.handleDeleteProduct(id, product.name, product.store_id);
                 }}
                 onToggleMenuItemActive={(id: string) => {
                   const product = c.allMenuItems.find((p) => p.id === id);
-                  if (product) c.handleToggleProductSoldOut(id, product.is_sold_out);
+                  if (product) c.handleToggleProductSoldOut(id, product.is_sold_out, product.store_id);
                 }}
                 onReorderMenuItems={c.handleReorderProducts}
                 onCreatePaymentMethod={c.handleCreatePaymentMethod}

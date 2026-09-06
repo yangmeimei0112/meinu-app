@@ -19,6 +19,8 @@ import type { Store, CustomGroup } from '@/types/database';
 import { supabase } from '@/lib/supabase';
 import { formatErrorMessage } from '@/lib/errorUtils';
 import { cloneGroupsWithFreshIds } from '@/lib/customOptionPresets';
+import { prefetchStoreData } from '@/lib/storeMenuCache';
+import { prefetchAppIndex } from '@/lib/cache/appIndexCache';
 import { BatchStudioWizardGuide } from './batch-studio/BatchStudioWizardGuide';
 import { PresetCustomOptionsDrawer } from '../product-modal/PresetCustomOptionsDrawer';
 
@@ -260,6 +262,9 @@ export default function AdminBatchProductStudioModal({
       const { error: insertError } = await supabase.from('menu_items').insert(payloads);
 
       if (insertError) throw insertError;
+
+      prefetchStoreData(store.id);
+      prefetchAppIndex();
 
       showToast(`🎉 成功批量上架 ${validRows.length} 項餐點品項！`);
       onBatchSuccess();

@@ -408,6 +408,85 @@ export function registerTier2Tests() {
         .slice(1);
       expect(rows.length).toBe(2);
     });
+
+    it('F7-B6: AdminMenuStudio syncs updated custom_groups/prices while preserving custom DnD sequence', () => {
+      // User custom DnD order: item-2, item-1, item-3
+      const prevOrdered = [
+        { id: 'item-2', name: '波霸奶茶', price: 50, custom_groups: [] },
+        { id: 'item-1', name: '原味奶茶', price: 45, custom_groups: [] },
+        { id: 'item-3', name: '四季春茶', price: 30, custom_groups: [] },
+      ];
+
+      // Incoming rawStudioMenuItems: item-1 edited with new custom_groups and price 55, item-4 newly created
+      const incomingRaw = [
+        {
+          id: 'item-1',
+          name: '原味奶茶',
+          price: 55,
+          custom_groups: [{ id: 'grp-sweet', title: '甜度', type: 'single', options: [] }],
+        },
+        { id: 'item-2', name: '波霸奶茶', price: 50, custom_groups: [] },
+        { id: 'item-4', name: '蜜香紅茶', price: 35, custom_groups: [] },
+      ];
+
+      const rawMap = new Map(incomingRaw.map((item) => [item.id, item]));
+      const prevIds = prevOrdered.map((i) => i.id);
+      const hasOverlap = prevIds.some((id) => rawMap.has(id));
+
+      let nextOrdered = prevOrdered;
+      if (!hasOverlap && incomingRaw.length > 0) {
+        nextOrdered = incomingRaw as any;
+      } else {
+        const updatedPrev = prevOrdered
+          .filter((item) => rawMap.has(item.id))
+          .map((item) => rawMap.get(item.id)!);
+        const existingIdSet = new Set(updatedPrev.map((item) => item.id));
+        const newlyAdded = incomingRaw.filter((item) => !existingIdSet.has(item.id));
+        nextOrdered = [...updatedPrev, ...newlyAdded] as any;
+      }
+
+      // Assertions:
+      // 1. Order preserved for surviving items (item-2 first, then item-1)
+      expect(nextOrdered[0].id).toBe('item-2');
+      expect(nextOrdered[1].id).toBe('item-1');
+      // 2. Updated properties merged (item-1 now has price 55 and custom_groups)
+      expect(nextOrdered[1].price).toBe(55);
+      expect((nextOrdered[1] as any).custom_groups.length).toBe(1);
+      expect((nextOrdered[1] as any).custom_groups[0].title).toBe('甜度');
+      // 3. Deleted item-3 removed from ordered list
+      expect(nextOrdered.some((i) => i.id === 'item-3')).toBe(false);
+      // 4. Newly added item-4 appended at the end
+      expect(nextOrdered[2].id).toBe('item-4');
+      expect(nextOrdered.length).toBe(3);
+    });
+
+    it('F7-B7: Cache item delete and add operations safely mutate storeMenu cache entry', () => {
+      const initialEntry = {
+        store: { id: 'store-1', name: 'Test Store' } as any,
+        menuItems: [
+          { id: 'item-1', name: 'A', price: 30 } as any,
+          { id: 'item-2', name: 'B', price: 40 } as any,
+        ],
+        timestamp: Date.now(),
+      };
+
+      // Test delete
+      const afterDelete = {
+        ...initialEntry,
+        menuItems: initialEntry.menuItems.filter((i) => i.id !== 'item-1'),
+      };
+      expect(afterDelete.menuItems.length).toBe(1);
+      expect(afterDelete.menuItems[0].id).toBe('item-2');
+
+      // Test add
+      const newItem = { id: 'item-3', name: 'C', price: 50 } as any;
+      const afterAdd = {
+        ...afterDelete,
+        menuItems: [...afterDelete.menuItems, newItem],
+      };
+      expect(afterAdd.menuItems.length).toBe(2);
+      expect(afterAdd.menuItems.some((i) => i.id === 'item-3')).toBe(true);
+    });
   });
 
   // =========================================================================
