@@ -129,7 +129,7 @@ export async function prefetchStoreData(storeId: string): Promise<StoreCacheEntr
       const [storeRes, menuRes, sortRes] = await Promise.all([
         supabase
           .from('stores')
-          .select('*, group_orders(*)')
+          .select('id, name, image_url, category_id, is_active')
           .eq('id', resolvedStoreId)
           .maybeSingle(),
         supabase
@@ -266,6 +266,13 @@ export function initGlobalRealtimeCache(): () => void {
       { event: '*', schema: 'public', table: 'order_submissions' },
       () => {
         prefetchOrderHistory();
+      }
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'group_orders' },
+      () => {
+        prefetchAppIndex();
       }
     )
     .subscribe();

@@ -210,20 +210,6 @@ export function useAdminOrderActions({
       const { error } = await supabase.from('group_orders').update(updatedData).eq('id', activeGroup.id);
       if (error) throw error;
 
-      // 同步更新 stores 表
-      await supabase
-        .from('stores')
-        .update({
-          announcement: updatedData.announcement,
-          enable_min_threshold: updatedData.enable_min_threshold,
-          min_threshold_amount: updatedData.min_threshold_amount,
-          enable_countdown: updatedData.enable_countdown,
-          cutoff_time: updatedData.cutoff_time,
-          enable_budget_limit: updatedData.enable_budget_limit,
-          budget_limit_amount: updatedData.budget_limit_amount,
-        })
-        .eq('id', updatedData.store_id || activeGroup.store_id || activeGroup.id);
-
       showToast('店家即時營運設定與公告已成功儲存！');
     } else {
       const { error } = await supabase.from('group_orders').insert([{ ...updatedData, status: 'open' }]);
@@ -240,13 +226,7 @@ export function useAdminOrderActions({
     const storeTargetId = activeGroup.store_id || activeGroup.id;
     try {
       if (storeTargetId) {
-        // 1. 更新 stores 表
-        await supabase
-          .from('stores')
-          .update({ is_accepting_orders: newStatus === 'open' })
-          .eq('id', storeTargetId);
-
-        // 2. 同步更新該店家所有未歸檔的 group_orders
+        // 同步更新該店家所有未歸檔的 group_orders
         await supabase
           .from('group_orders')
           .update({ status: newStatus })

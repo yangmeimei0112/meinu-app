@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
+import { useEffect, useCallback, useSyncExternalStore } from 'react';
 import type { MaintenanceData } from './MaintenanceScreen';
-import { MaintenanceScope, isRouteInMaintenance } from '@/lib/maintenanceConfig';
+import { isRouteInMaintenance } from '@/lib/maintenanceConfig';
 
 export { isRouteInMaintenance };
 
@@ -73,7 +73,6 @@ let storeState: MaintenanceStoreState = {
 
 const listeners = new Set<() => void>();
 let countdownTimer: NodeJS.Timeout | null = null;
-let pollTimer: NodeJS.Timeout | null = null;
 let isInitialized = false;
 
 function emitChange() {
@@ -208,7 +207,7 @@ function initGlobalPolling() {
   fetchMaintenanceStatus();
 
   // 自適應智能輪詢（維護中時 5 秒，正常時 10 秒）
-  pollTimer = setInterval(() => {
+  setInterval(() => {
     fetchMaintenanceStatus();
   }, 8000);
 }

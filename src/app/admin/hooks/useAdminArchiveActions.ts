@@ -140,14 +140,6 @@ export function useAdminArchiveActions({
 
           if (error) throw error;
 
-          // 同步確保店家處於開放接單狀態
-          if (targetStoreId) {
-            await supabase
-              .from('stores')
-              .update({ is_accepting_orders: true })
-              .eq('id', targetStoreId);
-          }
-
           showToast(`已成功重新發起團購活動！`);
           await fetchAdminData(data.id);
           setActiveTab('active');

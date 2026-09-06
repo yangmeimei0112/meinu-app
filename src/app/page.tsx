@@ -58,7 +58,7 @@ export default function HomePage() {
           .order('sort_order', { ascending: true }),
         supabase
           .from('stores')
-          .select('id, name, image_url, category_id, is_active, enable_countdown, cutoff_time, is_accepting_orders')
+          .select('id, name, image_url, category_id, is_active')
           .eq('is_active', true),
         fetch('/api/stores/code', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
         supabase
@@ -70,6 +70,10 @@ export default function HomePage() {
 
       const catList = (catRes.data as Category[]) || [];
       setCategories(catList);
+
+      if (storeRes.error) {
+        console.warn('載入店家列表發生警告，將嘗試容錯備援:', storeRes.error);
+      }
 
       if (storeRes.data) {
         const rawStores = storeRes.data as StoreListItem[];
@@ -85,12 +89,14 @@ export default function HomePage() {
 
         const formatted: StoreListItem[] = rawStores.map((s) => {
           const activeGroup = activeGroups.find((g) => g.store_id === s.id && g.status !== 'completed');
-          const enableCountdown = s.enable_countdown ?? activeGroup?.enable_countdown;
-          const cutoffTime = s.cutoff_time || activeGroup?.cutoff_time;
+          const enableCountdown = activeGroup?.enable_countdown ?? false;
+          const cutoffTime = activeGroup?.cutoff_time || null;
+          const isStoreAccepting = activeGroup ? activeGroup.status === 'open' : true;
 
           return {
             ...s,
             code: codeMap[s.id] || 'S-001',
+            is_accepting_orders: isStoreAccepting,
             enable_countdown: enableCountdown,
             cutoff_time: cutoffTime,
             has_active_group: !!activeGroup,

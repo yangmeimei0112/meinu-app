@@ -101,14 +101,20 @@ export function useCartPage() {
 
   const isStoreAccepting = useMemo(() => {
     if (!activeStoreData) return true;
+    if (activeStoreData.is_active === false) return false;
     if (activeStoreData.is_accepting_orders === false) return false;
-    if (activeStoreData.enable_countdown && activeStoreData.cutoff_time) {
-      if (new Date(activeStoreData.cutoff_time).getTime() <= Date.now()) {
-        return false;
+    if (activeGroupOrder) {
+      if (activeGroupOrder.status === 'closed') return false;
+      const enableCountdown = activeStoreData.enable_countdown ?? activeGroupOrder.enable_countdown;
+      const cutoffTime = activeStoreData.cutoff_time ?? activeGroupOrder.cutoff_time;
+      if (enableCountdown && cutoffTime) {
+        if (new Date(cutoffTime).getTime() <= Date.now()) {
+          return false;
+        }
       }
     }
     return true;
-  }, [activeStoreData]);
+  }, [activeStoreData, activeGroupOrder]);
 
   const saveMultiCart = (updated: MultiStoreCart) => {
     setMultiCart(updated);

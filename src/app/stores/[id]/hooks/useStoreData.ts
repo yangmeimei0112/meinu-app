@@ -146,6 +146,7 @@ export function useStoreData({ storeId, initialStoreCode }: UseStoreDataProps) {
             id: grp.id,
             announcement: grp.announcement,
             status: grp.status,
+            is_accepting_orders: grp.status === 'open',
             enable_min_threshold: grp.enable_min_threshold,
             min_threshold_amount: grp.min_threshold_amount,
             enable_countdown: grp.enable_countdown,

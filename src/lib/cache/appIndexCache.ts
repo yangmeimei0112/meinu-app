@@ -63,7 +63,7 @@ export async function prefetchAppIndex(): Promise<AppIndexCache | null> {
 
   inFlightAppIndexRequest = (async () => {
     try {
-      const [catRes, storeRes, codeRes] = await Promise.all([
+      const [catRes, storeRes, codeRes, groupRes] = await Promise.all([
         supabase
           .from('categories')
           .select('id, name, sort_order')
@@ -73,16 +73,41 @@ export async function prefetchAppIndex(): Promise<AppIndexCache | null> {
           .select('id, name, image_url, category_id, is_active')
           .eq('is_active', true),
         fetch('/api/stores/code', { cache: 'no-store' }).then((r) => r.json()).catch(() => null),
+        supabase
+          .from('group_orders')
+          .select('id, store_id, title, status, enable_countdown, cutoff_time')
+          .neq('status', 'completed')
+          .order('created_at', { ascending: false }),
       ]);
 
       const catList = (catRes.data as Category[]) || [];
       const rawStores = (storeRes.data as Store[]) || [];
       const codeMap: Record<string, string> = codeRes?.codeMap || {};
+      const activeGroups = (groupRes?.data || []) as Array<{
+        id: string;
+        store_id: string;
+        title: string;
+        status: string;
+        enable_countdown?: boolean;
+        cutoff_time?: string | null;
+      }>;
 
-      const formattedStores = rawStores.map((s) => ({
-        ...s,
-        code: codeMap[s.id] || 'S-001',
-      }));
+      const formattedStores = rawStores.map((s) => {
+        const activeGroup = activeGroups.find((g) => g.store_id === s.id && g.status !== 'completed');
+        const enableCountdown = activeGroup?.enable_countdown ?? false;
+        const cutoffTime = activeGroup?.cutoff_time || null;
+        const isStoreAccepting = activeGroup ? activeGroup.status === 'open' : true;
+
+        return {
+          ...s,
+          code: codeMap[s.id] || 'S-001',
+          is_accepting_orders: isStoreAccepting,
+          enable_countdown: enableCountdown,
+          cutoff_time: cutoffTime,
+          has_active_group: !!activeGroup,
+          active_group_title: activeGroup?.title || null,
+        };
+      });
 
       const newCache: AppIndexCache = {
         categories: catList,

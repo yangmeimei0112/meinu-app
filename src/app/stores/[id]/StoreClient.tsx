@@ -113,7 +113,7 @@ export default function StoreClient({ storeId, initialStoreCode }: StoreClientPr
 
         {/* 店家即時公告、免運目標進度與截單倒數 */}
         <StoreNoticeBanner
-          storeMeta={store || groupMeta}
+          storeMeta={store ? { ...store, ...(groupMeta || {}) } : groupMeta}
           currentStoreTotal={currentStoreTotal}
           groupTotalAmount={groupTotalAmount}
           countdownSeconds={countdownSeconds}

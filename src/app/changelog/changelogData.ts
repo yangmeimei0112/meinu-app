@@ -17,10 +17,46 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
-    version: 'v10.9.2',
+    version: 'v10.9.3',
     releaseDate: '2026-09-07',
     tag: 'Patch',
     isLatest: true,
+    summary:
+      '修復 stores 資料表查詢因倒數與接單狀態欄位缺失引發之 400 錯誤，優化店家列表與團購活動動態狀態整合，完善全站容錯與降級備援機制。',
+    highlights: [
+      '🛠️ 修正 stores REST API 400 錯誤：精確配對 Supabase stores 資料表 Schema（id, name, image_url, category_id, is_active），移除非實體欄位查詢，100% 杜絕 HTTP 400 Bad Request 錯誤',
+      '🔄 智慧團購狀態與倒數整合：首頁與店家頁面自動從 group_orders 關聯取得即時營業狀態、截單倒數與公告設定，兼具高效能快取與資料一致性',
+      '🛡️ 後台操作容錯強化：優化團購設定儲存與接單狀態切換流程，消除向 stores 資料表寫入不存在欄位之潛在錯誤，確保後台管理順暢無阻',
+    ],
+    items: [
+      {
+        type: 'fix',
+        title: '修復 stores 資料表查詢欄位引發之 HTTP 400 錯誤',
+        description:
+          '修正首頁與各模組對 stores 資料表的 select 語句，僅請求真實存在之實體欄位，避免資料庫因缺少欄位拋出 42703 異常。',
+        badgeText: 'Schema 修復',
+      },
+      {
+        type: 'enhancement',
+        title: '優化即時團購活動狀態與倒數計時整合',
+        description:
+          '將截單倒數、公告與接單狀態由 group_orders 統一提供並動態對接前端 StoreNoticeBanner 與購物車驗證，提升用戶體驗。',
+        badgeText: '狀態整合',
+      },
+      {
+        type: 'enhancement',
+        title: '加固後台營運設定與團購狀態更新流程',
+        description:
+          '重構後台即時營運設定更新邏輯，確保所有活動參數精準寫入 group_orders，消除非預期的資料庫欄位更新異常。',
+        badgeText: '後台加固',
+      },
+    ],
+  },
+  {
+    version: 'v10.9.2',
+    releaseDate: '2026-09-07',
+    tag: 'Patch',
+    isLatest: false,
     summary:
       'Supabase Storage 智慧彈性備援升級、彈性防破圖 StoreImage 組件導入、全域鍵盤事件與擴充套件異常過濾加固。',
     highlights: [
