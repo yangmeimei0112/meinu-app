@@ -20,6 +20,8 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
     reason: '系統例行升級',
     custom_image_url: '',
     updated_at: new Date().toISOString(),
+    activated_at: '',
+    epoch: 1,
   });
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -98,6 +100,8 @@ export function AdminMaintenanceSection({ showToast }: AdminMaintenanceSectionPr
           ...prev,
           is_maintenance: targetState,
           updated_at: json.config?.updated_at || new Date().toISOString(),
+          activated_at: json.config?.activated_at || '',
+          epoch: json.config?.epoch || ((prev.epoch || 0) + 1),
         }));
         showToast(json.message || (targetState ? '🚨 維護模式已啟動！' : '✅ 已關閉維護模式，網站已恢復正常點餐！'));
       } else {

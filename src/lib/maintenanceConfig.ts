@@ -34,6 +34,8 @@ export interface MaintenanceConfig {
   reason?: string;
   custom_image_url?: string;
   updated_at: string;
+  activated_at?: string; // 伺服端維護啟動之絕對時間戳（ISO 8601），供在線 30 秒過渡精確同步
+  epoch?: number; // 遞增狀態世代序號，徹底杜絕快取競態與重整迴圈
 }
 
 export const defaultMaintenanceConfig: MaintenanceConfig = {
@@ -46,6 +48,8 @@ export const defaultMaintenanceConfig: MaintenanceConfig = {
   reason: '系統例行升級',
   custom_image_url: '',
   updated_at: new Date().toISOString(),
+  activated_at: '',
+  epoch: 1,
 };
 
 const configFilePath = path.join(process.cwd(), 'src', 'data', 'maintenance.json');

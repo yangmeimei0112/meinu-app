@@ -25,6 +25,8 @@ export async function GET() {
       reason: config.is_maintenance ? (config.reason || '') : '',
       custom_image_url: config.is_maintenance ? (config.custom_image_url || '') : '',
       updated_at: config.updated_at,
+      activated_at: config.is_maintenance ? (config.activated_at || config.updated_at || '') : '',
+      epoch: config.epoch || 1,
     },
     {
       headers: {
@@ -101,8 +103,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const willBeMaintenance = typeof body.is_maintenance === 'boolean' ? body.is_maintenance : current.is_maintenance;
+    const nowIso = new Date().toISOString();
+    let activatedAt = '';
+    if (willBeMaintenance) {
+      if (current.is_maintenance && current.activated_at) {
+        activatedAt = current.activated_at;
+      } else {
+        activatedAt = nowIso;
+      }
+    }
+
+    const nextEpoch = (current.epoch || 0) + 1;
+
     const updatedConfig: MaintenanceConfig = {
-      is_maintenance: typeof body.is_maintenance === 'boolean' ? body.is_maintenance : current.is_maintenance,
+      is_maintenance: willBeMaintenance,
       scope: primaryScope,
       scopes: rawScopes,
       title: rawTitle,
@@ -110,7 +125,9 @@ export async function POST(req: NextRequest) {
       estimated_end_time: rawEstimated,
       reason: rawReason,
       custom_image_url: rawCustomImage,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
+      activated_at: activatedAt,
+      epoch: nextEpoch,
     };
 
     const success = writeMaintenanceConfig(updatedConfig);
@@ -154,12 +171,21 @@ export async function POST(req: NextRequest) {
         maxAge: 86400,
         sameSite: 'lax',
       });
+      res.cookies.set('meinu_maintenance_epoch', String(updatedConfig.epoch || 1), {
+        path: '/',
+        maxAge: 86400,
+        sameSite: 'lax',
+      });
     } else {
       res.cookies.set('meinu_maintenance', '', {
         path: '/',
         maxAge: 0,
       });
       res.cookies.set('meinu_maintenance_scope', '', {
+        path: '/',
+        maxAge: 0,
+      });
+      res.cookies.set('meinu_maintenance_epoch', '', {
         path: '/',
         maxAge: 0,
       });

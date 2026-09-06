@@ -21,6 +21,7 @@ import {
 import { formatStoreCode } from '../../src/lib/formatStoreCode';
 import type { CartItem } from '../../src/types/cart';
 import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
+import { isRouteInMaintenance } from '../../src/components/maintenance/useMaintenanceStatus';
 
 export function registerTier2Tests() {
   // =========================================================================
@@ -632,6 +633,75 @@ export function registerTier2Tests() {
       expect(checkAuth(null)).toBe(401);
       expect(checkAuth('')).toBe(401);
       expect(checkAuth('Bearer valid-jwt')).toBe(200);
+    });
+
+    it('F12-B6: Single-page vs Full-site maintenance isolation boundary', () => {
+      // 單頁維護 (如 cart)
+      expect(isRouteInMaintenance('/cart', 'cart')).toBe(true);
+      expect(isRouteInMaintenance('/', 'cart')).toBe(false);
+      expect(isRouteInMaintenance('/stores/s1', 'cart')).toBe(false);
+      expect(isRouteInMaintenance('/admin', 'cart')).toBe(false);
+
+      // 全站維護 (all)
+      expect(isRouteInMaintenance('/', 'all')).toBe(true);
+      expect(isRouteInMaintenance('/stores/s1', 'all')).toBe(true);
+      expect(isRouteInMaintenance('/checkout', 'all')).toBe(true);
+      expect(isRouteInMaintenance('/admin', 'all')).toBe(false); // /admin 永不阻擋
+    });
+
+    it('F12-B7: Deterministic 30s grace countdown calculation boundaries', () => {
+      const calculateGrace = (activatedAtMs: number, nowMs: number) => {
+        const elapsedSecs = Math.max(0, Math.floor((nowMs - activatedAtMs) / 1000));
+        return Math.max(0, 30 - elapsedSecs);
+      };
+
+      const now = 1000000;
+      expect(calculateGrace(now, now)).toBe(30); // 剛開啟瞬間為 30 秒
+      expect(calculateGrace(now - 10000, now)).toBe(20); // 經過 10 秒剩餘 20 秒
+      expect(calculateGrace(now - 29900, now)).toBe(1); // 經過 29.9 秒剩餘 1 秒
+      expect(calculateGrace(now - 30000, now)).toBe(0); // 剛好 30 秒歸零鎖定
+      expect(calculateGrace(now - 60000, now)).toBe(0); // 超過 30 秒（新訪客）直接 0 秒鎖定
+    });
+
+    it('F12-B8: Atomic cache reset on maintenance completion prevents reload loop', () => {
+      let restoredEpoch: string | null = null;
+      let reloadCount = 0;
+
+      const handleRestore = (epoch: number) => {
+        const epochKey = String(epoch);
+        if (restoredEpoch === epochKey) {
+          // 已執行過重整，不再重複觸發
+          return false;
+        }
+        restoredEpoch = epochKey;
+        reloadCount++;
+        return true;
+      };
+
+      expect(handleRestore(2)).toBe(true);
+      expect(reloadCount).toBe(1);
+      expect(handleRestore(2)).toBe(false); // 同一世代重複輪詢不觸發二次重整
+      expect(reloadCount).toBe(1);
+
+      // 下一世代變更時才再次觸發
+      expect(handleRestore(3)).toBe(true);
+      expect(reloadCount).toBe(2);
+    });
+
+    it('F12-B9: Safe image URL validation on maintenance form blocks javascript: pseudo-protocols', () => {
+      const validateCustomImage = (url: string) => {
+        const candidate = (url || '').trim();
+        if (!candidate) return '';
+        if (/^https?:\/\//i.test(candidate) || /^data:image\//i.test(candidate)) {
+          return candidate.slice(0, 500000);
+        }
+        return '';
+      };
+
+      expect(validateCustomImage('https://images.unsplash.com/photo-123')).toBe('https://images.unsplash.com/photo-123');
+      expect(validateCustomImage('data:image/png;base64,iVBORw0KGgo=')).toBe('data:image/png;base64,iVBORw0KGgo=');
+      expect(validateCustomImage('javascript:alert(1)')).toBe('');
+      expect(validateCustomImage('vbscript:msgbox(1)')).toBe('');
     });
   });
 

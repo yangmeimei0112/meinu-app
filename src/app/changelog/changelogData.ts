@@ -17,10 +17,48 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v10.9.0',
+    releaseDate: '2026-09-07',
+    tag: 'Minor',
+    isLatest: true,
+    summary:
+      '維護模式確定性狀態機與路由守衛全面重構，加固30秒在線過渡倒數、全站與單頁風格視覺分流、伺服端世代序號與快取防死鎖機制。',
+    highlights: [
+      '🛡️ 確定性狀態機架構：重構為 NORMAL ➔ GRACE_PERIOD (30s) ➔ LOCKED ➔ RESTORING 單向狀態機，徹底消除競態條件與狀態衝突',
+      '⏳ 伺服端精準 30 秒過渡：以伺服端 activated_at 為基準精確計算在線剩餘過渡秒數，新進訪客在 30 秒後直接鎖定 (0s grace)',
+      '🎨 風格雙分流視覺系統：全站維護採用「烈焰赤紅/琥珀暗金」全螢幕鎖定；單頁維護採用「電光紫/科技藍靛」提示並完整保留底部導覽列供訪客切換正常分頁',
+      '🔄 世代版本防死鎖機制：引進 epoch 世代序號管理與原子化快取清除，維護結束平滑重整，徹底根絕無窮 reload 迴圈',
+      '🚪 管理後台絕對豁免權：/admin 路徑 100% 豁免前台維護阻擋與自動重整，保障團長後台營運無間斷',
+    ],
+    items: [
+      {
+        type: 'major',
+        title: '維護模式確定性狀態機全面重構',
+        description:
+          '將維護守衛與輪詢中樞升級為標準化四階段狀態機，支援精準時間戳換算與單例全域同步。',
+        badgeText: '核心重構',
+      },
+      {
+        type: 'enhancement',
+        title: '全站 vs 單頁維護風格分流與導覽列隔離',
+        description:
+          '單頁/多頁維護以電光紫高科技主題呈現並保留導覽列；全站維護則以琥珀金全螢幕鎖定。',
+        badgeText: '體驗升級',
+      },
+      {
+        type: 'fix',
+        title: '維護結束原子化清理與防死鎖保護',
+        description:
+          '伺服器維護關閉時原子化清除本機快取與 SessionStorage，並以世代序號防止重複觸發重整。',
+        badgeText: '穩定強化',
+      },
+    ],
+  },
+  {
     version: 'v10.8.0',
     releaseDate: '2026-09-06',
     tag: 'Minor',
-    isLatest: true,
+    isLatest: false,
     summary:
       '全系統檔案架構與底層效能深度優化、專案檔案標準化分類整理、圖片壓縮中樞整合、運費平攤並行演算法升級，以及全站規格同步與使用者體驗全方位強化。',
     highlights: [

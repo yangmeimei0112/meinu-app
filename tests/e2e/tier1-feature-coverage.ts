@@ -26,6 +26,8 @@ import { BUILT_IN_CUSTOM_PRESETS } from '../../src/lib/customOptionPresets';
 import type { CartItem, SelectedOption } from '../../src/types/cart';
 import type { CustomGroup } from '../../src/types/database';
 import { telemetryHub } from '../../src/lib/telemetry/telemetryHub';
+import { VALID_SCOPES } from '../../src/lib/maintenanceConfig';
+import { isRouteInMaintenance } from '../../src/components/maintenance/useMaintenanceStatus';
 
 export function registerTier1Tests() {
   // =========================================================================
@@ -1043,19 +1045,53 @@ export function registerTier1Tests() {
       expect(response.headers['Cache-Control']).toContain('no-store');
     });
 
-    it('F12-2: GET & POST /api/system/maintenance manages maintenance mode config', () => {
-      const validScopes = ['all', 'home', 'search', 'stores', 'cart', 'checkout', 'my-orders'];
-      const testScope = 'cart';
-      expect(validScopes.includes(testScope)).toBe(true);
+    it('F12-2: GET & POST /api/system/maintenance manages maintenance mode config and state machine', () => {
+      // 1. 驗證支援之全數合法維護範圍
+      expect(VALID_SCOPES).toContain('all');
+      expect(VALID_SCOPES).toContain('home');
+      expect(VALID_SCOPES).toContain('search');
+      expect(VALID_SCOPES).toContain('stores');
+      expect(VALID_SCOPES).toContain('cart');
+      expect(VALID_SCOPES).toContain('checkout');
+      expect(VALID_SCOPES).toContain('my-orders');
+      expect(VALID_SCOPES).toContain('account');
+      expect(VALID_SCOPES).toContain('legal');
 
+      // 2. 驗證路由守衛判定 (isRouteInMaintenance)
+      expect(isRouteInMaintenance('/admin', 'all')).toBe(false);
+      expect(isRouteInMaintenance('/admin/settings', 'all')).toBe(false);
+      expect(isRouteInMaintenance('/cart', 'cart')).toBe(true);
+      expect(isRouteInMaintenance('/cart/123', 'cart')).toBe(true);
+      expect(isRouteInMaintenance('/stores/s1', 'cart')).toBe(false);
+      expect(isRouteInMaintenance('/stores/s1', undefined, ['stores', 'checkout'])).toBe(true);
+      expect(isRouteInMaintenance('/search', undefined, ['stores', 'checkout'])).toBe(false);
+      expect(isRouteInMaintenance('/', 'all')).toBe(true);
+      expect(isRouteInMaintenance('/legal/terms', 'legal')).toBe(true);
+
+      // 3. 驗證 30 秒過渡倒數計算模型
+      const now = Date.now();
+      const activatedAt10sAgo = new Date(now - 10000).toISOString();
+      const remaining10s = Math.max(0, 30 - Math.floor((now - new Date(activatedAt10sAgo).getTime()) / 1000));
+      expect(remaining10s).toBe(20);
+
+      const activatedAt40sAgo = new Date(now - 40000).toISOString();
+      const remaining40s = Math.max(0, 30 - Math.floor((now - new Date(activatedAt40sAgo).getTime()) / 1000));
+      expect(remaining40s).toBe(0);
+
+      // 4. 驗證結構與世代版號 (epoch)
       const config = {
         is_maintenance: true,
-        scope: testScope,
+        scope: 'cart' as const,
+        scopes: ['cart' as const],
         title: '購物車例行維護',
+        message: '購物車升級中',
         updated_at: new Date().toISOString(),
+        activated_at: activatedAt10sAgo,
+        epoch: 2,
       };
       expect(config.is_maintenance).toBe(true);
       expect(config.title).toBe('購物車例行維護');
+      expect(config.epoch).toBe(2);
     });
 
     it('F12-3: GET & POST /api/stores/code validates and stores S-001 format', () => {

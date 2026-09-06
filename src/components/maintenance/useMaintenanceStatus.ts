@@ -4,9 +4,12 @@ import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import type { MaintenanceData } from './MaintenanceScreen';
 import type { MaintenanceScope } from '@/lib/maintenanceConfig';
 
+export type MaintenanceLifecycleState = 'NORMAL' | 'GRACE_PERIOD' | 'LOCKED' | 'RESTORING';
+
 const STORAGE_KEY_LOCKED = 'meinu_maintenance_locked';
 const STORAGE_KEY_DATA = 'meinu_maintenance_data';
 const STORAGE_KEY_DEADLINE = 'meinu_maintenance_deadline';
+const STORAGE_KEY_RESTORED_EPOCH = 'meinu_maintenance_restored_epoch';
 
 export function isRouteInMaintenance(
   pathname: string,
@@ -46,7 +49,7 @@ export function isRouteInMaintenance(
   });
 }
 
-// 🧹 強制清除所有快取並帶隨機時間戳硬重整至最新版本
+// 🧹 原子化強制清理所有快取並帶隨機時間戳硬重整至最新版本（防止重整死鎖）
 export async function forceHardReloadToLatestVersion(
   targetUrl?: string,
   options: { allowAdmin?: boolean } = { allowAdmin: true }
@@ -105,28 +108,52 @@ function isMaintenanceDataEqual(a: MaintenanceData | null, b: MaintenanceData | 
     a.estimated_end_time === b.estimated_end_time &&
     a.reason === b.reason &&
     a.custom_image_url === b.custom_image_url &&
-    a.updated_at === b.updated_at
+    a.updated_at === b.updated_at &&
+    a.activated_at === b.activated_at &&
+    a.epoch === b.epoch
   );
 }
 
 // =========================================================================
-// 🌟 單例全域狀態中樞 (Singleton Global Maintenance Store)
-// 解決多處重複調用 Hook 導致的定時器衝突、重複發送網路請求與 60fps 重繪閃爍問題
+// 🌟 單例全域狀態中樞 (Deterministic Singleton Maintenance Store)
+// 狀態機生命週期：NORMAL ➔ GRACE_PERIOD (30s) ➔ LOCKED ➔ RESTORING
 // =========================================================================
 
 interface MaintenanceStoreState {
+  lifecycleState: MaintenanceLifecycleState;
   maintenanceData: MaintenanceData | null;
   isCountDownFinished: boolean;
   countdown: number | null;
   isCenterPopup: boolean;
 }
 
+function calculateGraceRemaining(activatedAtStr?: string, updatedAtStr?: string): number {
+  const tsStr = activatedAtStr || updatedAtStr;
+  if (!tsStr) return 0;
+  const activatedTime = new Date(tsStr).getTime();
+  if (isNaN(activatedTime) || activatedTime <= 0) return 0;
+  const elapsedSecs = Math.max(0, Math.floor((Date.now() - activatedTime) / 1000));
+  return Math.max(0, 30 - elapsedSecs);
+}
+
 function getInitialStoreState(serverData?: MaintenanceData | null): MaintenanceStoreState {
   if (typeof window === 'undefined') {
+    if (!serverData?.is_maintenance) {
+      return {
+        lifecycleState: 'NORMAL',
+        maintenanceData: serverData || null,
+        isCountDownFinished: false,
+        countdown: null,
+        isCenterPopup: false,
+      };
+    }
+    const remainingGrace = calculateGraceRemaining(serverData.activated_at, serverData.updated_at);
+    const isLocked = remainingGrace <= 0;
     return {
-      maintenanceData: serverData || null,
-      isCountDownFinished: Boolean(serverData?.is_maintenance),
-      countdown: null,
+      lifecycleState: isLocked ? 'LOCKED' : 'GRACE_PERIOD',
+      maintenanceData: serverData,
+      isCountDownFinished: isLocked,
+      countdown: isLocked ? null : remainingGrace,
       isCenterPopup: false,
     };
   }
@@ -135,27 +162,40 @@ function getInitialStoreState(serverData?: MaintenanceData | null): MaintenanceS
     const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
     let initialData: MaintenanceData | null = serverData || null;
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.is_maintenance) {
-        initialData = parsed;
-      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          initialData = parsed;
+        }
+      } catch {}
     }
 
-    const hasCookie = typeof document !== 'undefined' && document.cookie.includes('meinu_maintenance=true');
+    if (!initialData?.is_maintenance) {
+      return {
+        lifecycleState: 'NORMAL',
+        maintenanceData: initialData,
+        isCountDownFinished: false,
+        countdown: null,
+        isCenterPopup: false,
+      };
+    }
+
+    const remainingGrace = calculateGraceRemaining(initialData.activated_at, initialData.updated_at);
     const isLocked =
+      remainingGrace <= 0 ||
       localStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
-      sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
-      hasCookie ||
-      Boolean(initialData?.is_maintenance);
+      sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true';
 
     return {
+      lifecycleState: isLocked ? 'LOCKED' : 'GRACE_PERIOD',
       maintenanceData: initialData,
       isCountDownFinished: isLocked,
-      countdown: null,
+      countdown: isLocked ? null : remainingGrace,
       isCenterPopup: false,
     };
   } catch {
     return {
+      lifecycleState: 'NORMAL',
       maintenanceData: serverData || null,
       isCountDownFinished: Boolean(serverData?.is_maintenance),
       countdown: null,
@@ -170,19 +210,14 @@ class MaintenanceStore {
   private pollInterval: any = null;
   private countdownInterval: any = null;
   private centerPopupTimeout: any = null;
-  private deadlineTimestamp: number | null = null;
   private initialCheckDone: boolean = false;
   private wasInMaintenance: boolean = false;
   private isFetching: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
-      const savedDeadline = sessionStorage.getItem(STORAGE_KEY_DEADLINE) || localStorage.getItem(STORAGE_KEY_DEADLINE);
-      if (savedDeadline) {
-        const num = Number(savedDeadline);
-        if (!isNaN(num) && num > Date.now()) {
-          this.deadlineTimestamp = num;
-        }
+      if (this.state.lifecycleState === 'GRACE_PERIOD' && (this.state.countdown ?? 0) > 0) {
+        this.startCountdownTicker();
       }
     }
   }
@@ -240,18 +275,30 @@ class MaintenanceStore {
     if (serverData.is_maintenance) {
       this.wasInMaintenance = true;
       this.initialCheckDone = true;
+
+      const remainingGrace = calculateGraceRemaining(serverData.activated_at, serverData.updated_at);
+      const isLocked = remainingGrace <= 0;
+
       this.setState({
+        lifecycleState: isLocked ? 'LOCKED' : 'GRACE_PERIOD',
         maintenanceData: serverData,
-        isCountDownFinished: true,
-        countdown: null,
+        isCountDownFinished: isLocked,
+        countdown: isLocked ? 0 : remainingGrace,
         isCenterPopup: false,
       });
+
       try {
-        localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-        sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
         localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(serverData));
         sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(serverData));
+        if (isLocked) {
+          localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
+          sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
+        }
       } catch {}
+
+      if (!isLocked && remainingGrace > 0) {
+        this.startCountdownTicker();
+      }
     }
   }
 
@@ -276,6 +323,10 @@ class MaintenanceStore {
 
   private handleNewData(json: MaintenanceData) {
     if (json.is_maintenance) {
+      const remainingGrace = calculateGraceRemaining(json.activated_at, json.updated_at);
+      const isNewlyTriggered =
+        !this.wasInMaintenance && !this.state.isCountDownFinished && this.initialCheckDone;
+
       this.wasInMaintenance = true;
 
       try {
@@ -283,64 +334,84 @@ class MaintenanceStore {
         sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
       } catch {}
 
-      // 若為初次載入或已直接鎖定
-      if (!this.initialCheckDone) {
-        this.initialCheckDone = true;
+      if (remainingGrace > 0) {
+        // 在 30 秒過渡緩衝期內
+        this.startCountdownTicker();
+
+        const shouldShowPopup = isNewlyTriggered;
         this.setState({
+          lifecycleState: 'GRACE_PERIOD',
+          maintenanceData: json,
+          isCountDownFinished: false,
+          countdown: remainingGrace,
+          isCenterPopup: shouldShowPopup,
+        });
+
+        if (shouldShowPopup) {
+          if (this.centerPopupTimeout) clearTimeout(this.centerPopupTimeout);
+          this.centerPopupTimeout = setTimeout(() => {
+            this.setState({ isCenterPopup: false });
+          }, 3500);
+        }
+      } else {
+        // 緩衝期已過，立即進入鎖定狀態 (0s grace)
+        this.stopCountdownTicker();
+        this.setState({
+          lifecycleState: 'LOCKED',
           maintenanceData: json,
           isCountDownFinished: true,
-          countdown: null,
+          countdown: 0,
           isCenterPopup: false,
         });
+
         try {
           localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
           sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
         } catch {}
-        return;
-      }
-
-      // 若正在瀏覽中且先前非維護狀態，啟動 30 秒倒數與中央醒目提醒
-      if (!this.state.maintenanceData?.is_maintenance && !this.deadlineTimestamp && !this.state.isCountDownFinished) {
-        const targetDeadline = Date.now() + 30000;
-        this.deadlineTimestamp = targetDeadline;
-        try {
-          sessionStorage.setItem(STORAGE_KEY_DEADLINE, String(targetDeadline));
-          localStorage.setItem(STORAGE_KEY_DEADLINE, String(targetDeadline));
-        } catch {}
-
-        this.startCountdownTimer();
-        this.setState({
-          maintenanceData: json,
-          countdown: 30,
-          isCenterPopup: true,
-        });
-
-        if (this.centerPopupTimeout) clearTimeout(this.centerPopupTimeout);
-        this.centerPopupTimeout = setTimeout(() => {
-          this.setState({ isCenterPopup: false });
-        }, 3500);
-      } else {
-        this.setState({ maintenanceData: json });
       }
     } else {
-      // 伺服端維護已結束
-      const wasLocked =
+      // 伺服端維護已結束 (is_maintenance: false)
+      const wasLockedOrInMaint =
+        this.state.lifecycleState === 'LOCKED' ||
+        this.state.lifecycleState === 'GRACE_PERIOD' ||
         this.state.isCountDownFinished ||
         this.wasInMaintenance ||
         (typeof window !== 'undefined' &&
-          (sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' || localStorage.getItem(STORAGE_KEY_LOCKED) === 'true'));
+          (sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
+            localStorage.getItem(STORAGE_KEY_LOCKED) === 'true'));
 
       this.cleanupStorage();
-      this.stopCountdownTimer();
+      this.stopCountdownTicker();
       this.wasInMaintenance = false;
       this.initialCheckDone = true;
 
-      if (wasLocked) {
-        forceHardReloadToLatestVersion(undefined, { allowAdmin: false });
-        return;
+      if (wasLockedOrInMaint) {
+        // 檢查此世代是否已執行過重整，防止快取競態死鎖
+        const epochKey = String(json.epoch || Date.now());
+        let alreadyRestored = false;
+        try {
+          if (sessionStorage.getItem(STORAGE_KEY_RESTORED_EPOCH) === epochKey) {
+            alreadyRestored = true;
+          } else {
+            sessionStorage.setItem(STORAGE_KEY_RESTORED_EPOCH, epochKey);
+          }
+        } catch {}
+
+        if (!alreadyRestored) {
+          this.setState({
+            lifecycleState: 'RESTORING',
+            maintenanceData: json,
+            isCountDownFinished: false,
+            countdown: null,
+            isCenterPopup: false,
+          });
+          forceHardReloadToLatestVersion(undefined, { allowAdmin: false });
+          return;
+        }
       }
 
       this.setState({
+        lifecycleState: 'NORMAL',
         maintenanceData: json,
         isCountDownFinished: false,
         countdown: null,
@@ -351,19 +422,21 @@ class MaintenanceStore {
     this.initialCheckDone = true;
   }
 
-  private startCountdownTimer() {
+  private startCountdownTicker() {
     if (this.countdownInterval) return;
 
     this.countdownInterval = setInterval(() => {
-      if (!this.deadlineTimestamp) {
-        this.stopCountdownTimer();
+      const data = this.state.maintenanceData;
+      if (!data?.is_maintenance) {
+        this.stopCountdownTicker();
         return;
       }
 
-      const remainingSecs = Math.max(0, Math.ceil((this.deadlineTimestamp - Date.now()) / 1000));
+      const remainingSecs = calculateGraceRemaining(data.activated_at, data.updated_at);
       if (remainingSecs <= 0) {
-        this.stopCountdownTimer();
+        this.stopCountdownTicker();
         this.setState({
+          lifecycleState: 'LOCKED',
           countdown: 0,
           isCountDownFinished: true,
           isCenterPopup: false,
@@ -373,17 +446,19 @@ class MaintenanceStore {
           localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
         } catch {}
       } else {
-        this.setState({ countdown: remainingSecs });
+        this.setState({
+          lifecycleState: 'GRACE_PERIOD',
+          countdown: remainingSecs,
+        });
       }
     }, 1000);
   }
 
-  private stopCountdownTimer() {
+  private stopCountdownTicker() {
     if (this.countdownInterval) {
       clearInterval(this.countdownInterval);
       this.countdownInterval = null;
     }
-    this.deadlineTimestamp = null;
   }
 
   private cleanupStorage() {
@@ -437,7 +512,7 @@ class MaintenanceStore {
 const globalMaintenanceStore = new MaintenanceStore();
 
 // =========================================================================
-// 🪝 供 React 元件使用的訂閱 Hook (Zero-flicker useMaintenanceStatus)
+// 🪝 供 React 元件使用的訂閱 Hook (Deterministic useMaintenanceStatus)
 // =========================================================================
 
 export function useMaintenanceStatus(currentPathname: string = '/', initialData?: MaintenanceData | null) {
@@ -450,12 +525,23 @@ export function useMaintenanceStatus(currentPathname: string = '/', initialData?
   const state = useSyncExternalStore(
     (callback) => globalMaintenanceStore.subscribe(callback),
     () => globalMaintenanceStore.getState(),
-    () => ({
-      maintenanceData: initialData || null,
-      isCountDownFinished: Boolean(initialData?.is_maintenance),
-      countdown: null,
-      isCenterPopup: false,
-    })
+    () => {
+      const remainingGrace = initialData?.is_maintenance
+        ? calculateGraceRemaining(initialData.activated_at, initialData.updated_at)
+        : 0;
+      const isLocked = Boolean(initialData?.is_maintenance && remainingGrace <= 0);
+      return {
+        lifecycleState: !initialData?.is_maintenance
+          ? 'NORMAL'
+          : isLocked
+          ? 'LOCKED'
+          : 'GRACE_PERIOD',
+        maintenanceData: initialData || null,
+        isCountDownFinished: isLocked,
+        countdown: initialData?.is_maintenance && !isLocked ? remainingGrace : null,
+        isCenterPopup: false,
+      };
+    }
   );
 
   const [checking, setChecking] = useState<boolean>(false);
@@ -494,6 +580,8 @@ export function useMaintenanceStatus(currentPathname: string = '/', initialData?
   }, []);
 
   return {
+    state: state.lifecycleState,
+    lifecycleState: state.lifecycleState,
     maintenanceData: state.maintenanceData,
     checking,
     checkMessage,

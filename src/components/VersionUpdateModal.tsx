@@ -10,7 +10,7 @@ interface ServerVersionData {
   buildTime?: string;
 }
 
-const CLIENT_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '10.8.0';
+const CLIENT_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '10.9.0';
 const CLIENT_COMMIT = process.env.NEXT_PUBLIC_GIT_COMMIT_HASH || '';
 const STORAGE_KEY_SNOOZE = 'meinu_version_update_snooze';
 

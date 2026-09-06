@@ -17,6 +17,8 @@ export interface MaintenanceData {
   reason?: string;
   custom_image_url?: string;
   updated_at: string;
+  activated_at?: string;
+  epoch?: number;
   build_id?: string;
 }
 

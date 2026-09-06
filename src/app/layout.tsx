@@ -174,11 +174,13 @@ export default function RootLayout({
                   if (isIOS) document.documentElement.classList.add('is-ios');
                   if (isAndroid) document.documentElement.classList.add('is-android');
 
-                  if (${initialMaintenance.is_maintenance ? 'true' : 'false'}) {
-                    if (window.location.pathname.indexOf('/admin') !== 0) {
-                      sessionStorage.setItem('meinu_maintenance_locked', 'true');
-                      localStorage.setItem('meinu_maintenance_locked', 'true');
-                    }
+                  if (!${initialMaintenance.is_maintenance ? 'true' : 'false'}) {
+                    sessionStorage.removeItem('meinu_maintenance_locked');
+                    sessionStorage.removeItem('meinu_maintenance_data');
+                    sessionStorage.removeItem('meinu_maintenance_deadline');
+                    localStorage.removeItem('meinu_maintenance_locked');
+                    localStorage.removeItem('meinu_maintenance_data');
+                    localStorage.removeItem('meinu_maintenance_deadline');
                   }
                 } catch (e) {}
               })();
