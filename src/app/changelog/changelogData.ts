@@ -17,10 +17,30 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
-    version: 'v10.9.4',
+    version: 'v10.9.5',
     releaseDate: '2026-09-07',
     tag: 'Patch',
     isLatest: true,
+    summary:
+      '首頁介面視覺精簡與純粹化，移除店家卡片「熱門團購」與「熱門」徽章標示，維持簡潔清爽之美食大廳瀏覽體驗。',
+    highlights: [
+      '✨ 首頁視覺純粹化：移除店家卡片右上角「🔥 熱門」與狀態列「🔥 熱門團購」標示，介面更加簡潔俐落',
+      '🏷️ 核心狀態聚焦：完整保留營業接單中、暫停接單與截單倒數計時等核心營業資訊',
+    ],
+    items: [
+      {
+        type: 'enhancement',
+        title: '移除首頁熱門團購標籤',
+        description: '精簡 HomeStoreList 店家卡片視覺元素，移除熱門開團與熱門團購徽章。',
+        badgeText: '介面精簡',
+      },
+    ],
+  },
+  {
+    version: 'v10.9.4',
+    releaseDate: '2026-09-07',
+    tag: 'Patch',
+    isLatest: false,
     summary:
       '修復後台菜單設計工作室（Admin Menu Studio）編輯餐點與客製化規格選項後畫面無法即時更新之狀態同步缺陷，全面強化前端 SWR 快取更新與樂觀狀態同步機制。',
     highlights: [

@@ -118,16 +118,11 @@ export function HomeStoreList({
                 : 'border-slate-200/60 dark:border-slate-800/60 opacity-65 grayscale-35 hover:opacity-90 hover:grayscale-0'
             }`}
           >
-            {/* 右上角標籤區 (店家代碼、熱門開團與暫停接單標註) */}
+            {/* 右上角標籤區 (店家代碼與暫停接單標註) */}
             <div className="absolute top-3 right-3 flex items-center gap-1.5">
               {!isAccepting && (
                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-200/60 dark:border-amber-800/80">
                   ⏸️ 暫停接單
-                </span>
-              )}
-              {store.has_active_group && isAccepting && (
-                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/80 px-2 py-0.5 rounded-full border border-rose-200/60 dark:border-rose-800/80">
-                  🔥 熱門
                 </span>
               )}
               <span className="text-[10px] font-extrabold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/80 px-2 py-0.5 rounded-full border border-sky-200/60 dark:border-sky-800/80 tracking-wide font-mono">
@@ -149,20 +144,13 @@ export function HomeStoreList({
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">點擊瀏覽完整菜單與選購</p>
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 {isAccepting ? (
-                  <>
-                    {store.enable_countdown && store.cutoff_time ? (
-                      <StoreCountdownBadge cutoffTime={store.cutoff_time} />
-                    ) : (
-                      <span className="inline-block bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800/60">
-                        營業接單中
-                      </span>
-                    )}
-                    {store.has_active_group && (
-                      <span className="inline-flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-rose-200 dark:border-rose-800/60">
-                        🔥 熱門團購{store.active_group_title ? ` · ${store.active_group_title}` : ''}
-                      </span>
-                    )}
-                  </>
+                  store.enable_countdown && store.cutoff_time ? (
+                    <StoreCountdownBadge cutoffTime={store.cutoff_time} />
+                  ) : (
+                    <span className="inline-block bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800/60">
+                      營業接單中
+                    </span>
+                  )
                 ) : (
                   <span className="inline-block bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[10px] font-bold px-2.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
                     暫停接單（可瀏覽菜單）
