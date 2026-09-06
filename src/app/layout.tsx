@@ -3,7 +3,7 @@ import './globals.css';
 import MaintenanceGuard from '@/components/MaintenanceGuard';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import VersionUpdateModal from '@/components/VersionUpdateModal';
-import { getMaintenanceConfigServer } from '@/lib/maintenanceConfig';
+import { getMaintenanceConfigServer } from '@/lib/maintenanceServer';
 
 // 取得實際網站網址（Vercel 部署後的網址）
 const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://meinu2.vercel.app').replace(/\/$/, '');

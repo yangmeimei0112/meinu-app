@@ -1,6 +1,3 @@
-import fs from 'fs';
-import path from 'path';
-
 export type MaintenanceScope =
   | 'all'
   | 'home'
@@ -52,63 +49,66 @@ export const defaultMaintenanceConfig: MaintenanceConfig = {
   epoch: 1,
 };
 
-const configFilePath = path.join(process.cwd(), 'src', 'data', 'maintenance.json');
-const tmpFilePath = path.join('/tmp', 'meinu_maintenance.json');
+/**
+ * 🌐 精準路由比對器 (Exact Route Normalizer & Matcher)
+ * 統一前後端路由比對邏輯，後台管理 (/admin) 永遠 100% 絕對豁免
+ */
+export function isRouteInMaintenance(
+  rawPathname?: string | null,
+  scopesOrScope?: MaintenanceScope[] | MaintenanceScope,
+  fallbackScope?: MaintenanceScope | MaintenanceScope[]
+): boolean {
+  if (rawPathname === null || rawPathname === undefined) return false;
+  const pathname = rawPathname.split('?')[0].split('#')[0];
 
-// 伺服端記憶體持久化備援 (Serverless Memory Fallback)
-let memoryCache: MaintenanceConfig | null = null;
+  // 🛡️ 後台管理路徑永遠絕對豁免
+  if (pathname.startsWith('/admin') || pathname === '/admin') return false;
 
-export function readMaintenanceConfig(): MaintenanceConfig {
-  if (memoryCache) {
-    return memoryCache;
+  let activeScopes: MaintenanceScope[] = [];
+  if (Array.isArray(scopesOrScope) && scopesOrScope.length > 0) {
+    activeScopes = scopesOrScope;
+  } else if (typeof scopesOrScope === 'string') {
+    activeScopes = [scopesOrScope];
+  } else if (Array.isArray(fallbackScope) && fallbackScope.length > 0) {
+    activeScopes = fallbackScope;
+  } else if (typeof fallbackScope === 'string') {
+    activeScopes = [fallbackScope];
+  } else {
+    activeScopes = ['all'];
   }
 
-  // 1. 優先嘗試讀取專案路徑檔案
-  try {
-    if (fs.existsSync(configFilePath)) {
-      const raw = fs.readFileSync(configFilePath, 'utf8');
-      memoryCache = JSON.parse(raw);
-      return memoryCache!;
+  if (activeScopes.includes('all')) return true;
+
+  return activeScopes.some((s) => {
+    switch (s) {
+      case 'home':
+        return pathname === '/' || pathname === '';
+      case 'search':
+        return pathname === '/search' || pathname.startsWith('/search/');
+      case 'stores':
+        return pathname.startsWith('/stores/') || pathname === '/stores';
+      case 'cart':
+        return pathname === '/cart' || pathname.startsWith('/cart/');
+      case 'checkout':
+        return pathname === '/checkout' || pathname.startsWith('/checkout/');
+      case 'my-orders':
+        return (
+          pathname === '/my-orders' ||
+          pathname.startsWith('/my-orders/') ||
+          pathname.startsWith('/order-status/')
+        );
+      case 'account':
+        return pathname === '/account' || pathname.startsWith('/account/');
+      case 'legal':
+        return (
+          pathname.startsWith('/legal') ||
+          pathname === '/terms' ||
+          pathname === '/privacy' ||
+          pathname === '/user-terms' ||
+          pathname === '/security'
+        );
+      default:
+        return false;
     }
-  } catch {}
-
-  // 2. 備援嘗試讀取 /tmp 暫存路徑 (Serverless 寫入相容)
-  try {
-    if (fs.existsSync(tmpFilePath)) {
-      const raw = fs.readFileSync(tmpFilePath, 'utf8');
-      memoryCache = JSON.parse(raw);
-      return memoryCache!;
-    }
-  } catch {}
-
-  memoryCache = defaultMaintenanceConfig;
-  return memoryCache;
-}
-
-export function writeMaintenanceConfig(config: MaintenanceConfig): boolean {
-  memoryCache = config;
-
-  let written = false;
-
-  // 1. 嘗試寫入專案路徑
-  try {
-    const dir = path.dirname(configFilePath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    fs.writeFileSync(configFilePath, JSON.stringify(config, null, 2), 'utf8');
-    written = true;
-  } catch {}
-
-  // 2. 若專案路徑為 Read-Only (如 Vercel 生產環境)，備援寫入 /tmp 暫存
-  try {
-    fs.writeFileSync(tmpFilePath, JSON.stringify(config, null, 2), 'utf8');
-    written = true;
-  } catch {}
-
-  return written || !!memoryCache;
-}
-
-export function getMaintenanceConfigServer(): MaintenanceConfig {
-  return readMaintenanceConfig();
+  });
 }

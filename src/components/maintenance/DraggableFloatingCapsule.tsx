@@ -205,7 +205,7 @@ export function DraggableFloatingCapsule({
         }`}
       >
         <IconMove className="w-3 h-3 opacity-70" />
-        <span>拖移/展開</span>
+        <span>拖移/收合</span>
       </div>
     </div>
   );

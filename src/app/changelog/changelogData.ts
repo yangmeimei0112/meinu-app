@@ -17,10 +17,39 @@ export interface ChangelogRelease {
 
 export const CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v10.9.1',
+    releaseDate: '2026-09-07',
+    tag: 'Patch',
+    isLatest: true,
+    summary:
+      '前後端架構依賴深度隔離、伺服端專用儲存模組強化、全域 Layout 維護守衛水合優化與可拖曳膠囊流暢度提升。',
+    highlights: [
+      '⚡ 前後端模組邊界隔離：將 Node.js fs 與 path 檔案操作嚴格限制於 maintenanceServer.ts，消除前端 Webpack 編譯警告',
+      '💎 守衛水合與渲染加固：重構 Layout 維護守衛注入邏輯，防止 SSR/CSR 狀態不一致',
+      '🎈 拖曳膠囊體驗優化：微調懸浮膠囊吸附邊界與平滑過渡，提升在線點餐時的視覺質感',
+    ],
+    items: [
+      {
+        type: 'fix',
+        title: '前後端模組依賴徹底解耦',
+        description:
+          '將伺服端專屬讀寫分離至 maintenanceServer.ts，前端 maintenanceConfig.ts 保持純 TypeScript 資料定義與比對邏輯。',
+        badgeText: '架構解耦',
+      },
+      {
+        type: 'enhancement',
+        title: '維護守衛與版面水合流暢化',
+        description:
+          '改善根版面 (Root Layout) 維護守衛在頁面導航與初始加載時的判斷流程，杜絕閃爍。',
+        badgeText: '體驗優化',
+      },
+    ],
+  },
+  {
     version: 'v10.9.0',
     releaseDate: '2026-09-07',
     tag: 'Minor',
-    isLatest: true,
+    isLatest: false,
     summary:
       '維護模式確定性狀態機與路由守衛全面重構，加固30秒在線過渡倒數、全站與單頁風格視覺分流、伺服端世代序號與快取防死鎖機制。',
     highlights: [

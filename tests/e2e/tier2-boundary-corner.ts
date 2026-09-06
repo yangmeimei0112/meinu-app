@@ -642,6 +642,12 @@ export function registerTier2Tests() {
       expect(isRouteInMaintenance('/stores/s1', 'cart')).toBe(false);
       expect(isRouteInMaintenance('/admin', 'cart')).toBe(false);
 
+      // 店家與訂單分頁維護
+      expect(isRouteInMaintenance('/stores', 'stores')).toBe(true);
+      expect(isRouteInMaintenance('/stores/550e8400', 'stores')).toBe(true);
+      expect(isRouteInMaintenance('/my-orders', 'my-orders')).toBe(true);
+      expect(isRouteInMaintenance('/order-status/sub-999', 'my-orders')).toBe(true);
+
       // 全站維護 (all)
       expect(isRouteInMaintenance('/', 'all')).toBe(true);
       expect(isRouteInMaintenance('/stores/s1', 'all')).toBe(true);
@@ -650,17 +656,25 @@ export function registerTier2Tests() {
     });
 
     it('F12-B7: Deterministic 30s grace countdown calculation boundaries', () => {
-      const calculateGrace = (activatedAtMs: number, nowMs: number) => {
-        const elapsedSecs = Math.max(0, Math.floor((nowMs - activatedAtMs) / 1000));
+      const calculateGrace = (activatedAtStr: string, nowMs: number) => {
+        if (!activatedAtStr) return 0;
+        const activatedTime = new Date(activatedAtStr).getTime();
+        if (isNaN(activatedTime) || activatedTime <= 0) return 0;
+        const elapsedSecs = Math.max(0, Math.floor((nowMs - activatedTime) / 1000));
         return Math.max(0, 30 - elapsedSecs);
       };
 
-      const now = 1000000;
-      expect(calculateGrace(now, now)).toBe(30); // 剛開啟瞬間為 30 秒
-      expect(calculateGrace(now - 10000, now)).toBe(20); // 經過 10 秒剩餘 20 秒
-      expect(calculateGrace(now - 29900, now)).toBe(1); // 經過 29.9 秒剩餘 1 秒
-      expect(calculateGrace(now - 30000, now)).toBe(0); // 剛好 30 秒歸零鎖定
-      expect(calculateGrace(now - 60000, now)).toBe(0); // 超過 30 秒（新訪客）直接 0 秒鎖定
+      const now = 1700000000000;
+      expect(calculateGrace(new Date(now).toISOString(), now)).toBe(30); // 剛開啟瞬間為 30 秒
+      expect(calculateGrace(new Date(now - 10000).toISOString(), now)).toBe(20); // 經過 10 秒剩餘 20 秒
+      expect(calculateGrace(new Date(now - 29900).toISOString(), now)).toBe(1); // 經過 29.9 秒剩餘 1 秒
+      expect(calculateGrace(new Date(now - 30000).toISOString(), now)).toBe(0); // 剛好 30 秒歸零鎖定
+      expect(calculateGrace(new Date(now - 60000).toISOString(), now)).toBe(0); // 超過 30 秒（新訪客）直接 0 秒鎖定
+
+      // 邊界異常容錯防禦
+      expect(calculateGrace('', now)).toBe(0); // 空時間戳
+      expect(calculateGrace('invalid-date-string', now)).toBe(0); // 非法字串
+      expect(calculateGrace(new Date(now + 5000).toISOString(), now)).toBe(30); // 時鐘偏差（未來時間戳），上限錨定 30 秒
     });
 
     it('F12-B8: Atomic cache reset on maintenance completion prevents reload loop', () => {

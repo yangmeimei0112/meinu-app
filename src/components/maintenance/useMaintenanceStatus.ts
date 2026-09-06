@@ -2,54 +2,14 @@
 
 import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import type { MaintenanceData } from './MaintenanceScreen';
-import type { MaintenanceScope } from '@/lib/maintenanceConfig';
+import { MaintenanceScope, isRouteInMaintenance } from '@/lib/maintenanceConfig';
 
-export type MaintenanceLifecycleState = 'NORMAL' | 'GRACE_PERIOD' | 'LOCKED' | 'RESTORING';
+export { isRouteInMaintenance };
 
-const STORAGE_KEY_LOCKED = 'meinu_maintenance_locked';
-const STORAGE_KEY_DATA = 'meinu_maintenance_data';
-const STORAGE_KEY_DEADLINE = 'meinu_maintenance_deadline';
-const STORAGE_KEY_RESTORED_EPOCH = 'meinu_maintenance_restored_epoch';
+const STORAGE_KEY_SEEN_EPOCH = 'meinu_maintenance_seen_epoch';
+const STORAGE_KEY_DISMISSED_POPUP = 'meinu_maintenance_popup_dismissed';
 
-export function isRouteInMaintenance(
-  pathname: string,
-  scope?: MaintenanceScope,
-  scopes?: MaintenanceScope[]
-): boolean {
-  if (!pathname || pathname.startsWith('/admin')) return false; // 後台永遠不攔截
-
-  // 優先採用複選 scopes 陣列，若無則兼容舊版單選 scope
-  const activeScopes: MaintenanceScope[] =
-    scopes && Array.isArray(scopes) && scopes.length > 0
-      ? scopes
-      : scope
-      ? [scope]
-      : ['all'];
-
-  if (activeScopes.includes('all')) return true;
-
-  return activeScopes.some((s) => {
-    if (s === 'home') return pathname === '/';
-    if (s === 'search') return pathname === '/search' || pathname.startsWith('/search/');
-    if (s === 'stores') return pathname.startsWith('/stores/');
-    if (s === 'cart') return pathname === '/cart' || pathname.startsWith('/cart/');
-    if (s === 'checkout') return pathname === '/checkout' || pathname.startsWith('/checkout/');
-    if (s === 'my-orders') return pathname === '/my-orders' || pathname.startsWith('/my-orders/');
-    if (s === 'account') return pathname === '/account' || pathname.startsWith('/account/');
-    if (s === 'legal') {
-      return (
-        pathname.startsWith('/legal') ||
-        pathname === '/terms' ||
-        pathname === '/privacy' ||
-        pathname === '/user-terms' ||
-        pathname === '/security'
-      );
-    }
-    return false;
-  });
-}
-
-// 🧹 原子化強制清理所有快取並帶隨機時間戳硬重整至最新版本（防止重整死鎖）
+// 🧹 清理快取並安全硬重整（防範重整迴圈與後台誤傷）
 export async function forceHardReloadToLatestVersion(
   targetUrl?: string,
   options: { allowAdmin?: boolean } = { allowAdmin: true }
@@ -64,19 +24,16 @@ export async function forceHardReloadToLatestVersion(
       await Promise.all(cacheNames.map((name) => caches.delete(name)));
     }
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(STORAGE_KEY_LOCKED);
-      sessionStorage.removeItem(STORAGE_KEY_DATA);
-      sessionStorage.removeItem(STORAGE_KEY_DEADLINE);
-      localStorage.removeItem(STORAGE_KEY_LOCKED);
-      localStorage.removeItem(STORAGE_KEY_DATA);
-      localStorage.removeItem(STORAGE_KEY_DEADLINE);
+      sessionStorage.removeItem(STORAGE_KEY_SEEN_EPOCH);
+      sessionStorage.removeItem(STORAGE_KEY_DISMISSED_POPUP);
+      localStorage.removeItem(STORAGE_KEY_SEEN_EPOCH);
+      localStorage.removeItem(STORAGE_KEY_DISMISSED_POPUP);
     }
   } catch (e) {
-    console.error('快取清理出錯:', e);
+    console.error('快取清理錯誤:', e);
   }
 
   if (typeof window !== 'undefined') {
-    // 🛡️ 僅在明確指定不允許重整後台（如維護結束自動輪詢時），且當前位於管理後台時略過
     if (!options.allowAdmin && window.location.pathname.startsWith('/admin')) {
       return;
     }
@@ -90,506 +47,271 @@ export async function forceHardReloadToLatestVersion(
   }
 }
 
-// 深度比較前後兩次維護資料是否完全相同，防止無意義的 React 重新渲染
-function isMaintenanceDataEqual(a: MaintenanceData | null, b: MaintenanceData | null): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-
-  const scopesEqual =
-    JSON.stringify(a.scopes || (a.scope ? [a.scope] : ['all'])) ===
-    JSON.stringify(b.scopes || (b.scope ? [b.scope] : ['all']));
-
-  return (
-    a.is_maintenance === b.is_maintenance &&
-    a.scope === b.scope &&
-    scopesEqual &&
-    a.title === b.title &&
-    a.message === b.message &&
-    a.estimated_end_time === b.estimated_end_time &&
-    a.reason === b.reason &&
-    a.custom_image_url === b.custom_image_url &&
-    a.updated_at === b.updated_at &&
-    a.activated_at === b.activated_at &&
-    a.epoch === b.epoch
-  );
-}
-
 // =========================================================================
-// 🌟 單例全域狀態中樞 (Deterministic Singleton Maintenance Store)
-// 狀態機生命週期：NORMAL ➔ GRACE_PERIOD (30s) ➔ LOCKED ➔ RESTORING
+// 🌟 單例全域狀態機中樞 (Singleton Global Maintenance Store)
 // =========================================================================
 
 interface MaintenanceStoreState {
-  lifecycleState: MaintenanceLifecycleState;
   maintenanceData: MaintenanceData | null;
-  isCountDownFinished: boolean;
   countdown: number | null;
+  isCountDownFinished: boolean;
   isCenterPopup: boolean;
+  isMinimized: boolean;
+  checking: boolean;
+  checkMessage: string | null;
 }
 
-function calculateGraceRemaining(activatedAtStr?: string, updatedAtStr?: string): number {
-  const tsStr = activatedAtStr || updatedAtStr;
-  if (!tsStr) return 0;
-  const activatedTime = new Date(tsStr).getTime();
-  if (isNaN(activatedTime) || activatedTime <= 0) return 0;
-  const elapsedSecs = Math.max(0, Math.floor((Date.now() - activatedTime) / 1000));
-  return Math.max(0, 30 - elapsedSecs);
+let storeState: MaintenanceStoreState = {
+  maintenanceData: null,
+  countdown: null,
+  isCountDownFinished: false,
+  isCenterPopup: false,
+  isMinimized: false,
+  checking: false,
+  checkMessage: null,
+};
+
+const listeners = new Set<() => void>();
+let countdownTimer: NodeJS.Timeout | null = null;
+let pollTimer: NodeJS.Timeout | null = null;
+let isInitialized = false;
+
+function emitChange() {
+  for (const listener of listeners) {
+    listener();
+  }
 }
 
-function getInitialStoreState(serverData?: MaintenanceData | null): MaintenanceStoreState {
-  if (typeof window === 'undefined') {
-    if (!serverData?.is_maintenance) {
-      return {
-        lifecycleState: 'NORMAL',
-        maintenanceData: serverData || null,
-        isCountDownFinished: false,
-        countdown: null,
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+}
+
+function startCountdown(initialSeconds: number) {
+  stopCountdown();
+  storeState = {
+    ...storeState,
+    countdown: initialSeconds,
+    isCountDownFinished: initialSeconds <= 0,
+    isCenterPopup: initialSeconds > 0,
+  };
+  emitChange();
+
+  if (initialSeconds <= 0) return;
+
+  countdownTimer = setInterval(() => {
+    if (storeState.countdown === null || storeState.countdown <= 1) {
+      stopCountdown();
+      storeState = {
+        ...storeState,
+        countdown: 0,
+        isCountDownFinished: true,
         isCenterPopup: false,
       };
-    }
-    const remainingGrace = calculateGraceRemaining(serverData.activated_at, serverData.updated_at);
-    const isLocked = remainingGrace <= 0;
-    return {
-      lifecycleState: isLocked ? 'LOCKED' : 'GRACE_PERIOD',
-      maintenanceData: serverData,
-      isCountDownFinished: isLocked,
-      countdown: isLocked ? null : remainingGrace,
-      isCenterPopup: false,
-    };
-  }
-
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_DATA) || sessionStorage.getItem(STORAGE_KEY_DATA);
-    let initialData: MaintenanceData | null = serverData || null;
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          initialData = parsed;
-        }
-      } catch {}
-    }
-
-    if (!initialData?.is_maintenance) {
-      return {
-        lifecycleState: 'NORMAL',
-        maintenanceData: initialData,
-        isCountDownFinished: false,
-        countdown: null,
-        isCenterPopup: false,
+      emitChange();
+    } else {
+      storeState = {
+        ...storeState,
+        countdown: storeState.countdown - 1,
       };
+      emitChange();
     }
-
-    const remainingGrace = calculateGraceRemaining(initialData.activated_at, initialData.updated_at);
-    const isLocked =
-      remainingGrace <= 0 ||
-      localStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
-      sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true';
-
-    return {
-      lifecycleState: isLocked ? 'LOCKED' : 'GRACE_PERIOD',
-      maintenanceData: initialData,
-      isCountDownFinished: isLocked,
-      countdown: isLocked ? null : remainingGrace,
-      isCenterPopup: false,
-    };
-  } catch {
-    return {
-      lifecycleState: 'NORMAL',
-      maintenanceData: serverData || null,
-      isCountDownFinished: Boolean(serverData?.is_maintenance),
-      countdown: null,
-      isCenterPopup: false,
-    };
-  }
+  }, 1000);
 }
 
-class MaintenanceStore {
-  private state: MaintenanceStoreState = getInitialStoreState();
-  private listeners: Set<() => void> = new Set();
-  private pollInterval: any = null;
-  private countdownInterval: any = null;
-  private centerPopupTimeout: any = null;
-  private initialCheckDone: boolean = false;
-  private wasInMaintenance: boolean = false;
-  private isFetching: boolean = false;
+function applyServerConfig(incoming: MaintenanceData) {
+  const prev = storeState.maintenanceData;
 
-  constructor() {
-    if (typeof window !== 'undefined') {
-      if (this.state.lifecycleState === 'GRACE_PERIOD' && (this.state.countdown ?? 0) > 0) {
-        this.startCountdownTicker();
-      }
-    }
-  }
+  // 1. 維護模式開啟
+  if (incoming.is_maintenance) {
+    const isNewEpoch = !prev || !prev.is_maintenance || (incoming.epoch && incoming.epoch !== prev.epoch);
 
-  public getState(): MaintenanceStoreState {
-    return this.state;
-  }
-
-  public subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-
-    if (this.listeners.size === 1) {
-      this.startPolling();
-    }
-
-    return () => {
-      this.listeners.delete(listener);
-      if (this.listeners.size === 0) {
-        this.stopPolling();
-      }
+    storeState = {
+      ...storeState,
+      maintenanceData: incoming,
+      checkMessage: null,
     };
-  }
 
-  private setState(partial: Partial<MaintenanceStoreState>) {
-    let hasChanged = false;
-    const nextState = { ...this.state };
-
-    for (const key of Object.keys(partial) as (keyof MaintenanceStoreState)[]) {
-      if (key === 'maintenanceData') {
-        if (!isMaintenanceDataEqual(this.state.maintenanceData, partial.maintenanceData ?? null)) {
-          nextState.maintenanceData = partial.maintenanceData ?? null;
-          hasChanged = true;
-        }
-      } else if (nextState[key] !== partial[key]) {
-        (nextState as any)[key] = partial[key];
-        hasChanged = true;
-      }
-    }
-
-    if (hasChanged) {
-      this.state = nextState;
-      this.listeners.forEach((listener) => listener());
-    }
-  }
-
-  public dismissCenterPopup() {
-    if (this.centerPopupTimeout) {
-      clearTimeout(this.centerPopupTimeout);
-      this.centerPopupTimeout = null;
-    }
-    this.setState({ isCenterPopup: false });
-  }
-
-  public seedServerData(serverData: MaintenanceData) {
-    if (serverData.is_maintenance) {
-      this.wasInMaintenance = true;
-      this.initialCheckDone = true;
-
-      const remainingGrace = calculateGraceRemaining(serverData.activated_at, serverData.updated_at);
-      const isLocked = remainingGrace <= 0;
-
-      this.setState({
-        lifecycleState: isLocked ? 'LOCKED' : 'GRACE_PERIOD',
-        maintenanceData: serverData,
-        isCountDownFinished: isLocked,
-        countdown: isLocked ? 0 : remainingGrace,
-        isCenterPopup: false,
-      });
-
-      try {
-        localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(serverData));
-        sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(serverData));
-        if (isLocked) {
-          localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-          sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-        }
-      } catch {}
-
-      if (!isLocked && remainingGrace > 0) {
-        this.startCountdownTicker();
-      }
-    }
-  }
-
-  public async fetchStatus(): Promise<MaintenanceData | null> {
-    if (this.isFetching) return this.state.maintenanceData;
-    this.isFetching = true;
-
-    try {
-      const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
-      if (res.ok) {
-        const json: MaintenanceData = await res.json();
-        this.handleNewData(json);
-        return json;
-      }
-    } catch (e) {
-      console.warn('[Maintenance] Polling error:', e);
-    } finally {
-      this.isFetching = false;
-    }
-    return null;
-  }
-
-  private handleNewData(json: MaintenanceData) {
-    if (json.is_maintenance) {
-      const remainingGrace = calculateGraceRemaining(json.activated_at, json.updated_at);
-      const isNewlyTriggered =
-        !this.wasInMaintenance && !this.state.isCountDownFinished && this.initialCheckDone;
-
-      this.wasInMaintenance = true;
-
-      try {
-        localStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
-        sessionStorage.setItem(STORAGE_KEY_DATA, JSON.stringify(json));
-      } catch {}
+    if (isNewEpoch) {
+      const now = Date.now();
+      const activatedAtMs = incoming.activated_at ? new Date(incoming.activated_at).getTime() : now;
+      const elapsedSeconds = Math.max(0, Math.floor((now - activatedAtMs) / 1000));
+      const remainingGrace = Math.max(0, 30 - elapsedSeconds);
 
       if (remainingGrace > 0) {
-        // 在 30 秒過渡緩衝期內
-        this.startCountdownTicker();
-
-        const shouldShowPopup = isNewlyTriggered;
-        this.setState({
-          lifecycleState: 'GRACE_PERIOD',
-          maintenanceData: json,
-          isCountDownFinished: false,
-          countdown: remainingGrace,
-          isCenterPopup: shouldShowPopup,
-        });
-
-        if (shouldShowPopup) {
-          if (this.centerPopupTimeout) clearTimeout(this.centerPopupTimeout);
-          this.centerPopupTimeout = setTimeout(() => {
-            this.setState({ isCenterPopup: false });
-          }, 3500);
-        }
+        startCountdown(remainingGrace);
       } else {
-        // 緩衝期已過，立即進入鎖定狀態 (0s grace)
-        this.stopCountdownTicker();
-        this.setState({
-          lifecycleState: 'LOCKED',
-          maintenanceData: json,
-          isCountDownFinished: true,
+        stopCountdown();
+        storeState = {
+          ...storeState,
           countdown: 0,
+          isCountDownFinished: true,
           isCenterPopup: false,
-        });
-
-        try {
-          localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-          sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-        } catch {}
+        };
+        emitChange();
       }
     } else {
-      // 伺服端維護已結束 (is_maintenance: false)
-      const wasLockedOrInMaint =
-        this.state.lifecycleState === 'LOCKED' ||
-        this.state.lifecycleState === 'GRACE_PERIOD' ||
-        this.state.isCountDownFinished ||
-        this.wasInMaintenance ||
-        (typeof window !== 'undefined' &&
-          (sessionStorage.getItem(STORAGE_KEY_LOCKED) === 'true' ||
-            localStorage.getItem(STORAGE_KEY_LOCKED) === 'true'));
-
-      this.cleanupStorage();
-      this.stopCountdownTicker();
-      this.wasInMaintenance = false;
-      this.initialCheckDone = true;
-
-      if (wasLockedOrInMaint) {
-        // 檢查此世代是否已執行過重整，防止快取競態死鎖
-        const epochKey = String(json.epoch || Date.now());
-        let alreadyRestored = false;
-        try {
-          if (sessionStorage.getItem(STORAGE_KEY_RESTORED_EPOCH) === epochKey) {
-            alreadyRestored = true;
-          } else {
-            sessionStorage.setItem(STORAGE_KEY_RESTORED_EPOCH, epochKey);
-          }
-        } catch {}
-
-        if (!alreadyRestored) {
-          this.setState({
-            lifecycleState: 'RESTORING',
-            maintenanceData: json,
-            isCountDownFinished: false,
-            countdown: null,
-            isCenterPopup: false,
-          });
-          forceHardReloadToLatestVersion(undefined, { allowAdmin: false });
-          return;
-        }
-      }
-
-      this.setState({
-        lifecycleState: 'NORMAL',
-        maintenanceData: json,
-        isCountDownFinished: false,
-        countdown: null,
-        isCenterPopup: false,
-      });
+      emitChange();
     }
-
-    this.initialCheckDone = true;
+    return;
   }
 
-  private startCountdownTicker() {
-    if (this.countdownInterval) return;
-
-    this.countdownInterval = setInterval(() => {
-      const data = this.state.maintenanceData;
-      if (!data?.is_maintenance) {
-        this.stopCountdownTicker();
-        return;
-      }
-
-      const remainingSecs = calculateGraceRemaining(data.activated_at, data.updated_at);
-      if (remainingSecs <= 0) {
-        this.stopCountdownTicker();
-        this.setState({
-          lifecycleState: 'LOCKED',
-          countdown: 0,
-          isCountDownFinished: true,
-          isCenterPopup: false,
-        });
-        try {
-          sessionStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-          localStorage.setItem(STORAGE_KEY_LOCKED, 'true');
-        } catch {}
-      } else {
-        this.setState({
-          lifecycleState: 'GRACE_PERIOD',
-          countdown: remainingSecs,
-        });
-      }
-    }, 1000);
+  // 2. 維護模式關閉（平滑恢復正常點餐）
+  if (prev && prev.is_maintenance) {
+    stopCountdown();
+    storeState = {
+      ...storeState,
+      maintenanceData: incoming,
+      countdown: null,
+      isCountDownFinished: false,
+      isCenterPopup: false,
+      isMinimized: false,
+      checkMessage: null,
+    };
+    emitChange();
+    return;
   }
 
-  private stopCountdownTicker() {
-    if (this.countdownInterval) {
-      clearInterval(this.countdownInterval);
-      this.countdownInterval = null;
-    }
-  }
-
-  private cleanupStorage() {
-    try {
-      sessionStorage.removeItem(STORAGE_KEY_DEADLINE);
-      sessionStorage.removeItem(STORAGE_KEY_LOCKED);
-      sessionStorage.removeItem(STORAGE_KEY_DATA);
-      localStorage.removeItem(STORAGE_KEY_DEADLINE);
-      localStorage.removeItem(STORAGE_KEY_LOCKED);
-      localStorage.removeItem(STORAGE_KEY_DATA);
-    } catch {}
-  }
-
-  private startPolling() {
-    if (this.pollInterval) return;
-
-    // 立即檢查一次
-    this.fetchStatus();
-
-    // 註冊頁面可見度事件
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', this.onFocusOrVisible);
-      document.addEventListener('visibilitychange', this.onFocusOrVisible);
-    }
-
-    // 平穩輪詢間隔 (2.5 秒)
-    this.pollInterval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      this.fetchStatus();
-    }, 2500);
-  }
-
-  private onFocusOrVisible = () => {
-    if (typeof document !== 'undefined' && !document.hidden) {
-      this.fetchStatus();
-    }
-  };
-
-  private stopPolling() {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
-    }
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('focus', this.onFocusOrVisible);
-      document.removeEventListener('visibilitychange', this.onFocusOrVisible);
-    }
+  // 3. 原本即未開啟維護
+  if (!incoming.is_maintenance) {
+    storeState = {
+      ...storeState,
+      maintenanceData: incoming,
+    };
+    emitChange();
   }
 }
 
-const globalMaintenanceStore = new MaintenanceStore();
-
-// =========================================================================
-// 🪝 供 React 元件使用的訂閱 Hook (Deterministic useMaintenanceStatus)
-// =========================================================================
-
-export function useMaintenanceStatus(currentPathname: string = '/', initialData?: MaintenanceData | null) {
-  useEffect(() => {
-    if (initialData?.is_maintenance && !globalMaintenanceStore.getState().maintenanceData?.is_maintenance) {
-      globalMaintenanceStore.seedServerData(initialData);
+async function fetchMaintenanceStatus() {
+  if (typeof window === 'undefined') return;
+  try {
+    const res = await fetch('/api/system/maintenance', {
+      cache: 'no-store',
+      headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' },
+    });
+    if (res.ok) {
+      const data: MaintenanceData = await res.json();
+      applyServerConfig(data);
     }
+  } catch (err) {
+    console.error('輪詢維護狀態失敗:', err);
+  }
+}
+
+function initGlobalPolling() {
+  if (isInitialized || typeof window === 'undefined') return;
+  isInitialized = true;
+
+  // 初次查詢
+  fetchMaintenanceStatus();
+
+  // 自適應智能輪詢（維護中時 5 秒，正常時 10 秒）
+  pollTimer = setInterval(() => {
+    fetchMaintenanceStatus();
+  }, 8000);
+}
+
+// =========================================================================
+// 🪝 Hook: 前台組件與守衛訂閱
+// =========================================================================
+
+export function useMaintenanceStatus(currentPathname: string, initialData?: MaintenanceData) {
+  useEffect(() => {
+    if (initialData) {
+      applyServerConfig(initialData);
+    }
+    initGlobalPolling();
   }, [initialData]);
 
   const state = useSyncExternalStore(
-    (callback) => globalMaintenanceStore.subscribe(callback),
-    () => globalMaintenanceStore.getState(),
-    () => {
-      const remainingGrace = initialData?.is_maintenance
-        ? calculateGraceRemaining(initialData.activated_at, initialData.updated_at)
-        : 0;
-      const isLocked = Boolean(initialData?.is_maintenance && remainingGrace <= 0);
-      return {
-        lifecycleState: !initialData?.is_maintenance
-          ? 'NORMAL'
-          : isLocked
-          ? 'LOCKED'
-          : 'GRACE_PERIOD',
-        maintenanceData: initialData || null,
-        isCountDownFinished: isLocked,
-        countdown: initialData?.is_maintenance && !isLocked ? remainingGrace : null,
-        isCenterPopup: false,
-      };
-    }
+    (callback) => {
+      listeners.add(callback);
+      return () => listeners.delete(callback);
+    },
+    () => storeState,
+    () => ({
+      maintenanceData: initialData || null,
+      countdown: null,
+      isCountDownFinished: Boolean(initialData?.is_maintenance),
+      isCenterPopup: false,
+      isMinimized: false,
+      checking: false,
+      checkMessage: null,
+    })
   );
 
-  const [checking, setChecking] = useState<boolean>(false);
-  const [checkMessage, setCheckMessage] = useState<string | null>(null);
-  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+  const dismissCenterPopup = useCallback(() => {
+    storeState = {
+      ...storeState,
+      isCenterPopup: false,
+    };
+    emitChange();
+  }, []);
 
-  // 訪客手動檢查狀態按鈕
+  const setIsMinimized = useCallback((minimized: boolean) => {
+    storeState = {
+      ...storeState,
+      isMinimized: minimized,
+    };
+    emitChange();
+  }, []);
+
+  // 互動式手動「檢查維護是否已完成」
   const handleManualCheck = useCallback(async () => {
-    setChecking(true);
-    setCheckMessage(null);
+    storeState = { ...storeState, checking: true, checkMessage: null };
+    emitChange();
+
     try {
-      const data = await globalMaintenanceStore.fetchStatus();
-      if (data) {
-        const isInMaintenance =
-          data.is_maintenance && isRouteInMaintenance(currentPathname, data.scope, data.scopes);
-        if (!isInMaintenance) {
-          setCheckMessage('✅ 該頁面維護已完成！即將自動為您整理並載入最新版本...');
-          setTimeout(() => {
-            forceHardReloadToLatestVersion(currentPathname || '/');
-          }, 800);
-        } else {
-          setCheckMessage('⏳ 系統仍在維護升級中，請稍候再試...');
+      const res = await fetch('/api/system/maintenance', {
+        cache: 'no-store',
+        headers: { Pragma: 'no-cache', 'Cache-Control': 'no-cache' },
+      });
+
+      if (res.ok) {
+        const latest: MaintenanceData = await res.json();
+        applyServerConfig(latest);
+
+        if (!latest.is_maintenance) {
+          // 維護已解除：單次平滑硬重整回最新版本
+          forceHardReloadToLatestVersion();
+          return;
         }
+
+        storeState = {
+          ...storeState,
+          checking: false,
+          checkMessage: '系統仍在進行例行升級中，請稍候片刻再試！',
+        };
+        emitChange();
       } else {
-        setCheckMessage('連線異常，請稍後再試');
+        storeState = {
+          ...storeState,
+          checking: false,
+          checkMessage: '伺服端連線異常，請稍後重試。',
+        };
+        emitChange();
       }
     } catch {
-      setCheckMessage('連線異常，請稍後再試');
-    } finally {
-      setChecking(false);
+      storeState = {
+        ...storeState,
+        checking: false,
+        checkMessage: '網路連線失敗，請檢查網路狀態。',
+      };
+      emitChange();
     }
-  }, [currentPathname]);
-
-  const dismissCenterPopup = useCallback(() => {
-    globalMaintenanceStore.dismissCenterPopup();
   }, []);
 
   return {
-    state: state.lifecycleState,
-    lifecycleState: state.lifecycleState,
     maintenanceData: state.maintenanceData,
-    checking,
-    checkMessage,
+    checking: state.checking,
+    checkMessage: state.checkMessage,
     countdown: state.countdown,
     isCountDownFinished: state.isCountDownFinished,
     isCenterPopup: state.isCenterPopup,
     dismissCenterPopup,
-    isMinimized,
+    isMinimized: state.isMinimized,
     setIsMinimized,
     handleManualCheck,
   };

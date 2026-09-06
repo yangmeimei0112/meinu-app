@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { verifyAdminToken } from '@/lib/auth-util';
-import {
-  MaintenanceScope,
-  VALID_SCOPES,
-  MaintenanceConfig,
-  readMaintenanceConfig,
-  writeMaintenanceConfig,
-} from '@/lib/maintenanceConfig';
+import { MaintenanceScope, VALID_SCOPES, MaintenanceConfig } from '@/lib/maintenanceConfig';
+import { readMaintenanceConfig, writeMaintenanceConfig } from '@/lib/maintenanceServer';
 
 // 供前台訪客快速查詢維護狀態與生效範圍
 export async function GET() {

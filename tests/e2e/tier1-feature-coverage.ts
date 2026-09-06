@@ -1062,10 +1062,15 @@ export function registerTier1Tests() {
       expect(isRouteInMaintenance('/admin/settings', 'all')).toBe(false);
       expect(isRouteInMaintenance('/cart', 'cart')).toBe(true);
       expect(isRouteInMaintenance('/cart/123', 'cart')).toBe(true);
+      expect(isRouteInMaintenance('/stores', 'stores')).toBe(true);
+      expect(isRouteInMaintenance('/stores/s1', 'stores')).toBe(true);
       expect(isRouteInMaintenance('/stores/s1', 'cart')).toBe(false);
       expect(isRouteInMaintenance('/stores/s1', undefined, ['stores', 'checkout'])).toBe(true);
       expect(isRouteInMaintenance('/search', undefined, ['stores', 'checkout'])).toBe(false);
+      expect(isRouteInMaintenance('/my-orders', 'my-orders')).toBe(true);
+      expect(isRouteInMaintenance('/order-status/order-123', 'my-orders')).toBe(true);
       expect(isRouteInMaintenance('/', 'all')).toBe(true);
+      expect(isRouteInMaintenance('', 'all')).toBe(true);
       expect(isRouteInMaintenance('/legal/terms', 'legal')).toBe(true);
 
       // 3. 驗證 30 秒過渡倒數計算模型
